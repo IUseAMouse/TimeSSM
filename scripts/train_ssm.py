@@ -213,8 +213,11 @@ def main(cfg: DictConfig):
     trainer = pl.Trainer(**trainer_kwargs)
 
     logger.info("STARTING TRAINING")
+    # Our own checkpoints carry OmegaConf containers in their hyperparameters
+    # (ListConfig), which torch >= 2.6 refuses under weights_only=True; the
+    # GIFT harness loads them the same way (loading.py, weights_only=False).
     trainer.fit(pl_module, datamodule=datamodule,
-                ckpt_path=cfg.training.get("resume_ckpt", None))
+                ckpt_path=cfg.training.get("resume_ckpt", None), weights_only=False)
     logger.info("TRAINING COMPLETE")
     logger.info(f"Best checkpoint: {trainer.checkpoint_callback.best_model_path}")
 
