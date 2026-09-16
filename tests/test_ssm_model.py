@@ -224,3 +224,21 @@ def test_resume_replaces_stale_revin_batch_statistics():
     fresh.load_state_dict(ckpt["state_dict"], strict=True)
     assert fresh.model.revin.mean.shape == (1,)
     assert torch.equal(fresh.model.blocks[0].ssm.log_dt, m.blocks[0].ssm.log_dt)
+
+
+def test_check_schedule_refuses_a_warmup_longer_than_the_run():
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[1] / "scripts"))
+    from omegaconf import OmegaConf
+    from train_ssm import check_schedule
+    from hydra import initialize_config_dir, compose
+    import os
+    cfg_dir = os.path.abspath(str(_P(__file__).resolve().parents[1] / "configs"))
+    with initialize_config_dir(version_base=None, config_dir=cfg_dir):
+        for name in ("ssm_mini_v3", "ssm_mini_v3_wide", "ssm_mid_v3"):
+            check_schedule(compose(config_name=name))          # every shipped config is sane
+        bad = compose(config_name="ssm_mid_v3", overrides=["training.lr_scheduler.warmup_epochs=0.1"])
+    with pytest.raises(ValueError, match="warmup_epochs"):
+        check_schedule(bad)
+    check_schedule(OmegaConf.create({"training": {"lr_scheduler": {"type": "constant"}}}))

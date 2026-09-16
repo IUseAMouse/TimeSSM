@@ -61,6 +61,13 @@ training:
   delta_scales: [0.020833, 0.03125, 0.041667, 0.0625, 0.083333, 0.125, 0.166667, 0.25, 0.333333, 0.5, 1.0, 2.0, 4.0]
   p_delta_scale: 0.7
   schedule_fraction: 0.06667   # of the batch-48 epoch = 298M windows, see header
+  lr_scheduler:
+    # Warmup is in EPOCH units like schedule_fraction: 0.006667 = 10% of the
+    # run (25.9k optimizer steps), the wide arm's convention. Inherited, the
+    # 2.5M's 0.1 would exceed this 0.06667 run: the whole run in warmup, LR at
+    # 4% of its peak at the 5% checkpoint (measured on the first launch,
+    # 2026-09-16). train_ssm.py refuses a warmup that is not shorter than the run.
+    warmup_epochs: 0.006667
 
 data:
   batch_size: 48

@@ -76,6 +76,22 @@ def build_strategy(cfg: DictConfig):
     return FSDPStrategy(**kwargs)
 
 
+def check_schedule(cfg: DictConfig) -> None:
+    """warmup_epochs and schedule_fraction are both in epoch units: a warmup
+    that is not shorter than the bounded run leaves the cosine no room (the
+    first 10M launch: warmup 0.1 epoch over a 0.06667 run, LR at 4% of its
+    peak at the 5% checkpoint). Refuse before the datamodule is built."""
+    if str(cfg.training.lr_scheduler.type) != "cosine":
+        return
+    run = float(cfg.training.max_epochs) * float(cfg.training.get("schedule_fraction", 1.0))
+    warmup = float(cfg.training.lr_scheduler.warmup_epochs)
+    if warmup >= 0.5 * run:
+        raise ValueError(
+            f"training.lr_scheduler.warmup_epochs={warmup} covers {warmup / run:.0%} of the "
+            f"run (max_epochs x schedule_fraction = {run:.4g} epochs); keep it under 50%, "
+            "10% is the convention (both are in epoch units)")
+
+
 def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
     """TimeJEPA/scripts/train.py datamodule block, finetune branch."""
     aug_root = cfg.get("augmentations") or {}
@@ -158,6 +174,7 @@ def main(cfg: DictConfig):
     logger.info("=" * 80)
     logger.info("\n" + OmegaConf.to_yaml(cfg))
     pl.seed_everything(cfg.data.seed, workers=True)
+    check_schedule(cfg)
 
     datamodule = build_datamodule(cfg)
     datamodule.prepare_data()

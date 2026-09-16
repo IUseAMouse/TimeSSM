@@ -5,6 +5,32 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-16 (LE PREMIER LANCEMENT 10M ÉTAIT ENTIÈREMENT EN WARMUP : `warmup_epochs` 0.1
+  hérité du 2.5M sur un run de 0.06667 époque — relance DE ZÉRO, pas de reprise)** — En
+  cherchant le repère commun aux deux runs, relecture du scheduler : `warmup_steps =
+  warmup_epochs × steps_per_epoch` et `total_steps = schedule_fraction × steps_per_epoch`,
+  les deux en unités d'époque. À 0.1 sur 0.06667, le warmup (388 k pas) dépasse le run
+  (258.7 k) : LR à 4 % de son pic au checkpoint 5 % (1.3e-5), cosinus jamais commencé, T_max
+  négatif. C'est ce que montrait la courbe de train « qui descend plus lentement ». Le
+  checkpoint 2.4551 n'est donc pas repris (son état de scheduler restaurerait le mauvais
+  warmup, et le corriger à la main dans le state_dict est plus risqué que 7 h de GPU).
+  Au passage, fait consigné : le 2.5M classique a eu 33 % de son run en warmup (0.1 époque
+  sur 0.3), le wide 10 % ; le 10M prend 10 % (0.006667, 25.9 k pas), convention du wide.
+  Garde : `check_schedule` dans train_ssm.py refuse un warmup ≥ 50 % du run, test sur les
+  trois configs livrées. Deux trous du chemin de reprise bouchés au passage (weights_only,
+  buffers RevIN [B, 1, 1]) ; la reprise elle-même reste non exercée sur un run réel.
+  **Repère commun entre runs** : même batch effectif 1152 → l'axe est le pas d'optimiseur
+  (`trainer/global_step` dans W&B), 1 pas = 1152 fenêtres, identique dans les deux runs ;
+  la courbe comparable est `val_wql` (pas de tirage de Δ en éval), PAS le train sMAPE (le
+  10M tire 13 facteurs à p 0.7, le 2.5M classique 5 à p 0.5 : mélange plus dur). Ancrages
+  (pas d'optimiseur → fenêtres) : 2.5M classique checkpoint 5 % = 38.8 k pas = 45 M
+  (stack 0.5761), 10 % = 77.6 k (0.5419), 15 % = 116 k (0.5305), 20 % = 155 k (0.5334),
+  25 % = 194 k = 223 M (champion 0.5282), 30 % = 233 k (0.5301) ; 10M checkpoints tous les
+  12.9 k pas, donc le checkpoint 3k du 10M tombe sur le checkpoint k du 2.5M, et sa fin
+  (258.7 k pas, 298 M) sur le 2.5M à 33 % de son run, en plein plateau 0.528-0.533. À LR
+  égal ce n'est pas garanti (cosinus de 776 k pas contre 258.7 k), donc le verdict reste
+  P-SSM.4 au dernier checkpoint, les ancrages servent à lire la courbe en cours.
+
 - **2026-09-15 (RUN 10M MORT UNE DEUXIÈME FOIS À 10 h, pas 111k / 1 552 000 : vrai OOM cette
   fois, 22.83 Gio alloués, 133 Mio réservés inutilisés — reprise du checkpoint 5 % à batch 48 ×
   acc 8)** — Les segments extensibles ont tenu leur rôle (plus de fragmentation), le pic

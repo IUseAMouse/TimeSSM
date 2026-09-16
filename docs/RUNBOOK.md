@@ -86,7 +86,8 @@ scripts/preflight.sh                      # CONFIG=ssm_mid_v3 par défaut (DEVIC
 python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3 2>&1 | tee logs/train_ssm_mid.log
 # défaut = pod 3x3090 (batch 48 x acc 8, batch 64 a fait OOM à 22.8 Gio en run réel) ; pod 8 GPU : data.batch_size=48 trainer.accumulate_grad_batches=3 data.num_workers=2
 # budget en FENÊTRES : l'époque du sampler dépend du batch (voir l'en-tête de la config) ; schedule_fraction 0.06667 à batch 48 x 3 GPU = 298M fenêtres
-# reprise après plantage (boucle, optimiseur, scheduler restaurés) :
+# warmup_epochs et schedule_fraction sont en unités d'ÉPOQUE : warmup = 10 % du run (train_ssm.py refuse >= 50 %)
+# reprise après plantage (boucle, optimiseur, scheduler restaurés ; jamais exercée sur un run réel, l'état du scheduler restauré est celui de la config d'origine) :
 #   python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3-r1 +training.resume_ckpt=checkpoints/timessm_mid_v3_zs/pretrain_False/epoch00_valloss2.4551.ckpt 2>&1 | tee -a logs/train_ssm_mid.log
 # l'allocateur tourne en expandable_segments (train_ssm.py) : un OOM à 18 Gio alloués + 4.6 Gio réservés était de la fragmentation
 # 3. évals sur un GPU pendant le run
