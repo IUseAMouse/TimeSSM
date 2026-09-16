@@ -5,6 +5,29 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-15 (RUN 10M MORT UNE DEUXIÈME FOIS À 10 h, pas 111k / 1 552 000 : vrai OOM cette
+  fois, 22.83 Gio alloués, 133 Mio réservés inutilisés — reprise du checkpoint 5 % à batch 48 ×
+  acc 8)** — Les segments extensibles ont tenu leur rôle (plus de fragmentation), le pic
+  d'activations dépasse simplement la carte : 22.8 Gio en entraînement réel contre 19.6 au
+  profil à contexte 1024 fixe. Les 3 Gio d'écart ne sont pas attribués avec certitude
+  (espaces de travail cuFFT des transformées batchées de tailles variables, buckets DDP,
+  résidus de la boucle de validation) ; le profil mesure le modèle nu hors module et hors
+  DDP, il sous-estime le pic réel, à noter pour le 100M. Décision : batch 48 × accumulation
+  8 × 3 GPU = 1152 (inchangé), débit identique (129 contre 134 fenêtres/s, régime
+  mémoire-bound), ~6 Gio de marge au lieu de 4. Fraction recalculée depuis les fenêtres :
+  l'époque du sampler reste 31.04 M batches (la plus grande famille garde 1 fenêtre par
+  batch), donc 298 M fenêtres = 2.07 M batches = 0.06667 ; l'optimiseur voit les mêmes
+  258.7 k pas (2.07 M / 8 = 1.55 M / 6), le cosinus est le même. Reprise depuis
+  `epoch00_valloss2.4551.ckpt` (pas 12 933 = 5 % du run, val_loss 2.4551, val_wql 0.428,
+  écrit à 7 h de run) : Lightning restaure la boucle, l'optimiseur et le scheduler ; les
+  5 premiers % ont vu des batches de 64 × 6, la suite 48 × 8, même batch effectif et même
+  nombre de pas — équivalent au niveau de l'optimiseur, le mélange de familles diffère
+  marginalement par l'arrondi de floor(p × batch). Consigné, pas une variable. Coût des
+  deux plantages : ~15 h de GPU. Premier signal du 10M : à 5 % du run, val_wql 0.428 ; le
+  2.5M classique à 5 % de SON run (1.5 % d'époque, 45 M fenêtres) était à 0.5761 en stack —
+  pas comparable directement (val interne vs GIFT), le premier checkpoint s'évalue au
+  harnais quand un GPU se libère, pas pendant le run.
+
 - **2026-09-15 (RUN 10M MORT À 4 h 45 : OOM de fragmentation au pas 52.7k ; et la fraction
   0.1 valait 596 M fenêtres, pas 298 M — relance à 0.05 avec allocateur extensible)** —
   Trace : `torch.fft.irfft` demande 466 Mio, 18.16 Gio alloués + **4.57 Gio réservés mais

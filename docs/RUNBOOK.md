@@ -84,8 +84,10 @@ tar -C /workspace/TimeJEPA/data/processed -chf - lotsa_v3 | ssh <pod> 'tar -C /w
 scripts/preflight.sh                      # CONFIG=ssm_mid_v3 par défaut (DEVICES=3 sur le pod 3090)
 # 2. le run (P-SSM.4 gravée dans la config)
 python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3 2>&1 | tee logs/train_ssm_mid.log
-# défaut = pod 3x3090 (batch 64 x acc 6) ; pod 8 GPU : data.batch_size=48 trainer.accumulate_grad_batches=3 data.num_workers=2
-# budget en FENÊTRES : l'époque du sampler dépend du batch (voir l'en-tête de la config) ; schedule_fraction 0.05 à batch 64 = 298M fenêtres
+# défaut = pod 3x3090 (batch 48 x acc 8, batch 64 a fait OOM à 22.8 Gio en run réel) ; pod 8 GPU : data.batch_size=48 trainer.accumulate_grad_batches=3 data.num_workers=2
+# budget en FENÊTRES : l'époque du sampler dépend du batch (voir l'en-tête de la config) ; schedule_fraction 0.06667 à batch 48 x 3 GPU = 298M fenêtres
+# reprise après plantage (boucle, optimiseur, scheduler restaurés) :
+#   python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3-r1 +training.resume_ckpt=checkpoints/timessm_mid_v3_zs/pretrain_False/epoch00_valloss2.4551.ckpt 2>&1 | tee -a logs/train_ssm_mid.log
 # l'allocateur tourne en expandable_segments (train_ssm.py) : un OOM à 18 Gio alloués + 4.6 Gio réservés était de la fragmentation
 # 3. évals sur un GPU pendant le run
 STACK="+tta_flip=true +ratein=mix +ratein_pool=true" EVAL_CONFIG=ssm_mid_v3_eval scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mid_v3_zs/pretrain_False +gift_batch_size=32
