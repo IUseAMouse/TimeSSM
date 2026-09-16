@@ -203,3 +203,24 @@ def test_strategy_builder_fsdp():
     assert st.kwargs["auto_wrap_policy"]._module_classes == {GatedSSMBlock}
     assert str(st.sharding_strategy).endswith("FULL_SHARD")
     assert st._activation_checkpointing_kwargs["auto_wrap_policy"]._module_classes == {GatedSSMBlock}
+
+
+def test_resume_replaces_stale_revin_batch_statistics():
+    """A checkpoint saved after a forward carries RevIN's [B, 1, 1] statistics;
+    the resume hook restores the fresh shapes so a strict load succeeds and
+    every other tensor is loaded unchanged."""
+    m = _small()
+    mod = SSMFinetuneModule(m, finetune_mode="full_finetune", lr_scheduler="constant")
+    with torch.no_grad():
+        m.forecast(_ctx(B=5), n=8)                      # revin.mean is now [5, 1, 1]
+    assert m.revin.mean.shape == (5, 1, 1)
+    ckpt = {"state_dict": {k: v.clone() for k, v in mod.state_dict().items()}}
+    fresh = SSMFinetuneModule(_small(), finetune_mode="full_finetune", lr_scheduler="constant")
+    with torch.no_grad():
+        fresh.model.blocks[0].ssm.log_dt.add_(1.0)      # differs before the load
+    with pytest.raises(RuntimeError):
+        fresh.load_state_dict(ckpt["state_dict"], strict=True)
+    fresh.on_load_checkpoint(ckpt)
+    fresh.load_state_dict(ckpt["state_dict"], strict=True)
+    assert fresh.model.revin.mean.shape == (1,)
+    assert torch.equal(fresh.model.blocks[0].ssm.log_dt, m.blocks[0].ssm.log_dt)

@@ -49,6 +49,19 @@ class SSMFinetuneModule(FinetuneModule):
         self._last_delta_scale = float(w.float().mean()) if w is not None else 1.0
         return super()._forward_and_loss(context, target, w=w, target_mask=target_mask)
 
+    def on_load_checkpoint(self, checkpoint) -> None:
+        """RevIN keeps the LAST batch's statistics in its `mean` / `std` buffers
+        ([B, 1, 1] at save time, [1] in a fresh module), so a strict resume
+        fails on a shape mismatch (10M run, 2026-09-16). They are per-forward
+        quantities, recomputed from every context: the GIFT loader drops them
+        (loading.py) and the resume replaces them with the fresh buffers."""
+        sd = checkpoint.get("state_dict", {})
+        own = self.state_dict()
+        for key in list(sd):
+            if key in own and key.endswith((".mean", ".std")) and ".revin." in key \
+                    and sd[key].shape != own[key].shape:
+                sd[key] = own[key].clone()
+
     def training_step(self, batch, batch_idx):
         loss = super().training_step(batch, batch_idx)
         self.log("aug/delta_scale", self._last_delta_scale, on_step=True,
