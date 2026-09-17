@@ -44,5 +44,15 @@ out = m.forecast(50 + torch.randn(2, 1024, 1, device="cuda"), n=256)
 assert torch.isfinite(out["quantiles_denorm"]).all()
 print("   reload + forecast OK:", tuple(out["quantiles_denorm"].shape))
 PY
+echo "== 5. resume smoke: the same run continued from its checkpoint on $DEVICES GPU (loop, optimizer, scheduler restored)"
+WANDB_MODE=offline python scripts/train_ssm.py --config-name "$CONFIG" \
+  trainer.devices="$DEVICES" trainer.limit_train_batches=135 trainer.limit_val_batches=4 \
+  trainer.val_check_interval=45 training.schedule_fraction=1.0 data.checkpoint_dir="$S/ckpt" \
+  data.output_dir="$S/lightning" wandb.run_name=preflight-resume \
+  +training.resume_ckpt="$CK" 2>&1 | tee "$S/resume.log" | tail -3
+grep -q "TRAINING COMPLETE" "$S/resume.log" || { echo "resume smoke FAILED (see $S/resume.log)"; exit 2; }
+N_CK=$(ls "$S"/ckpt/*/pretrain_False/epoch00_valloss*.ckpt | wc -l)
+[ "$N_CK" -ge 2 ] || { echo "resume smoke: expected a second validation checkpoint after the resume, found $N_CK"; exit 2; }
+echo "   resume OK: $N_CK validation checkpoints, run continued past the restored batch"
 rm -rf "$S"
-echo "== preflight OK - launch the real run"
+echo "== preflight OK - launch the real run (scripts/train_ssm_loop.sh keeps it alive across crashes)"

@@ -199,6 +199,18 @@ def main(cfg: DictConfig):
         auto_insert_metric_name=bool(cfg.checkpoint.get("auto_insert_metric_name", False)),
         verbose=True,
     )]
+    # Autosave on wall-clock time, independent of the validation cadence: the
+    # 10M run died three times between two 5%-of-run checkpoints (7 h apart).
+    # A single file, overwritten, named last-autosave.ckpt so the evaluation
+    # scripts skip it (last*.ckpt); scripts/train_ssm_loop.sh resumes from it.
+    autosave_min = float(cfg.checkpoint.get("autosave_minutes", 60))
+    if autosave_min > 0:
+        from datetime import timedelta
+        callbacks.append(ModelCheckpoint(
+            dirpath=checkpoint_dir, filename="last-autosave", save_top_k=1, monitor=None,
+            train_time_interval=timedelta(minutes=autosave_min), save_on_train_epoch_end=False,
+            enable_version_counter=False, verbose=False,
+        ))
     if cfg.early_stopping.enabled:
         callbacks.append(EarlyStopping(
             monitor=cfg.early_stopping.monitor, patience=cfg.early_stopping.patience,
