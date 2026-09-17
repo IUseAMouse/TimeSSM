@@ -5,6 +5,30 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-17 (troisième plantage du 10M à 07:36, 41 min après le checkpoint 5 % `3.1195`
+  (val_wql 0.399) ; cause non vue (trace tronquée) ; reprise r1 validée par la continuité du
+  LR ; LE CHAMPION 2.5M A ÉTÉ PRIS PENDANT SON WARMUP)** — Reprise depuis 3.1195 avec
+  `data.seed=421` : dans W&B, `lr-AdamW` du run r1 repart au pas 12 933 exactement au niveau
+  de la rampe interrompue et continue jusqu'au pic 3e-4 au pas 25 900. Le point d'inflexion
+  de `train_smape` vers 25 k est le pic du LR, pas la reprise. Lecture des courbes à pas
+  égal : le 10M descend plus vite et plus bas parce que son warmup dure 26 k pas contre
+  258 k pour le 2.5M (au pas 30 k : LR 3e-4 contre 3.5e-5), le schedule domine, pas la
+  capacité ; sa bande de sMAPE plus étroite (moins de batches catastrophiques) est le seul
+  indice qui puisse relever de la capacité. **Constat rétroactif** : `warmup_epochs` 0.1 sur
+  un run de 0.3 époque = 33 % du run en warmup ; le champion 2.5M classique (25 % du run,
+  pas 194 k) a été pris LR en montée à 2.3e-4, et le « plateau » 0.528-0.533 de 25 à 55 %
+  couvre le pic et le début du cosinus, jamais un régime annealé. Le seul anneal du 2.5M
+  est le bras wide (1e-4 → 1e-6 sur 77.6 k pas), là où il a gagné ses 0.25 pt de stack
+  (0.5282 → 0.5257). Le 10M aura un cosinus complet jusqu'à 1e-6 : deuxième variable entre
+  2.5M et 10M (avec la recette wide dès le départ), à tenir dans la lecture de P-SSM.4.
+  Désaccord de métriques sur le checkpoint 5 % : val_loss 3.12 (lancement en warmup au même
+  pas : 2.46) mais val_wql 0.399 (contre 0.428) ; le WQL est la grandeur proche du CRPS de
+  GIFT, le harnais tranche. Outillage livré après le troisième plantage : autosave horaire
+  `last-autosave.ckpt`, `scripts/train_ssm_loop.sh` (reprise automatique, seed incrémentée,
+  journal des tentatives), étape 5 du preflight qui exerce une vraie reprise. Estimation
+  gravée avant la fin du run : stack au dernier checkpoint 0.512, bande 0.505-0.520, nu
+  0.52-0.53 ; FlowState 9M (0.4866 nu, fréquence en entrée) hors de portée du 10M.
+
 - **2026-09-16 (LE PREMIER LANCEMENT 10M ÉTAIT ENTIÈREMENT EN WARMUP : `warmup_epochs` 0.1
   hérité du 2.5M sur un run de 0.06667 époque — relance DE ZÉRO, pas de reprise)** — En
   cherchant le repère commun aux deux runs, relecture du scheduler : `warmup_steps =
