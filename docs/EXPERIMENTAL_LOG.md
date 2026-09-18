@@ -5,6 +5,36 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-18 (CAUSE DES PLANTAGES TROUVÉE : le batch réalisé n'est pas `data.batch_size` ;
+  batch 48 et batch 64 étaient LE MÊME RUN ; pics déterministes du sampler rationné)** —
+  Quatrième mort du 10M, et le motif : les trois derniers processus meurent à leur 111 111e
+  batch exactement (111111/1552000 à batch 64 seed 420 ; 111111/2069436 à batch 48 seed 420 ;
+  214582 − 103471 = 111111 à batch 48 seed 421), à 10 h 04 chaque fois, OOM simultané sur
+  les trois GPU à 22.83 Gio. Ni fuite (la marge supposée différait), ni contenu (seed
+  changé). Mécanisme, lu dans `TemperatureSampler` : 106 familles, `samples_per_dataset`
+  plancher à 1 par famille, donc dès que `batch_size` < 106 le batch nominal vaut 106 quel
+  que soit `batch_size`, et la boucle de retrait ne peut pas descendre sous 1. La taille
+  RÉALISÉE vient alors des seuls quotas fractionnaires du rationnement (max_samples /
+  num_batches, accumulés), qui tirent ensemble à des indices de batch déterministes,
+  indépendants du seed et de `batch_size`. Vérifié sur corpus factice (106 familles) :
+  batch_size 48 et 64 donnent des itérations identiques batch pour batch, moyenne réalisée
+  22, pic à 49 au même indice ; à batch_size 128 la moyenne réalisée est 59, pas 128.
+  **Erreurs de ma part à corriger** : « batch 48 laisse 6 Gio de marge » était faux (même
+  sampler, même mémoire) ; le « batch effectif 1152 » et les budgets en fenêtres du
+  registre (298 M, et ceux du 2.5M à batch 128) sont calculés sur le batch NOMINAL et sont
+  donc faux ; les vrais chiffres attendent l'audit sur le corpus réel
+  (`scripts/audit_batch_sizes.py`, rejoue l'arithmétique du sampler sans lire de données,
+  validé batch pour batch contre le vrai itérateur). Seule différence réelle entre les
+  lancements : l'accumulation (6 puis 8), donc le batch effectif a changé de 33 % entre
+  eux. **Correctif** (TimeJEPA, opt-in, itération bit-identique sans l'option) :
+  `max_batch_size` dans le sampler — au-delà du plafond les familles au plus petit arriéré
+  sont REPORTÉES au batch suivant, allocation conservée : même exposition, mémoire bornée ;
+  tests (identité, borne, aucun affamement par famille, arriéré borné). `data.max_batch_size`
+  branché dans train_ssm.py ; la VALEUR n'est pas fixée à l'aveugle : au-dessus de la
+  moyenne réalisée (sinon l'arriéré diverge), sous ce que la carte encaisse (64 fenêtres à
+  contexte 1024 = 19.6 Gio au profil). En attendant, la boucle de relance + autosave
+  horaire borne la perte à 1 h sur 10.
+
 - **2026-09-17 (troisième plantage du 10M à 07:36, 41 min après le checkpoint 5 % `3.1195`
   (val_wql 0.399) ; cause non vue (trace tronquée) ; reprise r1 validée par la continuité du
   LR ; LE CHAMPION 2.5M A ÉTÉ PRIS PENDANT SON WARMUP)** — Reprise depuis 3.1195 avec

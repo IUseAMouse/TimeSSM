@@ -112,6 +112,7 @@ def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
         sampling_temperature=cfg.data.sampling_temperature,
         max_oversample_ratio=cfg.data.max_oversample_ratio,
         ration_oversample=bool(cfg.data.get("ration_oversample", False)),
+        max_batch_size=cfg.data.get("max_batch_size"),
         batch_size=cfg.data.batch_size,
         stride=cfg.data.stride,
         normalize_mode=cfg.data.normalize_mode,
