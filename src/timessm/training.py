@@ -68,4 +68,14 @@ class SSMFinetuneModule(FinetuneModule):
                  on_epoch=False, logger=True)
         self.log("aug/delta_neq1_frac", float(self._last_delta_scale != 1.0),
                  on_step=True, on_epoch=True, logger=True)
+        # Memory witness (2026-09-18): three processes died at their 111,111th
+        # batch whatever the batch size and the seed. Peak since the last
+        # reading, so a climb and a single-batch jump look different in W&B.
+        if torch.cuda.is_available() and batch_idx % 200 == 0:
+            dev = self.device
+            self.log("mem/peak_allocated_gib", torch.cuda.max_memory_allocated(dev) / 2**30,
+                     on_step=True, on_epoch=False, logger=True)
+            self.log("mem/reserved_gib", torch.cuda.memory_reserved(dev) / 2**30,
+                     on_step=True, on_epoch=False, logger=True)
+            torch.cuda.reset_peak_memory_stats(dev)
         return loss
