@@ -5,6 +5,23 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-20 (10M CHECKPOINT 8, 40 % DU RUN, MI-COSINUS, MÉLANGE DÉGRADÉ : stack 0.7790 /
+  0.5239 / couv. 0.713 sur 97 — prédiction 0.530 ± 0.005 BATTUE, sous le seuil 0.525 : ON
+  LAISSE FINIR)** — Stack flip + mix + pool, `ssm_mid_v3_eval`, gift_batch_size 48 : MASE
+  0.7790, CRPS 0.5239, q10 0.141 / q90 0.854, 51/97 configs majoritairement décimées
+  (52.6 % d'instances à k > 1, en hausse régulière : 46 → 50 → 53 % du 2.5M au 10M).
+  Lecture : à pas égal (103 k), 1.1 pt de CRPS sous le 2.5M classique (~0.535 interpolé) ;
+  déjà dans la bande du champion 2.5M wide (0.524-0.526) et au niveau de Toto-2.0-4m
+  (0.5242), avec 60 % du run et tout l'anneal devant lui, et sur le mélange « 1 par grosse
+  famille » du sampler entier. La capacité paie donc malgré le mélange. Réserve : le MASE
+  (0.7790) est MOINS bon que le 2.5M wide (0.767-0.769) alors que le CRPS est meilleur — le
+  10M gagne sur le fan, pas sur la médiane, à surveiller au dernier checkpoint (si l'écart
+  MASE persiste, c'est un fait à publier, pas à lisser). Décision : pas de relance sur le
+  sampler fractionnaire pour ce run ; reprise depuis le checkpoint 8, seed 430, même
+  fraction. Estimation révisée pour la fin du run (anneal complet à 1e-6) : stack
+  0.512-0.518 ; P-SSM.4 (≤ 0.515) reste ouverte, plausible. Le sampler fractionnaire
+  devient le défaut du PROCHAIN run (100M ou reprise 10M), pas de celui-ci.
+
 - **2026-09-20 (10M à 40 % du run, sampler entier conservé — l'utilisateur garde le run en
   cours ; ÉVAL INTERMÉDIAIRE GIFT du checkpoint 8 `3.0745` (pas 103 471), prédiction gravée)**
   — Checkpoints val_loss 3.1030 → 3.0745 de 15 à 40 % du run, monotone. Décision utilisateur :
