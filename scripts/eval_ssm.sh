@@ -18,6 +18,10 @@ if [ $# -lt 1 ]; then
 fi
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 TIMEJEPA=${TIMEJEPA:-"$HERE/../TimeJEPA"}
+# timessm is imported by TimeJEPA's harness through model.builder: make it
+# importable from ANY environment (the timejepa venv has no timessm package;
+# ModuleNotFoundError on the pod, 2026-09-20).
+export PYTHONPATH="$HERE/src${PYTHONPATH:+:$PYTHONPATH}"
 CK="$1"; shift
 PYTHONUNBUFFERED=1 python "$TIMEJEPA/scripts/evaluate_gift.py" \
   --config-path "$HERE/configs" --config-name "${EVAL_CONFIG:-ssm_mini_v3_eval}" \
