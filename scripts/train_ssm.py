@@ -83,7 +83,16 @@ def check_schedule(cfg: DictConfig) -> None:
     peak at the 5% checkpoint). Refuse before the datamodule is built."""
     if str(cfg.training.lr_scheduler.type) != "cosine":
         return
-    run = float(cfg.training.max_epochs) * float(cfg.training.get("schedule_fraction", 1.0))
+    from omegaconf import MissingMandatoryValue
+    try:
+        frac = float(cfg.training.get("schedule_fraction", 1.0))
+    except MissingMandatoryValue:
+        raise ValueError(
+            "training.schedule_fraction is left MISSING in this config on purpose: the "
+            "epoch length depends on the realized batch. Run scripts/audit_batch_sizes.py "
+            "(it prints the fraction for the windows budget) and pass "
+            "training.schedule_fraction=<value>.") from None
+    run = float(cfg.training.max_epochs) * frac
     warmup = float(cfg.training.lr_scheduler.warmup_epochs)
     if warmup >= 0.5 * run:
         raise ValueError(
@@ -113,6 +122,7 @@ def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
         max_oversample_ratio=cfg.data.max_oversample_ratio,
         ration_oversample=bool(cfg.data.get("ration_oversample", False)),
         max_batch_size=cfg.data.get("max_batch_size"),
+        fractional_batch=bool(cfg.data.get("fractional_batch", False)),
         batch_size=cfg.data.batch_size,
         stride=cfg.data.stride,
         normalize_mode=cfg.data.normalize_mode,

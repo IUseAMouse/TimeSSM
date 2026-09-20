@@ -5,6 +5,37 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-20 (LES MÉTRIQUES DE VALIDATION DU 10M NE SONT PAS COMPARABLES À CELLES DU 2.5M :
+  jeu de validation différent par construction ; et le mélange d'entraînement du 10M n'était
+  pas celui du 2.5M — sampler fractionnaire livré, RELANCE RECOMMANDÉE)** — Courbes W&B à pas
+  égal : val_loss 3.05 contre 1.3, val_mse 9000 contre 3600, val_mae 3.2 contre 1.4, val_wql
+  0.348 contre 0.29-0.325. Un facteur 2 sur la MSE dénormalisée ne vient pas du modèle (le
+  val_wql descend normalement : 0.399 → 0.377 → 0.348). Cause, lue dans le sampler de
+  validation (T = 1, sans suréchantillonnage, non rationné, 300 batches) : l'allocation
+  entière floor(p_i × batch) puis plancher 1 donne, à batch 48 < 106 familles, exactement 1
+  fenêtre par famille et par batch — validation UNIFORME sur les familles (dominée par les
+  petites familles courtes, synthétiques, à forte échelle) — là où le 2.5M à batch 128
+  validait sur un mélange à peu près proportionnel (dominé par electricity, traffic…).
+  Deux jeux différents, aucune inquiétude à tirer de ces courbes ; seul GIFT compare. Même
+  mécanisme côté train, plus grave : à batch nominal 106 toutes les familles ont n_i = 1,
+  la température 0.5 disparaît, les grosses familles sont plafonnées à 1 par batch et le
+  reste suit les quotas (proportionnel) — le 10M ne s'entraîne PAS sur le mélange du 2.5M.
+  Troisième variable entre les deux runs (capacité, schedule, mélange). **Correctif**
+  (TimeJEPA `96d0bf2`, opt-in, bit-identique sans l'option) : `fractional_batch` — part
+  p_i × batch conservée en flottant et réalisée par accumulation (arriéré borné à une part
+  + 1), plan d'époque sur la part flottante. Tests : mélange conforme à la température à
+  batch 48 comme à 128 (train, T 0.5, rationné), validation proportionnelle et
+  indépendante du batch (T 1), plafond à batch_size respecté. Config `ssm_mid_v3` :
+  `fractional_batch: true`, `max_batch_size: 48` (le pic mémoire est celui de 48 fenêtres),
+  `schedule_fraction` laissé MANQUANT exprès (train_ssm refuse de lancer) : la longueur
+  d'époque dépend du batch réalisé, `scripts/audit_batch_sizes.py` l'imprime pour 298 M
+  fenêtres. **Décision proposée** : relancer de zéro avec le sampler corrigé (le run
+  courant, ~15 % fait, s'entraîne sur un autre mélange que le 2.5M et plante toutes les
+  10 h) ; coût ~1 jour, gain : un point de scaling lisible et un run qui va au bout.
+  Chiffres du registre à corriger quand l'audit aura tourné : « batch effectif 1152 »,
+  « 298 M fenêtres = 0.06667 », et les budgets en fenêtres du 2.5M (batch nominal 128,
+  réalisé inférieur ; sur le corpus factice 59).
+
 - **2026-09-18 (CAUSE DES PLANTAGES TROUVÉE : le batch réalisé n'est pas `data.batch_size` ;
   batch 48 et batch 64 étaient LE MÊME RUN ; pics déterministes du sampler rationné)** —
   Quatrième mort du 10M, et le motif : les trois derniers processus meurent à leur 111 111e

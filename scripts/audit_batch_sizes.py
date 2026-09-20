@@ -79,7 +79,9 @@ def main():
         temperature=float(cfg.data.sampling_temperature),
         max_oversample_ratio=float(cfg.data.max_oversample_ratio),
         seed=int(cfg.data.seed), rank=0, world_size=args.world_size,
-        ration_oversample=bool(cfg.data.get("ration_oversample", False)))
+        ration_oversample=bool(cfg.data.get("ration_oversample", False)),
+        max_batch_size=cfg.data.get("max_batch_size") if cfg.data.get("fractional_batch") else args.cap,
+        fractional_batch=bool(cfg.data.get("fractional_batch", False)))
     print(f"families {s.num_datasets} | data.batch_size {cfg.data.batch_size} | nominal "
           f"sum(samples_per_dataset) = {s.actual_batch_size} | batches per rank {len(s):,}")
     print(f"families clamped at 1 sample/batch: {sum(1 for v in s.samples_per_dataset if v == 1)}")
@@ -87,8 +89,13 @@ def main():
         print("ration_oversample is off: the batch is the nominal one until families die out")
         return
     n = min(args.batches, len(s))
-    out, backlog = replay(s.dataset_sizes, s.samples_per_dataset, s.max_oversample_ratio,
-                          len(s), n, cap=args.cap)
+    if s.fractional_batch:
+        # The fractional path is iterated for real (sizes only are kept).
+        out = np.fromiter((len(b) for _, b in zip(range(n), iter(s))), dtype=np.int64, count=n)
+        backlog = np.zeros(1)
+    else:
+        out, backlog = replay(s.dataset_sizes, s.samples_per_dataset, s.max_oversample_ratio,
+                              len(s), n, cap=args.cap)
     q = np.percentile(out, [1, 50, 99, 99.99])
     print(f"first {n:,} batches{' (cap ' + str(args.cap) + ')' if args.cap else ''}: mean "
           f"{out.mean():.2f} | p1 {q[0]:.0f} p50 {q[1]:.0f} p99 {q[2]:.0f} p99.99 {q[3]:.0f} | "
@@ -100,6 +107,9 @@ def main():
         print("around 111,111:", out[lo:111_115].tolist())
     print(f"windows in these batches: {int(out.sum()):,} per rank "
           f"({out.sum() * args.world_size / 1e6:.1f} M on {args.world_size} ranks)")
+    per_epoch = out.mean() * len(s) * args.world_size
+    print(f"epoch at this composition: {per_epoch / 1e9:.2f} B windows -> "
+          f"schedule_fraction for 298M windows = {298e6 / per_epoch:.5f}")
     if args.cap:
         print(f"backlog left after {n:,} capped batches: {backlog.sum():.1f} samples "
               "(bounded = the cap defers, it does not starve)")
