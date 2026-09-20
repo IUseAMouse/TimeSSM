@@ -61,10 +61,11 @@ model:
 training:
   delta_scales: [0.020833, 0.03125, 0.041667, 0.0625, 0.083333, 0.125, 0.166667, 0.25, 0.333333, 0.5, 1.0, 2.0, 4.0]
   p_delta_scale: 0.7
-  # MISSING on purpose: the epoch length depends on the realized batch, which
+  # null on purpose (a `???` would not override the parent's 0.3 through the
+  # defaults merge): the epoch length depends on the realized batch, which
   # depends on the corpus. scripts/audit_batch_sizes.py prints the fraction
   # for 298M windows; pass it: training.schedule_fraction=<value>.
-  schedule_fraction: ???
+  schedule_fraction: null
   lr_scheduler:
     # Warmup is in EPOCH units like schedule_fraction: 0.006667 = 10% of the
     # run (25.9k optimizer steps), the wide arm's convention. Inherited, the

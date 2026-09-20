@@ -83,15 +83,16 @@ def check_schedule(cfg: DictConfig) -> None:
     peak at the 5% checkpoint). Refuse before the datamodule is built."""
     if str(cfg.training.lr_scheduler.type) != "cosine":
         return
-    from omegaconf import MissingMandatoryValue
-    try:
-        frac = float(cfg.training.get("schedule_fraction", 1.0))
-    except MissingMandatoryValue:
+    # The config leaves it null (a `???` would not override the parent's value
+    # through the defaults merge, and `.get(key, default)` would hide it).
+    if OmegaConf.is_missing(cfg.training, "schedule_fraction") \
+            or cfg.training.get("schedule_fraction", 1.0) is None:
         raise ValueError(
             "training.schedule_fraction is left MISSING in this config on purpose: the "
             "epoch length depends on the realized batch. Run scripts/audit_batch_sizes.py "
             "(it prints the fraction for the windows budget) and pass "
-            "training.schedule_fraction=<value>.") from None
+            "training.schedule_fraction=<value>.")
+    frac = float(cfg.training.get("schedule_fraction", 1.0))
     run = float(cfg.training.max_epochs) * frac
     warmup = float(cfg.training.lr_scheduler.warmup_epochs)
     if warmup >= 0.5 * run:
