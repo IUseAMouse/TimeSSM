@@ -9,6 +9,7 @@
 #   STACK="+ratein=delta +ratein_pool=true" scripts/eval_checkpoints_ssm.sh <dir>   # the knob
 #   STACK="+ratein=backtest +ratein_pool=true" scripts/eval_checkpoints_ssm.sh <dir>
 #   scripts/eval_checkpoints_ssm.sh <dir> +gift_batch_size=8                       # while a run holds the GPUs
+#   ONLY="epoch00_valloss3.0745" scripts/eval_checkpoints_ssm.sh <dir>            # one checkpoint (stem glob)
 #
 # Checkpoints are taken in creation order (oldest first), last.ckpt excluded.
 # evaluate_gift caches per checkpoint stem and per flag set, so re-running
@@ -34,7 +35,7 @@ mkdir -p "$HERE/logs"
 DIGEST="$HERE/logs/eval_${RUN}${TAG}.log"
 echo "== $(date '+%F %T') run=$RUN flags: ${STACK_ARR[*]} ${EXTRA[*]:-}" | tee -a "$DIGEST"
 
-mapfile -t CKPTS < <(ls -tr "$DIR"/*.ckpt 2>/dev/null | grep -v '/last[^/]*\.ckpt$')
+mapfile -t CKPTS < <(ls -tr "$DIR"/${ONLY:-*}.ckpt 2>/dev/null | grep -v '/last[^/]*\.ckpt$')
 if [ ${#CKPTS[@]} -eq 0 ]; then
   echo "no checkpoint in $DIR" | tee -a "$DIGEST"; exit 1
 fi

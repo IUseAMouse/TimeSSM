@@ -5,6 +5,21 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-20 (10M à 40 % du run, sampler entier conservé — l'utilisateur garde le run en
+  cours ; ÉVAL INTERMÉDIAIRE GIFT du checkpoint 8 `3.0745` (pas 103 471), prédiction gravée)**
+  — Checkpoints val_loss 3.1030 → 3.0745 de 15 à 40 % du run, monotone. Décision utilisateur :
+  ne pas relancer sur le sampler fractionnaire pour l'instant ; le run continue sur le
+  mélange « 1 par grosse famille, le reste par quotas » décrit le 2026-09-20, donc l'écart au
+  2.5M mêle capacité, schedule et mélange. Éval : stack flip + mix + pool, 97 configs,
+  `ssm_mid_v3_eval`, entraînement coupé le temps de l'éval (~45 min sur un GPU) puis repris
+  du checkpoint 8. Repère 2.5M classique au même pas (103 k) : entre 10 % (77.6 k, 0.5419)
+  et 15 % (116 k, 0.5305) de son run, ~0.535 interpolé, LR encore en montée chez lui, à 0.6
+  du pic (cosinus) chez le 10M. **Prédiction** : stack 0.530 ± 0.005. Sous 0.525 : la
+  capacité paie déjà malgré le mélange dégradé, on laisse finir. Au-dessus de 0.540 : le
+  mélange coûte plus que la capacité ne rapporte, relance sur le sampler fractionnaire
+  sans attendre la fin. `ONLY=<stem>` ajouté à eval_checkpoints_ssm.sh pour évaluer un
+  seul checkpoint.
+
 - **2026-09-20 (LES MÉTRIQUES DE VALIDATION DU 10M NE SONT PAS COMPARABLES À CELLES DU 2.5M :
   jeu de validation différent par construction ; et le mélange d'entraînement du 10M n'était
   pas celui du 2.5M — sampler fractionnaire livré, RELANCE RECOMMANDÉE)** — Courbes W&B à pas
