@@ -30,7 +30,7 @@ for k in "${!GPU_ARR[@]}"; do
       echo "[gpu $g] $(date '+%T') $STEM"
       CUDA_VISIBLE_DEVICES=$g ONLY="$STEM" bash "$HERE/scripts/eval_checkpoints_ssm.sh" "$DIR" "$@" \
         > "$HERE/logs/eval_${RUN}_gpu${g}_${STEM}.out" 2>&1
-      grep -E "configs:|vs_official" "$HERE/logs/eval_${RUN}_gpu${g}_${STEM}.out" | sed "s/^/[gpu $g] /"
+      grep -E "^   configs: |vs_official" "$HERE/logs/eval_${RUN}_gpu${g}_${STEM}.out" | sed "s/^/[gpu $g] /"
     done
   ) &
   PIDS+=($!)
