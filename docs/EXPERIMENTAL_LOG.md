@@ -5,6 +5,37 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-25 (10M, TABLE PARTIELLE 10 À 70 % : PLATEAU DANS LA BANDE DU 2.5M WIDE, LA
+  REPRISE À 40 % A COÛTÉ 0.4 PT ; P-SSM.4 hors d'atteinte ; BRAS DE CONTINUATION SUR LE
+  SAMPLER FRACTIONNAIRE, P-SSM.5 gravée)** — Stack flip + mix + pool, 97 configs, par pas
+  d'optimiseur (validation tous les 12 933 pas ; le checkpoint 3.1195 du lancement en warmup
+  est hors courbe : 0.8139 / 0.5544) : 10 % 0.7716 / 0.5312 · 15 % 0.7850 / 0.5329 · 20 %
+  **0.7700 / 0.5235** · 25 % 0.7701 / 0.5239 · 30 % 0.7891 / 0.5312 · 35 % 0.7776 / 0.5252 ·
+  40 % 0.7790 / 0.5239 · [reprise r2, seed 430] · 45 % 0.7783 / 0.5278 · 50 % 0.7798 / 0.5275 ·
+  55 % 0.7775 / 0.5286 · 60 % 0.7723 / 0.5276 · 70 % 0.7728 / 0.5248 ; 65 %, 75 % et 80-100 %
+  en cours. Lecture : plateau à LR haut dès 20 % (60 M fenêtres, contre 220 M pour le 2.5M),
+  0.6 pt sous le plateau du 2.5M classique (0.530) mais DANS la bande du 2.5M wide annealé
+  (0.524-0.526), MASE moins bon (0.770-0.779 contre 0.767-0.769). Les quatre checkpoints qui
+  suivent la reprise à 40 % sont à 0.5275-0.5286, +0.4 pt, puis le 70 % revient à 0.5248 :
+  la reprise déforme le mélange en début de segment (sampler non reprenable, petites
+  familles absentes tant que leur allocation fractionnaire n'a pas atteint 1) et le modèle
+  met ~20 % du run à s'en remettre. Mesure, pas excuse : les reprises ne sont pas gratuites,
+  un sampler reprenable est à écrire avant le prochain long run. Le 30 % (0.5312, MASE
+  0.789) dépasse aussi le bruit checkpoint à checkpoint du 2.5M (±0.2 pt) : la bande du
+  10M est plus large, à publier telle quelle. Verdict anticipé : P-SSM.4 (≤ 0.515) ne sera
+  pas atteinte ; le seuil d'échec 0.525 se joue sur les cinq derniers checkpoints (anneal
+  final). Ce run porte deux confusions (mélange du sampler entier, reprise) : il ne tranche
+  pas « la capacité n'est pas le levier ». **Décision utilisateur** : ce 10M est un modèle
+  d'ingénierie (leaderboard, model card), pas un papier ; on ne relance pas de zéro, on
+  reprend ses poids sur le sampler fractionnaire avec un cosinus court, la recette qui a
+  fait le champion 2.5M (bras wide). Config `ssm_mid_v3_frac` : poids du dernier checkpoint
+  (`+training.pretrained_encoder_path`), `fractional_batch` + `max_batch_size` 48, LR 1e-4,
+  warmup 10 % du run, 100 M fenêtres réalisées (~2.5 j), validation tous les 20 % ; fraction
+  et warmup passés en ligne de commande depuis l'audit (`--windows 100e6`). **P-SSM.5** :
+  stack au dernier checkpoint ≤ 0.520 ; ÉCHEC si ≥ 0.524 (le mélange n'était pas non plus la
+  pièce manquante). Deux variables changent (mélange, second cosinus) : consigné, ce bras
+  ne rentre pas dans une courbe de scaling.
+
 - **2026-09-20 (10M CHECKPOINT 8, 40 % DU RUN, MI-COSINUS, MÉLANGE DÉGRADÉ : stack 0.7790 /
   0.5239 / couv. 0.713 sur 97 — prédiction 0.530 ± 0.005 BATTUE, sous le seuil 0.525 : ON
   LAISSE FINIR)** — Stack flip + mix + pool, `ssm_mid_v3_eval`, gift_batch_size 48 : MASE

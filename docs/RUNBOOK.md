@@ -92,6 +92,9 @@ python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3 2
 # reprise manuelle (boucle, optimiseur, scheduler restaurés ; exercée par l'étape 5 du preflight ; l'état du scheduler restauré est celui de la config d'origine) :
 #   python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3-r1 +training.resume_ckpt=checkpoints/timessm_mid_v3_zs/pretrain_False/epoch00_valloss2.4551.ckpt 2>&1 | tee -a logs/train_ssm_mid.log
 # l'allocateur tourne en expandable_segments (train_ssm.py) : un OOM à 18 Gio alloués + 4.6 Gio réservés était de la fragmentation
+# 2b. bras de continuation sur le sampler fractionnaire (P-SSM.5) : poids du dernier checkpoint, cosinus court
+python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_frac --world-size 3 --batches 250000 --windows 100e6   # imprime la fraction F
+nohup scripts/train_ssm_loop.sh ssm_mid_v3_frac ssm-mid-v3-frac '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_zs/pretrain_False/<dernier>.ckpt' training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F> > logs/loop_frac.out 2>&1 &
 # 3. évals sur un GPU pendant le run
 STACK="+tta_flip=true +ratein=mix +ratein_pool=true" EVAL_CONFIG=ssm_mid_v3_eval scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mid_v3_zs/pretrain_False +gift_batch_size=32
 ```

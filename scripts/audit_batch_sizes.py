@@ -60,6 +60,7 @@ def main():
     ap.add_argument("--batches", type=int, default=250000)
     ap.add_argument("--cap", type=int, default=None, help="simulate a cap on the realized batch")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE")
+    ap.add_argument("--windows", type=float, default=298e6, help="windows budget for the printed schedule_fraction")
     args = ap.parse_args()
 
     import os
@@ -109,7 +110,7 @@ def main():
           f"({out.sum() * args.world_size / 1e6:.1f} M on {args.world_size} ranks)")
     per_epoch = out.mean() * len(s) * args.world_size
     print(f"epoch at this composition: {per_epoch / 1e9:.2f} B windows -> "
-          f"schedule_fraction for 298M windows = {298e6 / per_epoch:.5f}")
+          f"schedule_fraction for {args.windows / 1e6:.0f}M windows = {args.windows / per_epoch:.5f}")
     if args.cap:
         print(f"backlog left after {n:,} capped batches: {backlog.sum():.1f} samples "
               "(bounded = the cap defers, it does not starve)")

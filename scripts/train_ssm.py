@@ -93,6 +93,11 @@ def check_schedule(cfg: DictConfig) -> None:
             "(it prints the fraction for the windows budget) and pass "
             "training.schedule_fraction=<value>.")
     frac = float(cfg.training.get("schedule_fraction", 1.0))
+    if cfg.training.lr_scheduler.get("warmup_epochs", 0.0) is None:
+        raise ValueError(
+            "training.lr_scheduler.warmup_epochs is null in this config on purpose: pass "
+            "training.lr_scheduler.warmup_epochs=<0.1 x schedule_fraction> (epoch units, "
+            "10% of the run).")
     run = float(cfg.training.max_epochs) * frac
     warmup = float(cfg.training.lr_scheduler.warmup_epochs)
     if warmup >= 0.5 * run:

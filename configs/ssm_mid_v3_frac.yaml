@@ -1,0 +1,53 @@
+# @package _global_
+# CONTINUATION ARM ON THE FRACTIONAL SAMPLER (2026-09-25): resume the 10M's
+# last checkpoint (weights only, fresh optimizer, short cosine) and train it on
+# the mix the 10M run should have seen. The integer sampler gave that run "1
+# window per big family, the rest by quotas" (temperature gone, big families
+# under-represented) and a 0.4 pt degradation after the mid-run resume; its
+# annealed checkpoints sit in the 2.5M wide band (0.524-0.526). This arm is
+# ENGINEERING (leaderboard entry, model card), not a scaling point: two
+# things change at once (mix, second cosine). Recipe of the 2.5M wide arm,
+# which produced the 2.5M champion the same way.
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_frac --world-size 3 \
+#       --batches 250000 --windows 100e6           # prints the schedule_fraction
+#   python scripts/train_ssm.py --config-name ssm_mid_v3_frac \
+#       '+training.pretrained_encoder_path="checkpoints/timessm_mid_v3_zs/pretrain_False/<last>.ckpt"' \
+#       training.schedule_fraction=<value> wandb.run_name=ssm-mid-v3-frac
+#   # or through the loop: scripts/train_ssm_loop.sh ssm_mid_v3_frac ssm-mid-v3-frac <the two overrides>
+#
+# Budget: 100M realized windows (a third of the 10M run, ~2.5 days at ~450
+# windows/s on 3x 3090), validation and checkpoint every 20% of it. LR 1e-4
+# (a third of the 10M's peak: the weights are trained), warmup 10% of the run.
+#
+# P-SSM.5 (graved before the run): stack flip + mix + pool at the last
+# checkpoint <= 0.520 (0.4 pt under the 2.5M wide band and under every
+# integer-sampler 10M checkpoint). FAILURE if >= 0.524: the mix was not the
+# missing piece either, the 10M does not beat the 2.5M at this data budget.
+defaults:
+  - ssm_mid_v3
+  - _self_
+
+model:
+  name: "timessm_mid_v3_frac_zs"
+
+training:
+  pretrained_encoder_path: null      # pass on the command line, never bake a path
+  schedule_fraction: null            # from the audit, --windows 100e6
+  optimizer:
+    learning_rate: 1.0e-4
+  lr_scheduler:
+    warmup_epochs: null              # set below from the fraction: 10% of the run
+  # warmup_epochs is in epoch units like schedule_fraction: pass
+  # training.lr_scheduler.warmup_epochs = 0.1 x schedule_fraction on the
+  # command line (check_schedule refuses a null).
+
+data:
+  fractional_batch: true
+  max_batch_size: 48
+
+trainer:
+  val_check_interval: 0.2
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "fractional-sampler", "resume", "lotsa", "v3", "mid"]
