@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (B2, CALIBRATION CQR DU 2.5M WIDE `1.2841` SUR LA VALIDATION DU CORPUS, ×flip :
+  le fan est un peu étroit EN DISTRIBUTION et surtout mal FORMÉ ; P-SSM.8 gravée)** —
+  `calibrate_ssm.sh`, 192 fenêtres par jeu, h = 256, 100 jeux. Couverture avant, médiane par
+  jeu : q10 ≈ 0.13, q90 ≈ 0.88, intervalle 80 % ≈ 0.75 en distribution, contre 0.717 sur GIFT
+  short et 0.685 sur GIFT long : la moitié du déficit de couverture est un fan étroit
+  (0.75 contre 0.80), l'autre moitié du décalage (0.75 → 0.70). Différence avec TimeJEPA
+  (G4.2 : γ 1.01-1.12, neutre) : ici γ est NON MONOTONE — q10 1.136, q90 1.154 (les niveaux
+  extrêmes à élargir de 14-15 %), mais q20 0.908, q60 0.914, q80 0.885 (les niveaux
+  intérieurs à RESSERRER). La tête pinball produit un fan à épaules lourdes et queues
+  courtes. Par jeu : `synthetic_ops_bursty` γ q90 1.4-2.85 (les rafales vers le haut ne
+  sont pas couvertes — le domaine CloudOps de bizitobs/bitbrains, encore), climat
+  era5/cmip6 1.3-1.6 des deux côtés, bitcoin q90 4.00 (borné). JSON :
+  `TimeJEPA/evaluation/calibration/gamma_epoch00_valloss1.2841_flip.json`. **P-SSM.8**
+  (inférence seule, stack + `+quantile_gamma=<json absolu>`, 97 configs) : couverture 80 %
+  ≥ 0.76 (contre 0.717), CRPS −0.1 à −0.3 pt (stack ≤ 0.523), MASE bit-identique par
+  construction. ÉCHEC si le CRPS monte : le fan est miscalibré différemment sur GIFT et en
+  distribution, et γ ne se règle pas hors test. Commande : `STACK="+tta_flip=true
+  +ratein=mix +ratein_pool=true
+  +quantile_gamma=/workspace/TimeJEPA/evaluation/calibration/gamma_epoch00_valloss1.2841_flip.json"
+  ONLY=epoch00_valloss1.2841 scripts/eval_checkpoints_ssm.sh
+  checkpoints/timessm_mini_v3_wide_zs/pretrain_False +gift_batch_size=32`.
+
 - **2026-09-26 (B3′ = RateIN-up, LIVRÉ dans le harnais TimeJEPA ; P-SSM.7 GRAVÉE)** — Les trois
   per_config du 2.5M wide (electricity/W, m4_yearly/A, us_births/M) confirment le mécanisme :
   `backtest.n_base = 0`, `ratios = {}`, `k_hist = {1: n}` — le sélecteur n'a jamais tourné.
