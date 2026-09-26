@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from timessm.model import SSMForecaster  # noqa: E402
 from timessm.training import SSMFinetuneModule  # noqa: E402
+from timejepa.training.finetune_module import FinetuneModule  # noqa: E402
 
 KEYS = ("forecast", "forecast_denorm", "quantiles", "quantiles_denorm", "quantile_levels")
 
@@ -246,3 +247,101 @@ def test_check_schedule_refuses_a_warmup_longer_than_the_run():
     with pytest.raises(ValueError, match="warmup_epochs"):
         check_schedule(bad)
     check_schedule(OmegaConf.create({"training": {"lr_scheduler": {"type": "constant"}}}))
+
+
+# ------------------------------------------------------------- 8. random horizon (B1)
+def _batch(B=4, L=128, P=32, mask=None):
+    b = {"context": _ctx(B=B, L=L, seed=3), "target": _ctx(B=B, L=P, seed=4)}
+    if mask is not None:
+        b["target_mask"] = mask
+    return b
+
+
+def _mod(m, **kw):
+    args = dict(finetune_mode="full_finetune", loss_type="huber", learning_rate=1e-3,
+                encoder_lr_multiplier=1.0, lr_scheduler="constant")
+    args.update(kw)
+    return SSMFinetuneModule(m, **args)
+
+
+def test_resplit_conserves_the_window_and_never_runs_in_eval():
+    mod = _mod(_small(input_length=128, prediction_length=32),
+               horizon_lengths=[16, 48], p_random_horizon=1.0, horizon_min_context=64)
+    b = _batch()
+    full = torch.cat([b["context"], b["target"]], 1)
+    mod.train()
+    out = mod._maybe_resplit_horizon(b)
+    h = out["target"].shape[1]
+    assert h in (16, 48) and out["context"].shape[1] == 160 - h
+    assert torch.equal(torch.cat([out["context"], out["target"]], 1), full)
+    assert mod._last_horizon == h
+    assert b["target"].shape[1] == 32                       # caller's batch untouched
+    mod.eval()
+    out = mod._maybe_resplit_horizon(b)
+    assert out["target"].shape[1] == 32 and mod._last_horizon == 32
+
+
+def test_forward_and_loss_matches_the_parent_at_native_horizon():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m)
+    mod.eval()
+    x, y = _ctx(B=3), _ctx(B=3, L=32, seed=2)
+    torch.manual_seed(5); loss_a, res_a, tgt_a = mod._forward_and_loss(x, y)
+    torch.manual_seed(5); loss_b, res_b, tgt_b = FinetuneModule._forward_and_loss(mod, x, y)
+    assert torch.allclose(loss_a, loss_b) and torch.equal(tgt_a, tgt_b)
+    assert torch.allclose(res_a["quantiles"], res_b["quantiles"])
+
+
+def test_random_horizon_training_step_trains_the_head_and_the_future_token():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, horizon_lengths=[16, 48], p_random_horizon=1.0, horizon_min_context=64)
+    mod.log = lambda *a, **k: None
+    mod.train()
+    loss = mod.training_step(_batch(), 0)
+    assert torch.isfinite(loss) and mod._last_horizon in (16, 48)
+    loss.backward()
+    assert m.future_token.grad is not None and m.decoder.decoder.mlp[0].weight.grad is not None
+
+
+def test_resplit_propagates_the_target_mask():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, horizon_lengths=[48], p_random_horizon=1.0, horizon_min_context=64)
+    mod.train()
+    mask = torch.ones(4, 32, dtype=torch.bool); mask[:, -4:] = False
+    out = mod._maybe_resplit_horizon(_batch(mask=mask))
+    assert out["target_mask"].shape == (4, 48) and out["target_mask"][:, :16].all()
+    assert not out["target_mask"][:, -4:].any()
+    # h < native with padding at the FRONT of the target: refused (padding would enter the context)
+    mod2 = _mod(_small(input_length=128, prediction_length=32),
+                horizon_lengths=[16], p_random_horizon=1.0, horizon_min_context=64)
+    mod2.train()
+    front = torch.ones(4, 32, dtype=torch.bool); front[:, :8] = False
+    out2 = mod2._maybe_resplit_horizon(_batch(mask=front))
+    assert out2["target"].shape[1] == 32
+    # h < native with a clean front: accepted, mask sliced
+    clean = torch.ones(4, 32, dtype=torch.bool); clean[:, -2:] = False
+    out3 = mod2._maybe_resplit_horizon(_batch(mask=clean))
+    assert out3["target_mask"].shape == (4, 16) and not out3["target_mask"][:, -2:].any()
+
+
+def test_context_crop_applies_after_the_resplit():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, horizon_lengths=[48], p_random_horizon=1.0, horizon_min_context=64,
+               context_lengths=[64, 96, 128], p_random_context_finetune=1.0)
+    seen = []
+    mod.log = lambda name, value, *a, **k: seen.append((name, float(value))) if name == "geometry/context_len" else None
+    mod.train()
+    for _ in range(6):
+        mod.training_step(_batch(), 0)
+    lens = {v for n, v in seen}
+    assert lens and all(v <= 160 - 48 for v in lens) and 128.0 not in lens
+
+
+def test_both_draws_active():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, delta_scales=[0.5, 2.0], p_delta_scale=1.0,
+               horizon_lengths=[16, 48], p_random_horizon=1.0, horizon_min_context=64)
+    mod.log = lambda *a, **k: None
+    mod.train()
+    loss = mod.training_step(_batch(), 0)
+    assert torch.isfinite(loss) and mod._last_delta_scale in (0.5, 2.0) and mod._last_horizon in (16, 48)

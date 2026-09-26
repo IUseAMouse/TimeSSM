@@ -163,6 +163,9 @@ def build_module(cfg: DictConfig, model) -> SSMFinetuneModule:
         model=model,
         delta_scales=list(cfg.training.get("delta_scales") or []),
         p_delta_scale=float(cfg.training.get("p_delta_scale", 0.0)),
+        horizon_lengths=list(cfg.training.get("horizon_lengths") or []),
+        p_random_horizon=float(cfg.training.get("p_random_horizon", 0.0)),
+        horizon_min_context=int(cfg.training.get("horizon_min_context", 256)),
         extend_horizon_queries=cfg.training.get("extend_horizon_queries", False),
         pretrained_encoder_path=cfg.training.get("pretrained_encoder_path"),
         finetune_mode=cfg.training.get("finetune_mode", "full_finetune"),
@@ -203,6 +206,8 @@ def main(cfg: DictConfig):
     pl_module = build_module(cfg, model)
     logger.info(f"Multi-rate training: delta_scales={pl_module.delta_scales} "
                 f"p={pl_module.p_delta_scale}")
+    logger.info(f"Random horizon (inside the window): horizon_lengths={pl_module.horizon_lengths} "
+                f"p={pl_module.p_random_horizon} min_context={pl_module.horizon_min_context}")
 
     checkpoint_dir = Path(cfg.data.checkpoint_dir) / cfg.model.name / "pretrain_False"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)

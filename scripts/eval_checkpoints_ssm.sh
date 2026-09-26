@@ -46,7 +46,7 @@ for CK in "${CKPTS[@]}"; do
   echo "-- $STEM ($(date '+%T'))" | tee -a "$DIGEST"
   bash "$HERE/scripts/eval_ssm.sh" "$CK" "${STACK_ARR[@]}" "${EXTRA[@]}" > "$LOG" 2>&1
   RC=$?
-  grep -E "vs_official_seasonal_naive|vs_local_seasonal_naive|coverage \(mean|RateIN:|Results:" "$LOG" \
+  grep -E "vs_official_seasonal_naive|vs_local_seasonal_naive|coverage \(mean|RateIN:|ORACLE-k|Results:" "$LOG" \
     | sed -E 's/.*INFO\] - //' | tee -a "$DIGEST"
   [ $RC -ne 0 ] && echo "   exit $RC (see $LOG)" | tee -a "$DIGEST"
   CACHED=$(grep -c "already done" "$LOG"); FAILED=$(grep -c "FAILED:" "$LOG")

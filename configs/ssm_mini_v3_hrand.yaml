@@ -1,0 +1,46 @@
+# @package _global_
+# RANDOM-HORIZON ARM (2026-09-26, plan B1): resume the 2.5M wide champion
+# (weights only, fresh optimizer, short cosine - the wide arm's recipe) and
+# add ONE variable: the horizon is re-drawn INSIDE the fixed 1280-step window
+# (context = first 1280 - h steps, target = last h), h in [64..512] with
+# probability 0.5. No corpus window is lost (TimeJEPA's h512 arm lost because
+# it extended the window to 1536); the rollout is trained up to 512 (42/97
+# GIFT configs ask for 480-900) and the head learns to calibrate (h512: exact
+# 0.800 coverage). Validation stays at 256.
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mini_v3_hrand --world-size 3 \
+#       --batches 250000 --windows 89e6            # prints the schedule_fraction F
+#   scripts/train_ssm_loop.sh ssm_mini_v3_hrand ssm-mini-v3-hrand \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_wide_zs/pretrain_False/epoch00_valloss1.2841.ckpt' \
+#       training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F>
+#
+# Budget: 89M realized windows (the wide arm's budget), fractional sampler at
+# batch 128 with the cap (memory: h = 512 gives context 768 + target 512 =
+# the same 1280 tokens as 1024 + 256 - confirm with profile_step at batch 128).
+#
+# P-SSM.6 (graved before the run): on the last checkpoint, 80% coverage >= 0.78
+# (against 0.71) and stack flip + mix + pool <= 0.521 (-0.35 pt on the wide
+# champion 0.5242); medium/long CRPS ratios fall at least as much as short
+# (gift_gap_ssm.py before/after). FAILURE if stack >= 0.5245: the training
+# horizon is not the lever and coverage alone does not pay in CRPS.
+defaults:
+  - ssm_mini_v3_wide
+  - _self_
+
+model:
+  name: "timessm_mini_v3_hrand_zs"
+
+training:
+  horizon_lengths: [64, 128, 256, 384, 512]
+  p_random_horizon: 0.5
+  horizon_min_context: 256
+  schedule_fraction: null            # from the audit, --windows 89e6
+  lr_scheduler:
+    warmup_epochs: null              # 0.1 x schedule_fraction, on the command line
+
+data:
+  fractional_batch: true
+  max_batch_size: 128
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "random-horizon", "fractional-sampler", "resume", "lotsa", "v3", "mini"]

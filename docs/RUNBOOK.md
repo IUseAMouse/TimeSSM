@@ -95,6 +95,11 @@ python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3 2
 # 2b. bras de continuation sur le sampler fractionnaire (P-SSM.5) : poids du dernier checkpoint, cosinus court
 python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_frac --world-size 3 --batches 250000 --windows 100e6   # imprime la fraction F
 nohup scripts/train_ssm_loop.sh ssm_mid_v3_frac ssm-mid-v3-frac '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_zs/pretrain_False/<dernier>.ckpt' training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F> > logs/loop_frac.out 2>&1 &
+# 2c. diagnostic (plan 2026-09-26) : carte par config et oracle-k
+python scripts/gift_gap_ssm.py evaluation/<run>/<ckpt>/gift_flip_ratein-mix-pool [autres runs] --competitors Toto-2.0-4m,FlowState-9.1M,TTM-R3-PT --corpus-dir ../TimeJEPA/data/processed/lotsa_v3
+STACK="+tta_flip=true +ratein=oracle" ONLY=<stem> scripts/eval_checkpoints_ssm.sh <dir> +gift_batch_size=32     # diagnostic, 11x
+scripts/calibrate_ssm.sh <ckpt> --flip --config-name ssm_mini_v3_wide        # B2 : gamma_<stem>_flip.json dans ../TimeJEPA/evaluation/calibration
+# 2d. bras B1 horizon aléatoire (P-SSM.6) : voir l'en-tête de configs/ssm_mini_v3_hrand.yaml
 # 3. évals sur un GPU pendant le run
 STACK="+tta_flip=true +ratein=mix +ratein_pool=true" EVAL_CONFIG=ssm_mid_v3_eval scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mid_v3_zs/pretrain_False +gift_batch_size=32
 ```

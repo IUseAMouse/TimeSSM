@@ -5,6 +5,46 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (DIAGNOSTIC DE LA SOUS-PERFORMANCE : relecture des trois registres, plan
+  approuvé ; outillage livré pour la phase A et le bras B1 ; P-SSM.6 GRAVÉE)** — Question de
+  l'utilisateur : les facteurs limitants restants sont-ils la géométrie 1024/256 et
+  l'univarié ? Ce que les registres disent déjà : (1) le « gap de distribution » de h512
+  (TimeJEPA, 2026-08-31) était une AMPUTATION DE CORPUS (fenêtre 1536 → lotsa_short 1280 et
+  bloc décimé 1024/682 hors finetune) : configs saines 0.995, amputées 1.111, levier horizon
+  « réel mais petit » ; et h512 a donné une couverture 0.800 EXACTE (randomisation d'horizon
+  [64..512]) ; recommandation gravée alors, jamais courue : « horizon randomisé large SANS
+  étendre la fenêtre ». (2) 42/97 configs ont un horizon > 256 (medium 480-600, long
+  720-900) ; le SSM n'a jamais vu de cible au-delà de 256. (3) Sur TimeJEPA l'écart à Toto
+  est PLAT par terme (E17 ×1.28/1.32/1.29 ; E19 0.611/0.619/0.616) et DIFFUS (corps de 81
+  configs ~0.54 contre ~0.47 chez eux) ; pertes systématiques contre FlowState sur W et M à
+  horizon court, et bizitobs/10S (domaine sans corpus public) ; AUCUNE carte par config
+  n'existe pour le SSM (résultats sur le pod). (4) L'univarié n'est pas un handicap de
+  protocole (le harnais explose les jeux multivariés variable par variable comme
+  l'officiel ; FlowState est univarié) ; l'écart plus grand sur les jeux multivariés (E17
+  ×1.38 contre ×1.22) est confondu avec l'absence de leur domaine des corpus. (5) Fan trop
+  étroit (couv. 0.70) ; γ neutre sur TimeJEPA en distribution, jamais essayé sur le SSM.
+  (6) Plus grande marge connue : oracle-k de RateIN (0.5190 contre 0.5340 sur head8, 1.5 pt),
+  jamais mesuré sur le SSM. Lecture des objectifs : 0.52 pour le 2.5M plausible (B1 + B2) ;
+  0.50 pour le 10M demande 2.5 pt que rien ne soutient, 0.51 meilleur scénario réaliste.
+  **Plan** (`~/.claude/plans/playful-pondering-dragonfly.md`) : phase A = carte gift_gap du
+  SSM par terme / horizon / fréquence / variables / cousin au corpus
+  (`scripts/gift_gap_ssm.py`, testé sur fixture) + oracle-k sur le 2.5M wide (`ORACLE-k`
+  ajouté au résumé d'éval) ; règles de décision gravées ; phase B = B1 horizon aléatoire
+  DANS la fenêtre fixe, B2 température de quantiles (calibrate_quantiles.py accepte
+  `--config-dir/--horizon/--set`, enrobage `scripts/calibrate_ssm.sh`), B3/B4 conditionnés
+  à la carte. **B1 livré** : `SSMFinetuneModule._maybe_resplit_horizon` (re-découpage de la
+  même fenêtre 1280 en [1280−h | h], h ∈ {64..512} p 0.5, masque propagé, refus si un pas
+  rembourré entrerait dans le contexte), `_forward_and_loss` réimplémentée avec `n` (le
+  parent appelait forecast sans n : mismatch de forme à h ≠ 256), témoins
+  `geometry/horizon_len` et `aug/horizon_neq_native_frac`, validation à 256 ; 6 tests
+  (conservation de la fenêtre, identité au parent à p = 0, backward jusqu'au token futur,
+  masque, crop après re-découpage, deux tirages actifs) ; config `ssm_mini_v3_hrand`
+  (continuation du champion wide `1.2841`, LR 1e-4, 89 M fenêtres, sampler fractionnaire
+  batch 128 plafonné). **P-SSM.6** : dernier checkpoint, couverture 80 % ≥ 0.78 et stack
+  ≤ 0.521 ; medium/long baissent au moins autant que short ; ÉCHEC si stack ≥ 0.5245.
+  Ordre : A1 (une soirée, CPU, après rsync des `per_config` du pod) → A2 → B2 → B1 (12 h
+  de GPU) ; report sur le 10M après P-SSM.5.
+
 - **2026-09-26 (SAMPLER FRACTIONNAIRE MESURÉ SUR LE VRAI CORPUS ; bras `ssm_mid_v3_frac` lancé)**
   — `audit_batch_sizes.py`, 250 k batches, batch 48, plafond 48 : réalisé médian 48, moyenne
   46.5, p1 32 (début d'époque, parts fractionnaires des petites familles pas encore à 1),
