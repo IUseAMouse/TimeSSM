@@ -5,6 +5,14 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (SAMPLER FRACTIONNAIRE MESURÉ SUR LE VRAI CORPUS ; bras `ssm_mid_v3_frac` lancé)**
+  — `audit_batch_sizes.py`, 250 k batches, batch 48, plafond 48 : réalisé médian 48, moyenne
+  46.5, p1 32 (début d'époque, parts fractionnaires des petites familles pas encore à 1),
+  max 48 partout, rien au 111 111e batch. Époque à cette composition 2.32 B fenêtres ;
+  100 M fenêtres = fraction 0.04316 = 717 k micro-batches par carte = 89.6 k pas
+  d'optimiseur ; warmup 0.004316. Lancement : poids de `3.0672-v1` (100 % du 10M), LR 1e-4,
+  seed 420, ~2 j 18 h. P-SSM.5 gravée le 25/09 (≤ 0.520 ; échec ≥ 0.524).
+
 - **2026-09-26 (10M, TABLE COMPLÈTE À 97 SUR 20 CHECKPOINTS : dernier checkpoint 0.7722 /
   0.5245 / couv. 0.705, bande des cinq derniers 0.5235-0.5259 — P-SSM.4 NON ATTEINTE (≤ 0.515),
   hors zone d'échec (≥ 0.525) de justesse : ÉGALITÉ AVEC LE 2.5M WIDE)** — Stack flip + mix +

@@ -85,7 +85,11 @@ def main():
         fractional_batch=bool(cfg.data.get("fractional_batch", False)))
     print(f"families {s.num_datasets} | data.batch_size {cfg.data.batch_size} | nominal "
           f"sum(samples_per_dataset) = {s.actual_batch_size} | batches per rank {len(s):,}")
-    print(f"families clamped at 1 sample/batch: {sum(1 for v in s.samples_per_dataset if v == 1)}")
+    if not s.fractional_batch:
+        print(f"families clamped at 1 sample/batch: {sum(1 for v in s.samples_per_dataset if v == 1)}")
+    else:
+        e = sorted(s.expected_per_dataset)
+        print(f"fractional shares per batch: min {e[0]:.4f} | median {e[len(e)//2]:.3f} | max {e[-1]:.2f}")
     if not s.ration_oversample:
         print("ration_oversample is off: the batch is the nominal one until families die out")
         return
