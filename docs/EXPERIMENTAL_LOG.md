@@ -5,6 +5,37 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (10M, TABLE COMPLÈTE À 97 SUR 20 CHECKPOINTS : dernier checkpoint 0.7722 /
+  0.5245 / couv. 0.705, bande des cinq derniers 0.5235-0.5259 — P-SSM.4 NON ATTEINTE (≤ 0.515),
+  hors zone d'échec (≥ 0.525) de justesse : ÉGALITÉ AVEC LE 2.5M WIDE)** — Stack flip + mix +
+  pool, ordre de création, `*` = lancement en warmup hors courbe :
+  5 %* 0.8139 / 0.5544 / 0.779 · 10 % 0.7716 / 0.5312 / 0.738 · 15 % 0.7850 / 0.5329 / 0.742 ·
+  20 % 0.7700 / **0.5235** / 0.707 · 25 % 0.7701 / 0.5239 / 0.730 · 30 % 0.7891 / 0.5312 / 0.705 ·
+  35 % 0.7776 / 0.5252 / 0.735 · 40 % 0.7790 / 0.5239 / 0.713 · [reprise r2] 45 % 0.7783 /
+  0.5278 / 0.693 · 50 % 0.7798 / 0.5275 / 0.708 · 55 % 0.7775 / 0.5286 / 0.719 · 60 % 0.7723 /
+  0.5276 / 0.719 · 65 % 0.7744 / 0.5282 / 0.706 · 70 % 0.7728 / 0.5248 / 0.703 · 75 % 0.7715 /
+  0.5246 / 0.697 · 80 % 0.7732 / 0.5259 / 0.697 · 85 % 0.7708 / **0.5235** / 0.709 · 90 % 0.7731 /
+  0.5244 / 0.704 · 95 % 0.7717 / 0.5243 / 0.703 · 100 % 0.7722 / 0.5245 / 0.705.
+  **Verdict** : le dernier checkpoint annealé fait 0.5245, dans la bande du champion 2.5M wide
+  (0.524-0.526), avec un MASE moins bon de 0.4 pt (0.772 contre 0.767-0.769) et la même
+  couverture. Quadrupler la capacité, sur ce run, rapporte 0 pt de CRPS annealé contre
+  annealé, et 0.6 pt plateau contre plateau à LR haut (0.5237 contre 0.530). L'anneal final
+  a valu 0.3-0.4 pt (65 % 0.5282 → 85-100 % 0.5235-0.5245), comme sur le 2.5M. Bande des cinq
+  derniers checkpoints 0.24 pt, plus large que celle du 2.5M (0.18) ; le point à publier
+  pour ce run, si on le publie, est la bande, et le champion par le chiffre est le 85 %
+  (0.7708 / 0.5235, meilleur MASE du run). Ce que le run NE dit PAS : « la capacité n'est
+  pas le levier ». Il porte deux confusions mesurées (mélange du sampler entier ; reprise
+  à 40 % qui a coûté 0.4 pt pendant ~20 % du run) et moitié moins de pas d'optimiseur que
+  le 2.5M (259 k contre 505 k, bras wide compris). À pas égal (259 k), le 10M annealé
+  (0.5245) est 0.5 pt devant le 2.5M au même pas (0.530, LR haut). Lecture utilisateur,
+  retenue : ou bien la capacité est sous-exploitée (pas assez de pas), ou bien le protocole
+  (mélange) l'empêche de servir — le bras fractionnaire `ssm_mid_v3_frac` (P-SSM.5, ≤ 0.520)
+  teste les deux à la fois, depuis le checkpoint 100 % (`3.0672-v1`), et un second bras
+  fractionnaire ne se lance que si le stack descend encore entre ses checkpoints 80 et 100 %.
+  Position pour la publication : si P-SSM.5 échoue, le modèle publié est le 2.5M à config
+  unique (égalité Toto-2.0-4m, 3 GPU) et le 10M devient une ligne d'ablation ; RateIN sur
+  les modèles externes reste le résultat principal.
+
 - **2026-09-25 (10M, TABLE PARTIELLE 10 À 70 % : PLATEAU DANS LA BANDE DU 2.5M WIDE, LA
   REPRISE À 40 % A COÛTÉ 0.4 PT ; P-SSM.4 hors d'atteinte ; BRAS DE CONTINUATION SUR LE
   SAMPLER FRACTIONNAIRE, P-SSM.5 gravée)** — Stack flip + mix + pool, 97 configs, par pas
