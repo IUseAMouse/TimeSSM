@@ -5,6 +5,26 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (B3′ = RateIN-up, LIVRÉ dans le harnais TimeJEPA ; P-SSM.7 GRAVÉE)** — Les trois
+  per_config du 2.5M wide (electricity/W, m4_yearly/A, us_births/M) confirment le mécanisme :
+  `backtest.n_base = 0`, `ratios = {}`, `k_hist = {1: n}` — le sélecteur n'a jamais tourné.
+  Nuance : us_births/M est UNE série sur deux fenêtres (ratio local 0.95, officiel 1.22 :
+  bruit) ; les témoins sont electricity/W (370 séries) et m4_yearly (22 974). Harnais :
+  `+ratein_k_up=2,3,4 +ratein_min_bt=4 +ratein_bt_windows=4` (détail au registre TimeJEPA du
+  même jour), inerte sans les flags, tag `-up234-bt4-w4`. **P-SSM.7** (2.5M wide `1.2841`,
+  stack flip + mix + pool + ces trois flags, 97 configs) : les 17 configs W/M/A/Q + m4 gagnent
+  ≥ 5 % de CRPS ratio en géomoyenne (nous/FlowState ×1.132 → ≤ 1.08) ; stack global ≤ 0.521
+  (−0.3 pt) ; les configs à h ≥ 16 inchangées (mêmes k, un candidat k < 1 ne s'impose que s'il
+  bat k = 1 de 5 %). ÉCHEC si stack ≥ 0.5242 ou si le groupe basse fréquence ne bouge pas :
+  le sélecteur n'est pas ce qui manque aux séries courtes, c'est le modèle (→ B1 avec cibles
+  courtes). Coût : le backtest s'allume sur m4_yearly (23 k séries), m4_monthly (48 k) et
+  m4_daily avec 14 candidats × 4 fenêtres : compter 2 à 3× le temps d'une éval, à lancer sur
+  une carte quand P-SSM.5 en libère une, ou sur le 4090 loué. Commande :
+  `STACK="+tta_flip=true +ratein=mix +ratein_pool=true +ratein_k_up=2,3,4 +ratein_min_bt=4
+  +ratein_bt_windows=4" ONLY=epoch00_valloss1.2841 scripts/eval_checkpoints_ssm.sh
+  checkpoints/timessm_mini_v3_wide_zs/pretrain_False +gift_batch_size=32` (TimeJEPA à jour sur
+  le pod), puis `gift_gap_ssm.py` avant/après.
+
 - **2026-09-26 (B3′ PRÉCISÉ : sur les basses fréquences à horizon court, RateIN est ÉTEINT
   par construction)** — Lecture de `all_results.csv` du 10M (`3.0672-v1`, copié localement)
   contre les CSV du leaderboard, 17 configs W/M/A/Q + m4 : géomoyenne nous/FlowState
