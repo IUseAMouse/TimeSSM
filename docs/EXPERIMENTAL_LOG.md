@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (B3′ PRÉCISÉ : sur les basses fréquences à horizon court, RateIN est ÉTEINT
+  par construction)** — Lecture de `all_results.csv` du 10M (`3.0672-v1`, copié localement)
+  contre les CSV du leaderboard, 17 configs W/M/A/Q + m4 : géomoyenne nous/FlowState
+  ×1.132, nous/Toto ×1.037. Les pires : electricity/W 0.658 contre 0.439 (FlowState),
+  solar/W 0.868 contre 0.583, us_births/M **1.219** contre 0.887 (nous sommes PIRES que la
+  saisonnalité naïve, MASE 1.261 : la médiane est fausse, pas seulement le fan), m4_hourly
+  0.667 contre 0.545, m4_yearly 0.951 contre 0.780. Cause candidate vérifiée dans le code
+  du harnais : `_backtest_series_k` force k = 1 quand `h_bt = min(h, avail) < 16`
+  (`evaluate_gift.py:311-312, 399-400, 472-473`), et `K_CANDIDATES` ne contient aucun k < 1
+  (`ratein.py:15` : « never k<1 »). Donc sur A (h 6), Q (8), W (8, 13), m4_daily (14) et les
+  M à h = 12 (us_births, hospital, car_parts, saugeen), le sélecteur de rythme n'a jamais le
+  droit d'agir, et les périodes courtes en pas (12 mensuel, 52 hebdo à contexte ~150) ne
+  peuvent pas être ramenées dans la bande [16, 48] que le modèle préfère, faute de candidat
+  de SUR-échantillonnage. C'est cohérent avec la part d'instances décimées au short : 0.31.
+  Hypothèse B3′ (inférence seule, à graver après lecture des `per_config` W/M/A/Q du pod,
+  `k_hist` attendu = {1: n}) : (a) autoriser le backtest à h_bt ≥ 4 avec plus de fenêtres,
+  (b) ajouter des candidats k ∈ {1/2, 1/3, 1/4} par interpolation linéaire du contexte (le
+  fan est ensuite décimé, l'inverse exact de `decimate`/`reinterp_fan`), pour les périodes
+  < 16 pas ; le bouton Δ (w > 1) est l'autre chemin. Prédiction à écrire avec les JSON.
+  NB : `all_results.csv` laisse domaine et variables vides ; lire ces colonnes dans
+  `raw/seasonal_naive.csv`.
+
 - **2026-09-26 (A1, CARTE PAR CONFIG DU SSM : LES DEUX HYPOTHÈSES DE DÉPART TOMBENT — le long
   terme est notre MEILLEUR terme, le court notre pire ; l'écart multivarié est le domaine
   CloudOps de Toto ; sous-couverture partout)** — `gift_gap_ssm.py`, 2.5M wide `1.2841` et
