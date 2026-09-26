@@ -18,11 +18,17 @@
 # batch 128 with the cap (memory: h = 512 gives context 768 + target 512 =
 # the same 1280 tokens as 1024 + 256 - confirm with profile_step at batch 128).
 #
+# The per-config map (2026-09-26) REVERSED the rationale: the SSM's long term
+# (0.485, beats Toto 14/21) is its best; its weak term is SHORT (0.548, loses
+# to Toto 38/55 and to FlowState 40/55). A 256-step pinball puts 3/4 of its
+# weight beyond step 64: short targets re-weight the near future, and the
+# randomization calibrates (coverage 0.72 -> h512's 0.800).
 # P-SSM.6 (graved before the run): on the last checkpoint, 80% coverage >= 0.78
-# (against 0.71) and stack flip + mix + pool <= 0.521 (-0.35 pt on the wide
-# champion 0.5242); medium/long CRPS ratios fall at least as much as short
-# (gift_gap_ssm.py before/after). FAILURE if stack >= 0.5245: the training
-# horizon is not the lever and coverage alone does not pay in CRPS.
+# (against 0.717) and stack flip + mix + pool <= 0.521 (-0.35 pt on the wide
+# champion 0.5242), the gain coming from the SHORT term (its CRPS ratio 0.5476
+# -> <= 0.540) with medium/long not worse (gift_gap_ssm.py before/after).
+# FAILURE if stack >= 0.5245: the target length is not the lever and coverage
+# alone does not pay in CRPS.
 defaults:
   - ssm_mini_v3_wide
   - _self_
@@ -31,7 +37,7 @@ model:
   name: "timessm_mini_v3_hrand_zs"
 
 training:
-  horizon_lengths: [64, 128, 256, 384, 512]
+  horizon_lengths: [32, 64, 128, 256, 384, 512]   # 32/64/128: the SHORT term (h 6-60) is where the SSM loses (map 2026-09-26)
   p_random_horizon: 0.5
   horizon_min_context: 256
   schedule_fraction: null            # from the audit, --windows 89e6

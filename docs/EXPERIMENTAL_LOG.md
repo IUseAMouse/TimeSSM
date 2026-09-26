@@ -5,6 +5,42 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-26 (A1, CARTE PAR CONFIG DU SSM : LES DEUX HYPOTHÈSES DE DÉPART TOMBENT — le long
+  terme est notre MEILLEUR terme, le court notre pire ; l'écart multivarié est le domaine
+  CloudOps de Toto ; sous-couverture partout)** — `gift_gap_ssm.py`, 2.5M wide `1.2841` et
+  10M `3.0672-v1`, 97 configs, contre Toto-2.0-4m / FlowState-9.1M / TTM-R3-PT (résultats des
+  runs wide sous `evaluation/timessm_mini_v3_zs/`, nom de l'eval config, pas du run).
+  **Par terme** (CRPS ratio, 2.5M | 10M ; nous/Toto, victoires) : short 55 : 0.5476 | 0.5512 ;
+  ×1.038, 17/55 · medium 21 : 0.5053 | 0.4975 ; ×0.969, 13/21 · long 21 : **0.4851** | 0.4855 ;
+  ×0.935, 14/21. Contre FlowState : ×1.056 / ×1.043 / ×1.017. Le rollout autonome à 720-900
+  pas depuis un état entraîné à 256 est ce que le modèle fait de MIEUX ; la géométrie 1024/256
+  n'est PAS le facteur limitant. La règle « medium/long ≥ 1.05 × short → B1 d'abord » n'est
+  pas remplie, c'est l'inverse. **Par fréquence** : pertes contre FlowState sur les basses
+  fréquences à horizon court (W ×1.126, M ×1.054, A ×1.136, Q ×1.029 : 15 configs, contextes
+  de 13 à 240 pas) et sur 10S (×1.121 ; contre Toto ×1.152) ; victoires sur 10T (×0.986) et 5T
+  (×0.986). **Par variables** : 1 var ×0.983 vs Toto, 2-10 var ×1.024 — mais les 10 pires
+  configs sont bizitobs (×1.79, ×1.46, ×1.15) et bitbrains_fast_storage (×1.42, ×1.32, ×1.19,
+  ×1.14), domaine Web/CloudOps (×1.028 vs Toto), les métriques d'observabilité sur lesquelles
+  Toto (Datadog) est entraîné et dont aucun corpus public ne dispose ; l'écart « multivarié »
+  est un écart de DOMAINE. **Cousin au corpus** : avec cousin ×0.961 vs Toto (20/33), sans
+  ×1.021 (24/64) : les données pèsent plus que l'architecture. **Couverture 80 %** : short
+  0.717, medium 0.704, long 0.685 (10M : 0.714 / 0.701 / 0.684) : sous-couvert partout, pire
+  aux longs horizons ; part d'instances décimées 0.31 / 0.62 / 0.90 par terme : RateIN
+  travaille surtout au long terme. **10M contre 2.5M** : meilleur sur medium, 5T, D, H ;
+  moins bon sur short, W, M, A, 10S : le mélange du sampler entier (1 fenêtre par grosse
+  famille) a coûté aux petites familles basse fréquence, cohérent avec le diagnostic du 20/09.
+  **Verdicts** : (1) 1024/256 n'est pas le levier ; (2) l'univarié non plus, le multivarié
+  est confondu avec CloudOps ; (3) le levier est le COURT terme à basse fréquence et la
+  calibration. **Ordre révisé** : B2 (γ, zéro entraînement) d'abord ; B1 gardé mais
+  REDÉFINI : `horizon_lengths [32, 64, 128, 256, 384, 512]` — les cibles courtes repondèrent
+  la pinball vers le futur proche (à 256 pas, 3/4 du poids est au-delà du pas 64) et la
+  randomisation calibre (h512 : 0.800). P-SSM.6 réécrite : couverture ≥ 0.78, stack ≤ 0.521,
+  le gain venant du short (0.5476 → ≤ 0.540) sans dégrader medium/long ; échec si ≥ 0.5245.
+  Nouveau bras candidat B3′ (basses fréquences à contexte court, 15 configs) : à lire dans
+  les per_config W/M/A/Q avant de le graver (S4-a′ du PLAN, contextes variables courts). B4
+  (multivarié) reste hors budget : le domaine manque, pas l'architecture. Oracle-k (A2)
+  reste à mesurer.
+
 - **2026-09-26 (DIAGNOSTIC DE LA SOUS-PERFORMANCE : relecture des trois registres, plan
   approuvé ; outillage livré pour la phase A et le bras B1 ; P-SSM.6 GRAVÉE)** — Question de
   l'utilisateur : les facteurs limitants restants sont-ils la géométrie 1024/256 et
