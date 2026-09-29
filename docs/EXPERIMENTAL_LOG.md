@@ -5,6 +5,29 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (B1 PASSE DIRECTEMENT SUR LE 10M — décision utilisateur ; P-SSM.6b GRAVÉE ;
+  deux pannes d'outillage des évals B2 et B3′ corrigées)** — Pannes : (1) B2, le tag du
+  fichier de log était construit depuis la chaîne STACK et contenait le chemin absolu du
+  JSON de γ : chaque `tee` échouait (« No such file or directory »), table à nan / 0
+  config ; `eval_checkpoints_ssm.sh` réduit maintenant toute valeur-chemin à son basename.
+  (2) B3′, sortie en 10 s : `+ratein_k_up=2,3,4` non quoté est un SWEEP pour Hydra, le run
+  meurt avant main ; le flag accepte `x` et `-` comme séparateurs (`+ratein_k_up=2x3x4`,
+  TimeJEPA `6b454d0`). Aucune des trois évals d'inférence n'a donc encore tourné.
+  **Décision** (utilisateur, assumée comme non propre) : avec 3 GPU un bras from scratch
+  n'est pas abordable, et le 10M a vu moins de pas que le 2.5M (259 k + 90 k contre 505 k) ;
+  B1 se fait donc en continuation du 10M frac, pas sur le 2.5M. Config `ssm_mid_v3_hrand` =
+  `ssm_mid_v3_frac` + `horizon_lengths [32..512]` p 0.5, 100 M fenêtres (fraction 0.04316),
+  LR 1e-4. Départ = DERNIER checkpoint du bras frac (`3.0571`, 0.5213), pas le meilleur au
+  stack (0.5194 à 60 %) : choisir le départ sur le score GIFT serait sélectionner sur le
+  test, et l'écart est dans le bruit. Identification : le bras frac (même recette SANS
+  horizon aléatoire) n'a bougé le short que de −0.26 pt (0.5512 → 0.5486) ; ce que ce bras
+  y ajoute est attribuable à l'horizon. **P-SSM.6b** : dernier checkpoint, stack ≤ 0.517
+  (−0.4 pt), short 0.5486 → ≤ 0.542, couverture 80 % ≥ 0.76, medium et long pas pires que
+  0.4945 / 0.4809. ÉCHEC si stack ≥ 0.521 ou short ≥ 0.5486. P-SSM.6 (version 2.5M) n'est
+  pas courue. File : `scripts/queue_b2_b3_oracle_then_hrand.sh` lance B2, B3′ et oracle-k
+  sur le 2.5M wide (une carte chacun), attend leurs PID par `wait`, puis lance B1 sur les
+  trois cartes ; `EVALS_ONLY=1` pour s'arrêter après les évals.
+
 - **2026-09-29 (CARTE AVANT/APRÈS DU BRAS FRAC : la capacité et le bon mélange paient sur
   MEDIUM et LONG, pas sur le COURT terme ; les basses fréquences ne reviennent qu'à moitié)**
   — `gift_gap_ssm.py`, 10M frac `3.0571` contre 10M entier `3.0672-v1` (et 2.5M wide `1.2841`

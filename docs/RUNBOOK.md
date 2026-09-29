@@ -100,8 +100,10 @@ python scripts/gift_gap_ssm.py evaluation/<run>/<ckpt>/gift_flip_ratein-mix-pool
 STACK="+tta_flip=true +ratein=oracle" ONLY=<stem> scripts/eval_checkpoints_ssm.sh <dir> +gift_batch_size=32     # diagnostic, 11x
 scripts/calibrate_ssm.sh <ckpt> --flip --config-name ssm_mini_v3_wide        # B2 : gamma_<stem>_flip.json dans ../TimeJEPA/evaluation/calibration
 # 2c'. B3' RateIN-up (P-SSM.7, inférence seule ; TimeJEPA à jour sur le pod) :
-STACK="+tta_flip=true +ratein=mix +ratein_pool=true +ratein_k_up=2,3,4 +ratein_min_bt=4 +ratein_bt_windows=4" ONLY=epoch00_valloss1.2841 scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mini_v3_wide_zs/pretrain_False +gift_batch_size=32
-# 2d. bras B1 horizon aléatoire (P-SSM.6) : voir l'en-tête de configs/ssm_mini_v3_hrand.yaml
+STACK="+tta_flip=true +ratein=mix +ratein_pool=true +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4" ONLY=epoch00_valloss1.2841 scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mini_v3_wide_zs/pretrain_False +gift_batch_size=32
+# 2d. bras B1 horizon aléatoire : sur le 10M (P-SSM.6b, configs/ssm_mid_v3_hrand.yaml) ; la file B2 + B3' + oracle puis B1 :
+nohup scripts/queue_b2_b3_oracle_then_hrand.sh > logs/queue.out 2>&1 &        # EVALS_ONLY=1 pour ne pas enchaîner l'entraînement
+# NB Hydra : une liste non quotée avec des virgules est un sweep ; écrire +ratein_k_up=2x3x4
 # 3. évals sur un GPU pendant le run
 STACK="+tta_flip=true +ratein=mix +ratein_pool=true" EVAL_CONFIG=ssm_mid_v3_eval scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mid_v3_zs/pretrain_False +gift_batch_size=32
 ```

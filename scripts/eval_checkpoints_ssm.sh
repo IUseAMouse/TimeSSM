@@ -28,7 +28,17 @@ STACK_DEFAULT="+tta_flip=true +ratein=mix +ratein_pool=true"
 STACK_STR=${STACK:-$STACK_DEFAULT}
 read -r -a STACK_ARR <<< "$STACK_STR"
 TAG=""
-[ "$STACK_STR" != "$STACK_DEFAULT" ] && TAG="_$(echo "$STACK_STR" | tr -d '+' | tr ' =' '_-')"
+# Log-file tag: flags joined, any PATH value reduced to its basename (a
+# +quantile_gamma=/abs/path.json put slashes in the log name and every tee
+# failed, 2026-09-29), commas kept out of file names.
+if [ "$STACK_STR" != "$STACK_DEFAULT" ]; then
+  TAG=""
+  for item in "${STACK_ARR[@]}"; do
+    key=${item%%=*}; val=${item#*=}
+    case "$val" in */*) val=$(basename "$val" .json) ;; esac
+    TAG="${TAG}_$(echo "${key}-${val}" | tr -d '+"' | tr ',' 'x')"
+  done
+fi
 RUN=$(basename "$(dirname "$DIR")")
 [ "$RUN" = "checkpoints" ] && RUN=$(basename "$DIR")
 mkdir -p "$HERE/logs"

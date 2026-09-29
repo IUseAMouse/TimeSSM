@@ -1,0 +1,39 @@
+# @package _global_
+# RANDOM-HORIZON ARM ON THE 10M (2026-09-29, user decision): B1 goes straight
+# to the 10M champion instead of the 2.5M. With 3 GPUs a from-scratch arm is
+# not affordable, and the 10M has still seen fewer optimizer steps than the
+# 2.5M (259k + 90k against 505k): a continuation adds volume AND the one new
+# variable, the horizon re-drawn inside the fixed 1280-step window.
+# Identification: the frac arm (same recipe WITHOUT the random horizon) moved
+# the SHORT term by -0.26 pt only (0.5512 -> 0.5486) while medium and long
+# gained; what this arm adds on short beyond that is the random horizon.
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_hrand --world-size 3 \
+#       --batches 250000 --windows 100e6           # same fraction as the frac arm: 0.04316
+#   nohup scripts/train_ssm_loop.sh ssm_mid_v3_hrand ssm-mid-v3-hrand \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_frac_zs/pretrain_False/epoch00_valloss3.0571.ckpt' \
+#       training.schedule_fraction=0.04316 training.lr_scheduler.warmup_epochs=0.004316 > logs/loop_hrand.out 2>&1 &
+#
+# Start = the frac arm's LAST checkpoint (3.0571, stack 0.5213), not its best
+# by GIFT (0.5194 at 60%): picking a start on the test score is selection on
+# the test, and the two are inside the checkpoint noise.
+#
+# P-SSM.6b (graved before the run): on the last checkpoint, stack flip + mix +
+# pool <= 0.517 (-0.4 pt on 0.5213), SHORT-term CRPS ratio 0.5486 -> <= 0.542,
+# 80% coverage >= 0.76 (against 0.708), medium and long not worse than 0.4945
+# / 0.4809. FAILURE if stack >= 0.521 or short >= 0.5486: the target length is
+# not the lever, more volume on this recipe buys nothing either.
+defaults:
+  - ssm_mid_v3_frac
+  - _self_
+
+model:
+  name: "timessm_mid_v3_hrand_zs"
+
+training:
+  horizon_lengths: [32, 64, 128, 256, 384, 512]
+  p_random_horizon: 0.5
+  horizon_min_context: 256
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "random-horizon", "fractional-sampler", "resume", "lotsa", "v3", "mid"]
