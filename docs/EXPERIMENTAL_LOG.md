@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (CARTE AVANT/APRÈS DU BRAS FRAC : la capacité et le bon mélange paient sur
+  MEDIUM et LONG, pas sur le COURT terme ; les basses fréquences ne reviennent qu'à moitié)**
+  — `gift_gap_ssm.py`, 10M frac `3.0571` contre 10M entier `3.0672-v1` (et 2.5M wide `1.2841`
+  de la carte du 26/09). **Par terme**, CRPS ratio 2.5M wide | 10M entier | 10M frac : short
+  0.5476 | 0.5512 | 0.5486 · medium 0.5053 | 0.4975 | 0.4945 · long 0.4851 | 0.4855 | 0.4809.
+  Le 10M frac gagne 1.1 pt sur medium et 0.4 pt sur long contre le 2.5M, et RIEN sur short
+  (0.5486 contre 0.5476). Contre Toto : short ×1.040 (20/55), medium ×0.949 (14/21), long
+  ×0.927 (15/21), total ×0.995, 49/97 gagnées ; contre FlowState ×1.057 / ×1.021 / ×1.008,
+  total ×1.039, 34/97 ; contre TTM-R3-PT ×1.003. **Basses fréquences**, 2.5M | entier | frac :
+  W 0.644 | 0.666 | 0.658 · M 0.764 | 0.809 | 0.783 · A 0.886 | 0.950 | 0.945 · 10S 0.735 |
+  0.803 | 0.771. Le sampler fractionnaire récupère un tiers à la moitié de ce que le sampler
+  entier avait perdu, en 100 M fenêtres ; le 10M reste derrière le 2.5M sur W/M/A/10S.
+  **Couverture** inchangée (0.717 / 0.705 / 0.688). **Queue** : bizitobs_application/10S/short
+  ×2.31 contre Toto (0.681 ; le 2.5M y fait 0.529 : config instable d'un modèle à l'autre),
+  puis bizitobs_service, bitbrains_fast_storage ×4, covid_deaths, electricity/W, solar/10T.
+  Cousin au corpus : ×0.961 avec, ×1.012 sans. **Lecture** : l'écart restant à FlowState
+  (3.9 %) est aux deux tiers dans le court terme (55 configs à ×1.057) ; la capacité n'y
+  touche pas. Les deux bras qui visent le court terme sont exactement ceux qui restent :
+  B3′ (sélecteur éteint sous h = 16, inférence seule) et B1 (cibles courtes). Ordre
+  confirmé : B2 / B3′ / oracle-k en cours sur le 2.5M wide, puis B1 ; le bras gagnant se
+  reporte sur le 10M frac.
+
 - **2026-09-29 (BRAS FRAC DU 10M, TABLE À 97 SUR 5 CHECKPOINTS : dernier 0.7674 / 0.5213 / couv.
   0.708, meilleur 0.7645 / 0.5194 (60 %) — P-SSM.5 MANQUÉE DE 0.13 PT À LA LETTRE (≤ 0.520 au
   dernier checkpoint), loin de l'échec (≥ 0.524) ; NOUVEAU CHAMPION par le chiffre, bande
