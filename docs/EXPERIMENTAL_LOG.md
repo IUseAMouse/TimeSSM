@@ -5,6 +5,33 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (CARTE DE RateIN-up SUR LE 2.5M WIDE : P-SSM.7 tenue sur le global, MANQUÉE sur
+  ses deux critères de mécanisme — le gain est DIFFUS, pas celui des basses fréquences)** —
+  `gift_gap_ssm.py`, `gift_flip_ratein-mix-pool-up234-bt4-w4` contre
+  `gift_flip_ratein-mix-pool`, 97 configs. **Par terme** (up | référence) : short 0.5416 |
+  0.5476 (−0.60 pt) · medium 0.5033 | 0.5053 (−0.20) · long 0.4805 | 0.4851 (−0.46). **Par
+  fréquence**, variation du CRPS ratio : 10S −3.7 %, A −1.8 %, 10T −1.8 %, 5T −1.3 %, W
+  −1.2 %, D −1.2 %, Q −0.7 %, H −0.4 %, M −0.3 % (MASE M 0.816 → 0.836, pire), 15T +0.3 %.
+  Le groupe W/M/A/Q gagne ~1 %, pas les ≥ 5 % gravés ; contre FlowState W reste à ×1.112,
+  A à ×1.116. Les configs à h ≥ 16 ne sont PAS inchangées : part d'instances à k ≠ 1 medium
+  0.62 → 0.86, long 0.90 → 0.81 (les 4 fenêtres de backtest changent la sélection partout).
+  **Régressions** : electricity/W/short 0.642 → 0.754 (+17 %, devient la 2e pire config
+  contre Toto, ×1.36), car_parts/M et saugeen/D entrent dans les dix pires, domaine Sales
+  0.4354 → 0.4518 (+3.8 %, MASE 0.712 → 0.752) : sur des backtests de 8 à 12 pas, le
+  sélecteur choisit parfois mal (malédiction du vainqueur, déjà vue en v2.1). Couverture
+  short 0.717 → 0.705. **Verdict** : critère global tenu (0.5194 ≤ 0.521) ; critère de
+  groupe manqué ; critère « le reste inchangé » manqué. Mon mécanisme (« le sélecteur est
+  éteint sur les basses fréquences, c'est là qu'on perd 13 % ») n'explique qu'une petite
+  part du gain : RateIN-up gagne surtout par une sélection mieux estimée PARTOUT. Les trois
+  flags sont confondus dans cette mesure ; ablation à faire, une éval chacun : (a)
+  `ratein_bt_windows=4` seul, (b) `ratein_k_up=2x3x4` seul, (c) `ratein_min_bt=4` seul.
+  GARDE-FOU DE MÉTHODE : ne dessiner AUCUNE garde (marge plus haute sous h_bt < 16,
+  exclusion de familles) à partir de ces résultats par config, ce serait régler sur le
+  test ; une garde se justifie par le diagnostic du backtest (table `ratios`, nombre de
+  fenêtres), pas par le score GIFT. L'écart aux basses fréquences contre FlowState reste
+  ouvert : ni la capacité, ni le mélange, ni le sélecteur ne le ferment ; B1 (cibles
+  courtes) est le dernier bras qui le vise.
+
 - **2026-09-29 (B2 SUR LE 2.5M WIDE : 0.7679 / 0.5232 / couv. 0.765 — P-SSM.8 TENUE au bord
   bas : couverture 0.717 → 0.765, CRPS −0.10 pt, MASE identique)** — Stack +
   `quantile_gamma` (γ calibré sur la validation du corpus, ×flip), 97 configs sans échec.
