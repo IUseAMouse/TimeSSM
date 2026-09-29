@@ -154,7 +154,19 @@ def main():
     sn = load_official(snapshot / "seasonal_naive.csv")
     competitors = {c: load_official(snapshot / f"{c}.csv") for c in args.competitors.split(",") if c}
     stems = corpus_stems(args.corpus_manifest, args.corpus_dir)
-    runs = {Path(r).parts[-3] + "/" + Path(r).parts[-2]: load_ours(r) for r in args.runs}
+    # One column per run DIRECTORY: <checkpoint>/<tag>. Keying on run/checkpoint
+    # alone collapsed two inference variants of the same checkpoint into one
+    # column (the second silently replaced the first, 2026-09-29).
+    runs = {}
+    for r in args.runs:
+        parts = Path(r.rstrip("/")).parts
+        name = parts[-2] + "/" + parts[-1]
+        if name in runs:
+            raise SystemExit(f"two run directories share the name {name}")
+        runs[name] = load_ours(r)
+    same_ckpt = len({n.split("/")[0] for n in runs}) == 1
+    if same_ckpt and len(runs) > 1:          # label the columns by their tag
+        runs = {n.split("/", 1)[1]: v for n, v in runs.items()}
 
     # ratios vs official SN, per run and per competitor
     ratios = {name: {} for name in runs}

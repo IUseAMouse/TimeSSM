@@ -50,3 +50,22 @@ def test_gap_map_on_fixture(tmp_path):
     assert "0.150 0.850  0.700 0.50" in out
     # corpus cousin: solar resolved yes, ett1 no, m4_monthly no (no m1/m3 file)
     assert "yes" in out and "no" in out
+
+
+def test_two_variants_of_the_same_checkpoint_get_two_columns(tmp_path):
+    raw = tmp_path / "raw"; raw.mkdir()
+    _write_official(raw / "seasonal_naive.csv", [
+        {"dataset": "solar/H/short", "model": "SN", SN_COLS[2]: 1.0, SN_COLS[3]: 1.0, "domain": "Energy", "num_variates": 1}])
+    _write_official(raw / "Comp.csv", [
+        {"dataset": "solar/H/short", "model": "Comp", SN_COLS[2]: 0.8, SN_COLS[3]: 0.5, "domain": "Energy", "num_variates": 1}])
+    dirs = []
+    for tag, crps in (("gift_a", 0.4), ("gift_b", 0.6)):
+        d = tmp_path / "run" / "ckpt" / tag; (d / "per_config").mkdir(parents=True); dirs.append(str(d))
+        json.dump({"config": "solar/H/short", "prediction_length": 48,
+                   "model": {"MASE": 0.7, "CRPS": crps, "coverage": {"0.1": 0.1, "0.9": 0.9}}},
+                  open(d / "per_config" / "solar__H__short.json", "w"))
+    out = subprocess.run([sys.executable, str(HERE / "scripts" / "gift_gap_ssm.py"), *dirs,
+                          "--snapshot", str(raw), "--competitors", "Comp"],
+                         capture_output=True, text=True, check=True).stdout
+    assert "gift_a" in out and "gift_b" in out
+    assert "0.4000" in out and "0.6000" in out

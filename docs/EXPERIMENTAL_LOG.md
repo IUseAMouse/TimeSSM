@@ -5,6 +5,24 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (B2 SUR LE 2.5M WIDE : 0.7679 / 0.5232 / couv. 0.765 — P-SSM.8 TENUE au bord
+  bas : couverture 0.717 → 0.765, CRPS −0.10 pt, MASE identique)** — Stack +
+  `quantile_gamma` (γ calibré sur la validation du corpus, ×flip), 97 configs sans échec.
+  q10 0.143 → 0.117, q90 0.860 → 0.882 : l'intervalle 80 % passe à 0.765 (critère ≥ 0.76
+  tenu), le CRPS gagne 0.10 pt (critère −0.1 à −0.3 : bord bas ; l'écriture « ≤ 0.523 »
+  du même critère est manquée de 0.02 pt, arrondi), MASE bit-identique comme prévu.
+  Lecture : la moitié du déficit de couverture était bien un fan mal formé en
+  distribution, réparable hors test ; le reste (0.765 contre 0.80) est du décalage.
+  Contrairement à TimeJEPA (G4.2 neutre), γ PAIE sur le SSM, peu en CRPS, beaucoup en
+  calibration. Tableau des couches sur `1.2841` : stack 0.7679 / 0.5242 / 0.717 · + γ 0.7679
+  / 0.5232 / 0.765 · + RateIN-up 0.7621 / 0.5194 / 0.699 · oracle-k 0.7564 / 0.5117 /
+  0.713. Les deux couches sont complémentaires par construction (RateIN-up gagne le CRPS
+  et resserre le fan, γ l'élargit sans toucher la médiane) : l'éval combinée
+  (stack + up + γ) reste à faire, γ étant à RECALIBRER sous RateIN-up (le fan calibré
+  n'est pas le même). Outil : `gift_gap_ssm.py` fusionnait deux variantes d'un même
+  checkpoint en une colonne (clé run/checkpoint) ; clé = checkpoint/tag, test ajouté ; la
+  carte avant/après de RateIN-up est à relancer.
+
 - **2026-09-29 (2.5M WIDE `1.2841` : ORACLE-k 0.7564 / 0.5117 ; RateIN-up 0.7621 / 0.5194 /
   couv. 0.699 — P-SSM.7 : critère global TENU (≤ 0.521), critère de groupe en attente de la
   carte)** — 97 configs sans échec pour les deux. **Oracle-k** (`+tta_flip +ratein=oracle`,
