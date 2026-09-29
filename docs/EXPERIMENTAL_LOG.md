@@ -5,6 +5,25 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (BRAS FRAC DU 10M, TABLE À 97 SUR 5 CHECKPOINTS : dernier 0.7674 / 0.5213 / couv.
+  0.708, meilleur 0.7645 / 0.5194 (60 %) — P-SSM.5 MANQUÉE DE 0.13 PT À LA LETTRE (≤ 0.520 au
+  dernier checkpoint), loin de l'échec (≥ 0.524) ; NOUVEAU CHAMPION par le chiffre, bande
+  0.519-0.521)** — Stack flip + mix + pool : 20 % 0.7760 / 0.5245 / 0.697 · 40 % 0.7696 /
+  0.5223 / 0.689 · 60 % **0.7645 / 0.5194** / 0.713 · 80 % 0.7666 / 0.5207 / 0.708 · 100 %
+  0.7674 / 0.5213 / 0.708. Départ (poids du 10M entier) : 0.7722 / 0.5245. Gain du bras :
+  −0.3 à −0.5 pt de CRPS, −0.5 à −0.8 pt de MASE ; le 10M bat maintenant le 2.5M wide sur les
+  deux axes (0.5242 / 0.7679), de 0.3-0.5 pt et 0.1-0.3 pt. Le mélange ET les pas
+  supplémentaires comptaient (les deux changent dans ce bras : non séparés). Bande des trois
+  derniers 0.19 pt : on publie la bande, pas le 0.5194. Règle du second bras (gravée le
+  25/09 : le stack descend-il encore entre 80 et 100 % ?) : NON (0.5207 → 0.5213), malgré une
+  val_wql interne qui descend jusqu'au bout (0.335 → 0.328 ; validation proportionnelle,
+  non comparable à celle du run entier). Pas de second bras frac. Suite : carte avant/après
+  (short et basses fréquences revenus ?), puis B2 / B3′ / oracle-k sur le 2.5M wide, puis
+  B1. Incident d'outillage : la file de nuit (`bash -c` avec `while pgrep -f
+  eval_all_gpus_ssm.sh`) ne s'est jamais déclenchée — `pgrep -f` trouvait la ligne de
+  commande du `bash -c` lui-même, qui contient le motif ; une attente sur un PID ou un
+  fichier témoin est la forme correcte. Nuit de GPU perdue sur les trois évals d'inférence.
+
 - **2026-09-26 (B2, CALIBRATION CQR DU 2.5M WIDE `1.2841` SUR LA VALIDATION DU CORPUS, ×flip :
   le fan est un peu étroit EN DISTRIBUTION et surtout mal FORMÉ ; P-SSM.8 gravée)** —
   `calibrate_ssm.sh`, 192 fenêtres par jeu, h = 256, 100 jeux. Couverture avant, médiane par
