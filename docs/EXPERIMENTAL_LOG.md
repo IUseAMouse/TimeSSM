@@ -5,6 +5,25 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-29 (2.5M WIDE `1.2841` : ORACLE-k 0.7564 / 0.5117 ; RateIN-up 0.7621 / 0.5194 /
+  couv. 0.699 — P-SSM.7 : critère global TENU (≤ 0.521), critère de groupe en attente de la
+  carte)** — 97 configs sans échec pour les deux. **Oracle-k** (`+tta_flip +ratein=oracle`,
+  décimation seule, k ≥ 1, diagnostic) : 0.5117, 33/97 configs gagnent > 5 % contre k = 1 ;
+  écart au stack de référence (0.7679 / 0.5242) : 1.25 pt de CRPS, 1.15 pt de MASE. La règle
+  gravée (« oracle − stack ≥ 1 pt → le sélecteur est le levier principal ») est remplie :
+  sur le SSM comme sur TimeJEPA (1.5 pt sur head8), la plus grande marge mesurée du projet
+  est dans le choix du rythme, pas dans le modèle. **RateIN-up** (stack + `ratein_k_up=2x3x4
+  ratein_min_bt=4 ratein_bt_windows=4`) : 0.5194, soit −0.48 pt de CRPS et −0.58 pt de MASE
+  sur le stack, 38 % de l'écart à l'oracle capturé ; part d'instances à k ≠ 1 : 50 % →
+  56.7 % ; couverture 0.717 → 0.699 (le fan se resserre encore : −1.8 pt, à surveiller avec
+  B2). NB : l'oracle ne contient pas les candidats k < 1, RateIN-up peut donc le dépasser sur
+  les configs courtes ; le plafond réel est au-dessus de 0.5117. Le 2.5M avec RateIN-up
+  égale le meilleur checkpoint du 10M frac au stack de référence (0.5194) : la couche
+  d'inférence vaut autant que le passage à 10M + bras frac. Reste à lire sur la carte
+  (`gift_gap_ssm.py` référence contre up) : le gain vient-il des 17 configs basse fréquence
+  (critère ≥ 5 %) ou des 4 fenêtres de backtest sur l'ensemble ? B2 (γ) : résultat attendu
+  dans `logs/b2.out`.
+
 - **2026-09-29 (B1 PASSE DIRECTEMENT SUR LE 10M — décision utilisateur ; P-SSM.6b GRAVÉE ;
   deux pannes d'outillage des évals B2 et B3′ corrigées)** — Pannes : (1) B2, le tag du
   fichier de log était construit depuis la chaîne STACK et contenait le chemin absolu du
