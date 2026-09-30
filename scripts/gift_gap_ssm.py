@@ -146,6 +146,8 @@ def main():
     ap.add_argument("--corpus-manifest", default=None)
     ap.add_argument("--corpus-dir", default=None)
     ap.add_argument("--by", default="term,horizon,freq,variates,corpus_cousin,domain")
+    ap.add_argument("--metric", choices=["crps", "mase"], default="crps",
+                    help="which ratio the competitor columns compare (default crps)")
     args = ap.parse_args()
 
     here = Path(__file__).resolve().parents[1]
@@ -178,6 +180,7 @@ def main():
                        for cfg, r in rows.items() if cfg in sn} for c, rows in competitors.items()}
 
     first = next(iter(runs))
+    mi = 0 if args.metric == "crps" else 1          # ratio tuple index for the competitor columns
     configs = sorted(ratios[first])
     print(f"{len(configs)} configs in {first}" + (" (fewer than 97: NOT comparable)" if len(configs) < 97 else ""))
     unresolved = sorted({c.split('/')[0] for c in configs if has_cousin(c.split('/')[0], stems) == '?'})
@@ -191,7 +194,7 @@ def main():
         order = TERMS if key == "term" else sorted(groups, key=lambda g: (-len(groups[g]), g))
         print(f"\n== by {key}")
         head = f"{'group':>14s} {'n':>3s}" + "".join(f" | {n[-22:]:>22s} CRPS  MASE" for n in runs) \
-            + "".join(f" | vs {c[:12]:>12s} CRPS wins" for c in competitors)
+            + "".join(f" | vs {c[:12]:>12s} {args.metric.upper()} wins" for c in competitors)
         print(head)
         for g in order:
             cfgs = groups.get(g, [])
@@ -202,8 +205,8 @@ def main():
                 line += f" | {geomean([ratios[n][c][0] for c in cfgs if c in ratios[n]]):27.4f} {geomean([ratios[n][c][1] for c in cfgs if c in ratios[n]]):.4f}"
             for c, cr in comp_ratios.items():
                 both = [x for x in cfgs if x in cr and x in ratios[first]]
-                rel = geomean([ratios[first][x][0] / cr[x][0] for x in both])
-                wins = sum(ratios[first][x][0] < cr[x][0] for x in both)
+                rel = geomean([ratios[first][x][mi] / cr[x][mi] for x in both])
+                wins = sum(ratios[first][x][mi] < cr[x][mi] for x in both)
                 line += f" | {rel:26.3f} {wins:>2d}/{len(both)}"
             print(line)
         # overall row
@@ -212,7 +215,7 @@ def main():
             line += f" | {geomean([ratios[n][c][0] for c in configs if c in ratios[n]]):27.4f} {geomean([ratios[n][c][1] for c in configs if c in ratios[n]]):.4f}"
         for c, cr in comp_ratios.items():
             both = [x for x in configs if x in cr]
-            line += f" | {geomean([ratios[first][x][0] / cr[x][0] for x in both]):26.3f} {sum(ratios[first][x][0] < cr[x][0] for x in both):>2d}/{len(both)}"
+            line += f" | {geomean([ratios[first][x][mi] / cr[x][mi] for x in both]):26.3f} {sum(ratios[first][x][mi] < cr[x][mi] for x in both):>2d}/{len(both)}"
         print(line)
 
     # coverage and rate share by term and horizon bucket, per run
@@ -243,10 +246,20 @@ def main():
     if comp_ratios:
         c0 = next(iter(comp_ratios))
         both = [x for x in configs if x in comp_ratios[c0]]
-        worst = sorted(both, key=lambda x: -ratios[first][x][0] / comp_ratios[c0][x][0])[:10]
-        print(f"\n== worst 10 configs of {first} vs {c0} (our CRPS ratio / theirs)")
+        worst = sorted(both, key=lambda x: -ratios[first][x][mi] / comp_ratios[c0][x][mi])[:10]
+        print(f"\n== worst 10 configs of {first} vs {c0} (our {args.metric.upper()} ratio / theirs)")
         for x in worst:
-            print(f"  {x:40s} x{ratios[first][x][0] / comp_ratios[c0][x][0]:.2f}  ours {ratios[first][x][0]:.3f} theirs {comp_ratios[c0][x][0]:.3f}  h={runs[first][x]['h']}")
+            print(f"  {x:40s} x{ratios[first][x][mi] / comp_ratios[c0][x][mi]:.2f}  ours {ratios[first][x][mi]:.3f} theirs {comp_ratios[c0][x][mi]:.3f}  h={runs[first][x]['h']}")
+    # CRPS/MASE decoupling: configs where the median is much worse than the fan
+    # relative to the first competitor (our MASE/theirs divided by our CRPS/theirs)
+    if comp_ratios:
+        c0 = next(iter(comp_ratios)); cr = comp_ratios[c0]
+        both = [x for x in configs if x in cr]
+        dec = sorted(both, key=lambda x: -(ratios[first][x][1] / cr[x][1]) / (ratios[first][x][0] / cr[x][0]))[:10]
+        print(f"\n== median worse than fan vs {c0}: top 10 of (MASE rel) / (CRPS rel)")
+        for x in dec:
+            mr, crr = ratios[first][x][1] / cr[x][1], ratios[first][x][0] / cr[x][0]
+            print(f"  {x:40s} MASE x{mr:.2f}  CRPS x{crr:.2f}  ratio {mr / crr:.2f}  h={runs[first][x]['h']}")
 
 
 if __name__ == "__main__":
