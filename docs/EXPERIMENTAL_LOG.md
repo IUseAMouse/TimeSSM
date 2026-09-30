@@ -5,6 +5,26 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-30 (CORRECTION DE CIBLE : FlowState sous 10M = 0.5019, pas 0.4866 ; premiers
+  checkpoints de B1 sur le 10M)** — Relevé par l'utilisateur, vérifié : FlowState-r1.1
+  (0.4866) et Granite-FlowState-r1.1 (0.4901) font ~18.5M de paramètres ; le seul FlowState
+  sous 10M est FlowState-9.1M (0.5019 / 0.7262). Toutes les mentions « FlowState 9M à
+  0.4866 / 0.487 » de ce registre (dont « hors de portée du 10M », 2026-09-17) portaient le
+  chiffre de r1.1 ; les cartes `gift_gap_ssm.py` comparaient déjà au bon fichier
+  (`FlowState-9.1M.csv`). Position réelle dans la classe ≤ 10M zero-shot : FlowState-9.1M
+  0.5019 · TimeSSM-2.5M + RateIN-up 0.5194 · [TTM-R3-PT 0.5195, a vu GIFT] · TimeSSM-10M
+  frac 0.5213 (10.1M, juste au-dessus du seuil) · Toto-2.0-4m 0.5242 · TimeSSM-2.5M stack
+  0.5242. Écart à la barre : 1.75 à 1.9 pt, pas 3.5. L'objectif « 0.495-0.50 avec le 10M »
+  était calé sur la mauvaise barre ; 0.51 mettrait le 10M à 0.8 pt de FlowState-9.1M, et
+  le second tour (RateIN-up + γ sur le 10M, +0.5 pt mesuré sur le 2.5M) vise ~0.515.
+  Détail au registre TimeJEPA du même jour (`86e1f34`). **B1 (`ssm-mid-v3-hrand`)**,
+  validation à h = 256 : val_wql 0.334 puis 0.333 aux deux premiers checkpoints, contre
+  0.328 à la fin du bras frac dont il part. La remontée de 0.006 au départ est celle d'un
+  cosinus qui repart à 1e-4 depuis des poids annealés (le bras frac avait commencé à 0.335
+  de la même façon) ; et la validation ne mesure que l'horizon 256, auquel le bras ne
+  consacre plus qu'un batch sur deux : les cibles courtes ne peuvent pas la faire baisser,
+  elles ne s'y voient pas. Le témoin de B1 est la carte par terme sur GIFT, pas val_wql.
+
 - **2026-09-29 (CARTE DE RateIN-up SUR LE 2.5M WIDE : P-SSM.7 tenue sur le global, MANQUÉE sur
   ses deux critères de mécanisme — le gain est DIFFUS, pas celui des basses fréquences)** —
   `gift_gap_ssm.py`, `gift_flip_ratein-mix-pool-up234-bt4-w4` contre
