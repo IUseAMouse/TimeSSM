@@ -5,6 +5,35 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-09-30 (CARTE MASE : où la MÉDIANE perd — l'horaire, les doubles saisonnalités, et les
+  m4 ; découplage médiane/fan mesuré)** — `gift_gap_ssm.py --metric mase`, 2.5M wide + RateIN-up
+  (0.7621) et 10M frac (0.7674) contre FlowState-9.1M (0.7262), Toto-2.0-4m (0.7565),
+  Kairos_10m (0.7527). **Global** : nous/FlowState ×1.049 (27/97 gagnées), nous/Toto ×1.007
+  (40/97), nous/Kairos ×1.013 (32/97). Contre Toto le MASE suit le CRPS (short ×1.040 perdu,
+  medium ×0.983 et long ×0.950 gagnés) ; contre FlowState la médiane perd sur TOUS les
+  termes (×1.059 / 1.043 / 1.031). **Par fréquence contre FlowState** : H ×1.077 avec 5/31
+  gagnées — le plus gros groupe du benchmark, perdu presque en bloc sur la médiane alors
+  que le CRPS y est à ×1.048 ; W ×1.098, A ×1.143, 10S ×1.082, Q ×1.065, M ×1.053, D ×1.041 ;
+  seule 5T gagne (×0.979). Domaine Econ/Fin ×1.237 (les m4), Sales ×1.084. **Dix pires en
+  MASE** : m4_hourly ×1.90 (nous 1.165, PIRE que la saisonnalité naïve ; eux 0.613), m4_weekly
+  ×1.42, electricity/W ×1.26, bizitobs_application/10S/short ×1.26, car_parts/M ×1.22,
+  bitbrains_fast_storage/H ×1.19, m_dense/H medium et long ×1.17, bizitobs_service/10S/medium
+  ×1.17, loop_seattle/5T/medium ×1.17. **Découplage (MASE rel / CRPS rel)** : m4_hourly 1.52,
+  covid_deaths/D 1.43 (fan bien meilleur que FlowState ×0.69, médiane égale ×0.99), m4_weekly
+  1.18, bitbrains_fast_storage/H 1.18, jena_weather/10T 1.15, bitbrains_rnd/5T, bizitobs
+  long, jena/H/long 1.11-1.13. Trait commun des configs où la médiane décroche : horaire ou
+  sub-horaire à DOUBLE saisonnalité (jour + semaine : m4_hourly, bitbrains/H, jena/H,
+  m_dense/H, loop_seattle/5T), plus les séries compétition m4 sans cousin au corpus.
+  **Hypothèses à tester, dans l'ordre du coût** : (H1) le mélange de rythmes (Vincentization
+  de fans à k différents) LISSE la médiane : un fan couvert et une médiane amortie sur les
+  séries à pics — la table nu / flip / stack en MASE par config le dit sans entraînement
+  (les évals nu et flip du 2.5M wide `1.2841` sont à faire : ~1 h chacune) ; (H2) la médiane
+  ne porte pas le cycle hebdomadaire dans 1024 pas horaires (6 cycles) : erreur par pas
+  (jours 1 et 2 de l'horizon 48) sur les configs H, à instrumenter dans le harnais ; (H3)
+  la pinball donne 1/9 du gradient à la médiane : terme MAE auxiliaire ou pondération du
+  niveau 0.5 (bras d'entraînement, après B1). Rappel : les seuls leviers qui aient bougé le
+  MASE sur ce projet sont le mélange de données (−0.5 pt) et RateIN-up (−0.6 pt).
+
 - **2026-09-30 (CORRECTION DE CIBLE : FlowState sous 10M = 0.5019, pas 0.4866 ; premiers
   checkpoints de B1 sur le 10M)** — Relevé par l'utilisateur, vérifié : FlowState-r1.1
   (0.4866) et Granite-FlowState-r1.1 (0.4901) font ~18.5M de paramètres ; le seul FlowState
