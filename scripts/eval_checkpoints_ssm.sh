@@ -25,13 +25,16 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 DIR="$1"; shift
 EXTRA=("$@")
 STACK_DEFAULT="+tta_flip=true +ratein=mix +ratein_pool=true"
-STACK_STR=${STACK:-$STACK_DEFAULT}
+# STACK unset -> the official stack; STACK="" (set, empty) -> no flags at all (the "nu" model).
+STACK_STR=${STACK-$STACK_DEFAULT}
 read -r -a STACK_ARR <<< "$STACK_STR"
 TAG=""
 # Log-file tag: flags joined, any PATH value reduced to its basename (a
 # +quantile_gamma=/abs/path.json put slashes in the log name and every tee
 # failed, 2026-09-29), commas kept out of file names.
-if [ "$STACK_STR" != "$STACK_DEFAULT" ]; then
+if [ -z "$STACK_STR" ]; then
+  TAG="_nu"
+elif [ "$STACK_STR" != "$STACK_DEFAULT" ]; then
   TAG=""
   for item in "${STACK_ARR[@]}"; do
     key=${item%%=*}; val=${item#*=}
