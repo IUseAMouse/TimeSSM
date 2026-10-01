@@ -20,6 +20,12 @@ from hydra import initialize_config_dir, compose; import os
 with initialize_config_dir(version_base=None, config_dir=os.path.abspath('configs')):
     print(compose(config_name='$CONFIG').data.seed)")
 CK=checkpoints/$MODEL/pretrain_False/last-autosave.ckpt
+# SEED0: the data seed of the FIRST attempt (default: the config's). A
+# continuation arm launched with the config's seed replays the batch
+# sequence of the arm it resumes from (same sampler, same seed: B1 replayed
+# the frac arm's 100M windows, 2026-10-01). Pass SEED0=<new> for every
+# continuation; relaunches after a crash use SEED0 + attempt as before.
+if [ -n "${SEED0:-}" ]; then SEED=$SEED0; fi
 mkdir -p logs
 # User overrides, minus the keys the loop owns (a second +training.resume_ckpt
 # would make Hydra refuse the command line on the first relaunch).
@@ -44,7 +50,8 @@ while :; do
     args+=(+training.resume_ckpt="$CK" data.seed=$((SEED + attempt)) wandb.run_name="$RUN-r$attempt")
   else
     args+=(wandb.run_name="$RUN")
-    for a in "${FIRST_ONLY[@]}"; do case "$a" in wandb.run_name=*) ;; *) args+=("$a") ;; esac; done
+    [ -n "${SEED0:-}" ] && args+=(data.seed=$SEED0)
+    for a in "${FIRST_ONLY[@]}"; do case "$a" in wandb.run_name=*|data.seed=*) ;; *) args+=("$a") ;; esac; done
   fi
   echo "== $(date '+%F %T') attempt $attempt: python scripts/train_ssm.py ${args[*]}" | tee -a "logs/$RUN.attempts"
   python scripts/train_ssm.py "${args[@]}" 2>&1 | tee -a "logs/train_$RUN.log"

@@ -5,6 +5,22 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-01 (B1 REJOUE LES BATCHES DU BRAS FRAC : même seed de données ; facteur de confusion
+  consigné, run non relancé)** — L'utilisateur a remarqué que la val_wql de `ssm-mid-v3-hrand`
+  suit presque le tracé de `ssm-mid-v3-frac`. Cause : la boucle de relance ne change le seed
+  qu'après un plantage ; en première tentative les deux bras ont pris le seed de la config
+  (420) avec le même sampler fractionnaire et la même fraction, donc le même générateur
+  (seed + époque·1000 + rang) et LA MÊME SUITE D'INDICES : B1 revoit les 100 M fenêtres du
+  bras frac dans le même ordre, avec l'horizon re-tiré une fois sur deux. Le checkpoint de
+  départ (`3.0571`, dernier du frac) et le sampler sont corrects. Impact : B1 = horizon
+  aléatoire + second passage sur le même sous-ensemble ; les fenêtres se chevauchant à pas
+  8, un second passage vaut presque des données fraîches (régime « corpus répété »), mais
+  c'est une confusion de plus à lire avec P-SSM.6b : un second passage n'a aucune raison de
+  déplacer le court terme plus que le moyen, la carte par terme reste le juge. Décision : pas
+  de relance (run à mi-parcours). Correctif : `SEED0=<seed>` dans `train_ssm_loop.sh` fixe le
+  seed de la première tentative (les reprises prennent SEED0 + tentative) ; en-tête des
+  configs de continuation : toujours un seed jamais utilisé par le run repris.
+
 - **2026-09-30 (CARTE MASE : où la MÉDIANE perd — l'horaire, les doubles saisonnalités, et les
   m4 ; découplage médiane/fan mesuré)** — `gift_gap_ssm.py --metric mase`, 2.5M wide + RateIN-up
   (0.7621) et 10M frac (0.7674) contre FlowState-9.1M (0.7262), Toto-2.0-4m (0.7565),

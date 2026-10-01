@@ -1,4 +1,6 @@
 # @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
 # RANDOM-HORIZON ARM (2026-09-26, plan B1): resume the 2.5M wide champion
 # (weights only, fresh optimizer, short cosine - the wide arm's recipe) and
 # add ONE variable: the horizon is re-drawn INSIDE the fixed 1280-step window

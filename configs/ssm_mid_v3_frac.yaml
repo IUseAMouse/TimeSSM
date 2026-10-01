@@ -1,4 +1,6 @@
 # @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
 # CONTINUATION ARM ON THE FRACTIONAL SAMPLER (2026-09-25): resume the 10M's
 # last checkpoint (weights only, fresh optimizer, short cosine) and train it on
 # the mix the 10M run should have seen. The integer sampler gave that run "1

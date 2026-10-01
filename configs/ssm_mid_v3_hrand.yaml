@@ -1,4 +1,6 @@
 # @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
 # RANDOM-HORIZON ARM ON THE 10M (2026-09-29, user decision): B1 goes straight
 # to the 10M champion instead of the 2.5M. With 3 GPUs a from-scratch arm is
 # not affordable, and the 10M has still seen fewer optimizer steps than the
