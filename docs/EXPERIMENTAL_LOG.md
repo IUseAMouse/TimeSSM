@@ -5,6 +5,31 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-02 (LES k DU STACK SUR LES 42 CONFIGS LONGUES, et le nu point par point : le bras
+  « rollout entraîné dans l'espace décimé » a sa cible)** — Poids du mélange RateIN par
+  config medium/long (2.5M wide `1.2841`) : sub-horaire (5T, 10T, 10S, 15T) k dominant 3-12,
+  jusqu'à 32-48 sur bizitobs_l2c/5T ; horaire k 1-3 (electricity/H medium : k = 1 à 97 %,
+  solar/H, m_dense/H, loop_seattle/H : k 1-2) sauf ett2/H (12-32) et bizitobs_l2c/H (8-12).
+  Horizon EFFECTIF après décimation : 480-900 pas natifs deviennent 40-240 pas décimés sur
+  le sub-horaire (dans ou sous l'horizon d'entraînement de 256), mais restent 240-720 sur
+  l'horaire à k 1-3. Donc les configs H medium/long sont celles où le rollout autonome
+  extrapole encore 2-3× au-delà de l'entraînement, et c'est là que FlowState garde
+  l'avantage (H ×1.077 en MASE). Nu point par point : bizitobs_service/10S/long MASE 3.57
+  (SN locale 1.37) : CRPS 0.088 contre 0.056 — la médiane nue est 2.6× pire que la
+  saisonnalité naïve ; solar/10T/long MASE 1.75 (SN 0.87), CRPS 0.62 contre 0.43. À 720-900
+  pas sans décimation le modèle est hors de sa zone, confirmé. **Bras candidat B5
+  (entraînement, à instruire en mode plan)** : multi-rythme sur la CIBLE — tirer k par
+  batch, décimer contexte ET cible par k (moyenne par blocs, la même que `ratein.decimate`),
+  prédire 256/k à 256 pas décimés ; le modèle voit alors en entraînement exactement ce que
+  RateIN lui présente, et des cibles qui couvrent 256·k pas natifs (jusqu'à 1024-3072)
+  sans allonger la fenêtre. Deux variables à ne pas confondre : (i) la décimation de la
+  fenêtre (nouveau) et (ii) les horizons longs en pas décimés (déjà couvert par 256).
+  Prédiction à graver : le nu medium/long bouge (MASE 0.95 → < 0.90) ET le stack H
+  medium/long bouge (le sélecteur choisit alors k > 1 plus souvent sur l'horaire), sans
+  dégrader le short. La fenêtre de 1280 pas décimée par k demande 1280·k pas natifs : ce
+  bras exclut les fenêtres trop courtes pour k > 1 (le datamodule a déjà
+  `multi_resolution_factors`, à relire avant d'écrire du code : TimeJEPA l'a eu en pretrain).
+
 - **2026-10-02 (CARTE NU / FLIP / STACK EN MASE, 2.5M wide `1.2841` : le modèle nu perd 17.6 %
   de MASE contre FlowState, le stack en rend 10 ; la médiane nue décroche sur les HORIZONS
   LONGS et le sub-horaire, et le stack y fait presque tout)** — MASE par terme, nu | flip |
