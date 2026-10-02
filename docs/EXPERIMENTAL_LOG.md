@@ -5,6 +5,34 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-02 (CARTE NU / FLIP / STACK EN MASE, 2.5M wide `1.2841` : le modèle nu perd 17.6 %
+  de MASE contre FlowState, le stack en rend 10 ; la médiane nue décroche sur les HORIZONS
+  LONGS et le sub-horaire, et le stack y fait presque tout)** — MASE par terme, nu | flip |
+  stack : short 0.784 | 0.767 | 0.749 · medium **0.946** | 0.919 | 0.790 · long **0.966** | 0.949 |
+  0.797. Horizon > 480 : nu 1.046 (PIRE que la saisonnalité naïve), stack 0.815. Le modèle
+  nu est un modèle de court terme ; sur medium et long c'est RateIN (décimation → moins de
+  pas à extrapoler) qui ramène la médiane de 0.95 à 0.79. CRPS nu par terme 0.578 / 0.597 /
+  0.585 : le fan nu tient mieux que la médiane nue, et c'est l'inverse du stack (0.548 /
+  0.505 / 0.485). Par fréquence, nu/FlowState en MASE : 10S ×2.35, 10T ×1.32, H ×1.15, W
+  ×1.15, A ×1.25 ; 5T ×1.10, D ×1.05. Web/CloudOps nu ×1.48 (stack ×1.03 : RateIN y récupère
+  presque tout), Econ/Fin ×1.28 (le stack n'y touche pas : W/M/A/Q, k = 1). Nu contre
+  FlowState : 15/97 gagnées, ×1.176 ; stack : 27/97, ×1.049. Dix pires en nu : bizitobs ×2-3,
+  m4_hourly ×2.11, solar/10T/long ×2.06 : rafales et sub-horaire à très long horizon (600-900
+  pas, 2.5-3.5× l'horizon d'entraînement). Couverture nu 0.724 / 0.691 / 0.668, flip 0.738 /
+  0.719 / 0.704 : le flip calibre plus que le mélange. **Lecture** : (1) RateIN n'est pas une
+  rustine, c'est 60 % de la MASE du modèle sur les horizons longs ; (2) la médiane nue
+  perd là où le rollout autonome est le plus long par rapport à l'entraînement, ce que
+  l'oracle-k à 1.25 pt (décimation = horizon plus court en pas) et la carte « long = notre
+  meilleur terme au stack » disaient déjà ; (3) ce que FlowState fait de mieux, c'est une
+  médiane qui tient à 900 pas SANS décimation externe, par son décodeur en base de
+  fonctions, continu en temps : la fréquence déclarée lui donne l'échelle, et son décodeur
+  n'extrapole pas pas à pas. Pistes pour la médiane, à instruire en mode plan : (a) un
+  rollout entraîné aux horizons de GIFT dans l'espace DÉCIMÉ (apprendre à prédire 48 pas
+  d'une série décimée par k, en tirant k à l'entraînement : le multi-rythme sur la cible
+  et pas seulement sur Δ) ; (b) le sélecteur, 1.25 pt d'oracle, 4 fenêtres déjà prises,
+  reste 0.8 pt ; (c) un terme MAE sur la médiane dans la pinball, pour les horizons courts
+  où le stack ne fait rien (W/M/A/Q, Econ/Fin ×1.28, Sales).
+
 - **2026-10-02 (CARTE DE B1 : aucune redistribution, le short est IDENTIQUE au frac — B1 CLOS)**
   — Par terme, B1 | frac : short 0.5487 | 0.5486 · medium 0.4951 | 0.4945 · long 0.4825 |
   0.4809. Par fréquence, écarts de ±0.5 % sauf 10S (+2.7 %, bizitobs_application/10S/short
