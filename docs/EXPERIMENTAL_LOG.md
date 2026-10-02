@@ -5,6 +5,40 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-02 (NUIT DE VERDICTS : B1 sur le 10M = 0.7668 / 0.5219 / couv. 0.711, P-SSM.6b
+  MANQUÉE (bande identique au frac) ; ABLATION de RateIN-up : les 4 FENÊTRES font tout le
+  gain ; nu / flip du 2.5M mesurés ; 10M + up + γ = 0.7582 / 0.5160, NOUVEAU CHAMPION)** —
+  **B1 (`ssm_mid_v3_hrand`, 97 configs)** : 20 % 0.7696 / 0.5237 / 0.688 · 40 % 0.7696 /
+  0.5226 / 0.726 · 60 % 0.7647 / 0.5195 / 0.720 · 80 % 0.7671 / 0.5218 / 0.711 · 100 %
+  0.7668 / 0.5219 / 0.711. Trajectoire superposée à celle du frac (0.5245 / 0.5223 / 0.5194 /
+  0.5207 / 0.5213) à 0.1 pt près : l'horizon aléatoire n'a rien changé au stack global ni
+  à la couverture (0.711 contre 0.708 ; le 0.800 de h512 ne se reproduit pas sur le SSM).
+  Critères gravés : stack ≤ 0.517 manqué, couverture ≥ 0.76 manquée ; carte par terme à
+  faire pour le critère short (redistribution possible), mais le global dit déjà qu'un
+  second passage + horizon aléatoire vaut un second passage. Troisième bras de continuation
+  sur le 10M, troisième bande 0.519-0.522 : la recette plafonne, et le même seed a rejoué
+  les mêmes 100 M fenêtres (confusion consignée le 01/10). **Ablation RateIN-up sur le 2.5M
+  wide `1.2841`** (stack 0.5242 / 0.7679) : bt_windows=4 seul **0.5201 / 0.7631** ; k_up seul
+  0.5239 / 0.7678 (rien) ; min_bt=4 seul 0.5251 / 0.7682 (légèrement pire) ; les trois
+  ensemble 0.5194 / 0.7621. Le gain de RateIN-up est à 90 % celui des quatre fenêtres de
+  backtest, une meilleure ESTIMATION de la sélection ; les candidats k < 1 n'apportent
+  rien seuls et le backtest court nuit seul : mon mécanisme B3′ est RÉFUTÉ sur ses deux
+  composantes. Garder `ratein_bt_windows=4` comme couche officielle candidate (à
+  confirmer sur un second checkpoint) ; k_up et min_bt restent des options documentées,
+  non recommandées. **Nu / flip du 2.5M wide** : nu 0.8542 / 0.5836, flip 0.8351 / 0.5644,
+  stack 0.7679 / 0.5242 : le flip vaut 1.9 pt de CRPS et 1.9 pt de MASE, RateIN mix+pool 4.0
+  et 6.7 pt. H1 (le mélange lisse la médiane) est RÉFUTÉE : le stack gagne PLUS en MASE
+  qu'en CRPS. La médiane qui décroche contre FlowState est dans le modèle nu (0.854 contre
+  0.726), pas dans la couche. **Combinaisons** : 2.5M up + γ 0.7621 / 0.5183 (γ ajoute 0.1 pt
+  sous up, additif) ; 10M B1 dernier + up 0.7582 / 0.5170 ; + son γ recalibré **0.7582 /
+  0.5160**. Champion du projet : TimeSSM-10M (B1 dernier checkpoint, stack + RateIN-up + γ)
+  0.7582 / 0.5160, à 1.4 pt de FlowState-9.1M (0.5019 / 0.7262) en CRPS et 3.2 pt en MASE ;
+  devant TTM-R3-PT (0.5195) et Toto-2.0-4m (0.5242). Nu, flip et stack du 10M à publier à
+  côté (nu et flip du 10M encore à mesurer). **Lecture** : trois bras de continuation du 10M
+  ont acheté 0.3 pt (0.5245 → 0.5219) ; les couches d'inférence 0.6 pt (0.5219 → 0.5160).
+  L'entraînement sur cette recette est au plateau ; ce qui reste de marge mesurée est le
+  sélecteur (oracle 1.25 pt) et la médiane du modèle nu.
+
 - **2026-10-01 (B1 REJOUE LES BATCHES DU BRAS FRAC : même seed de données ; facteur de confusion
   consigné, run non relancé)** — L'utilisateur a remarqué que la val_wql de `ssm-mid-v3-hrand`
   suit presque le tracé de `ssm-mid-v3-frac`. Cause : la boucle de relance ne change le seed
