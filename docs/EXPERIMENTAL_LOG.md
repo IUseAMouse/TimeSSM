@@ -5,6 +5,19 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-02 (CARTE DE B1 : aucune redistribution, le short est IDENTIQUE au frac — B1 CLOS)**
+  — Par terme, B1 | frac : short 0.5487 | 0.5486 · medium 0.4951 | 0.4945 · long 0.4825 |
+  0.4809. Par fréquence, écarts de ±0.5 % sauf 10S (+2.7 %, bizitobs_application/10S/short
+  ×2.73 contre Toto, 0.806 : la config la plus instable du benchmark d'un checkpoint à
+  l'autre) et A (−1.7 %). Couverture 0.715 / 0.712 / 0.698 contre 0.717 / 0.705 / 0.688 : +0.1
+  à +1 pt, dans le bruit. Verdict : les cibles courtes à l'entraînement n'ont déplacé ni le
+  court terme (critère short ≤ 0.542 manqué : 0.5487), ni la calibration, ni rien. P-SSM.6b
+  échouée sur ses trois critères. Lecture : la pinball sur 256 pas n'était pas ce qui
+  limitait le court terme ; le modèle prédit déjà le futur proche aussi bien qu'il le
+  peut avec ce qu'il a appris. L'horizon d'entraînement rejoint 1024/256 et l'univarié
+  dans les non-leviers mesurés. Le dernier checkpoint de B1 reste le champion par la
+  bande (même bande que le frac, 100 M fenêtres de plus), c'est lui qui porte les couches.
+
 - **2026-10-02 (NUIT DE VERDICTS : B1 sur le 10M = 0.7668 / 0.5219 / couv. 0.711, P-SSM.6b
   MANQUÉE (bande identique au frac) ; ABLATION de RateIN-up : les 4 FENÊTRES font tout le
   gain ; nu / flip du 2.5M mesurés ; 10M + up + γ = 0.7582 / 0.5160, NOUVEAU CHAMPION)** —
