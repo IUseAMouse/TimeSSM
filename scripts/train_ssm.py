@@ -166,6 +166,9 @@ def build_module(cfg: DictConfig, model) -> SSMFinetuneModule:
         horizon_lengths=list(cfg.training.get("horizon_lengths") or []),
         p_random_horizon=float(cfg.training.get("p_random_horizon", 0.0)),
         horizon_min_context=int(cfg.training.get("horizon_min_context", 256)),
+        decimation_factors=list(cfg.training.get("decimation_factors") or []),
+        p_decimation=float(cfg.training.get("p_decimation", 0.0)),
+        decimation_min_context=int(cfg.training.get("decimation_min_context", 128)),
         extend_horizon_queries=cfg.training.get("extend_horizon_queries", False),
         pretrained_encoder_path=cfg.training.get("pretrained_encoder_path"),
         finetune_mode=cfg.training.get("finetune_mode", "full_finetune"),
@@ -208,6 +211,8 @@ def main(cfg: DictConfig):
                 f"p={pl_module.p_delta_scale}")
     logger.info(f"Random horizon (inside the window): horizon_lengths={pl_module.horizon_lengths} "
                 f"p={pl_module.p_random_horizon} min_context={pl_module.horizon_min_context}")
+    logger.info(f"Decimated window: decimation_factors={pl_module.decimation_factors} "
+                f"p={pl_module.p_decimation} min_context={pl_module.decimation_min_context}")
 
     checkpoint_dir = Path(cfg.data.checkpoint_dir) / cfg.model.name / "pretrain_False"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)

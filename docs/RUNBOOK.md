@@ -101,7 +101,10 @@ STACK="+tta_flip=true +ratein=oracle" ONLY=<stem> scripts/eval_checkpoints_ssm.s
 scripts/calibrate_ssm.sh <ckpt> --flip --config-name ssm_mini_v3_wide        # B2 : gamma_<stem>_flip.json dans ../TimeJEPA/evaluation/calibration
 # 2c'. B3' RateIN-up (P-SSM.7, inférence seule ; TimeJEPA à jour sur le pod) :
 STACK="+tta_flip=true +ratein=mix +ratein_pool=true +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4" ONLY=epoch00_valloss1.2841 scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mini_v3_wide_zs/pretrain_False +gift_batch_size=32
-# 2d. bras B1 horizon aléatoire : sur le 10M (P-SSM.6b, configs/ssm_mid_v3_hrand.yaml) ; la file B2 + B3' + oracle puis B1 :
+# 2e. bras B5 fenêtre décimée (P-SSM.9, configs/ssm_mid_v3_dec.yaml ; SEED0 obligatoire, cf. en-tête) :
+python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_dec --world-size 3 --batches 250000 --windows 100e6
+SEED0=<nouveau> nohup scripts/train_ssm_loop.sh ssm_mid_v3_dec ssm-mid-v3-dec '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_hrand_zs/pretrain_False/epoch00_valloss3.0559-v1.ckpt' training.schedule_fraction=<F> training.lr_scheduler.warmup_epochs=<0.1 x F> > logs/loop_dec.out 2>&1 &
+# 2d. bras B1 horizon aléatoire (CLOS 2026-10-02, sans effet) : configs/ssm_mid_v3_hrand.yaml ; la file B2 + B3' + oracle puis B1 :
 nohup scripts/queue_b2_b3_oracle_then_hrand.sh > logs/queue.out 2>&1 &        # EVALS_ONLY=1 pour ne pas enchaîner l'entraînement
 # NB Hydra : une liste non quotée avec des virgules est un sweep ; écrire +ratein_k_up=2x3x4
 # 3. évals sur un GPU pendant le run

@@ -23,7 +23,21 @@ lost because it EXTENDED the window to 1536 and dropped the short chunks),
 the autonomous rollout is trained up to 512 steps (42 of the 97 GIFT
 configs ask for 480-900), and the head learns to calibrate (h512: exact
 0.800 coverage). Validation stays at the native 256. Witnesses
-`geometry/horizon_len`, `aug/horizon_neq_native_frac`.
+`geometry/horizon_len`, `aug/horizon_neq_native_frac`. Closed 2026-10-02:
+no effect on GIFT.
+
+Decimated window (2026-10-02, plan B5). The bare model's median collapses
+beyond 480 native steps and RateIN rescues it by decimating the context
+(block mean) so the horizon shrinks in steps. With probability `p_decimation`
+a factor k is drawn from `decimation_factors` and the SAME 1280-step window
+is read decimated: the target is the last 256*k native steps averaged in
+blocks of k (256 decimated steps, the native rollout), the context is the
+rest, block-averaged and right-aligned exactly like
+`timejepa.evaluation.ratein.decimate`. The rollout length does not change;
+the native span it covers does (512, 768), and the inputs are what the
+inference layer produces. Drawn per batch because the default collate needs
+one context length per batch. Validation stays native. Witnesses
+`aug/decimation_k`, `aug/decimation_neq1_frac`, `geometry/horizon_native`.
 """
 
 import random
@@ -39,6 +53,8 @@ class SSMFinetuneModule(FinetuneModule):
                  p_delta_scale: float = 0.0,
                  horizon_lengths: Optional[Sequence[int]] = None,
                  p_random_horizon: float = 0.0, horizon_min_context: int = 256,
+                 decimation_factors: Optional[Sequence[int]] = None,
+                 p_decimation: float = 0.0, decimation_min_context: int = 128,
                  **kwargs):
         super().__init__(model, **kwargs)
         self.delta_scales = [float(s) for s in (delta_scales or [])]
@@ -56,6 +72,63 @@ class SSMFinetuneModule(FinetuneModule):
         if any(h <= 0 for h in self.horizon_lengths):
             raise ValueError(f"horizon_lengths must be positive, got {self.horizon_lengths}")
         self._last_horizon = None
+        self.decimation_factors = [int(k) for k in (decimation_factors or [])]
+        self.p_decimation = float(p_decimation)
+        self.decimation_min_context = int(decimation_min_context)
+        if self.p_decimation > 0 and not self.decimation_factors:
+            raise ValueError("p_decimation > 0 needs a non-empty decimation_factors list")
+        if any(k < 1 for k in self.decimation_factors):
+            raise ValueError(f"decimation_factors must be >= 1, got {self.decimation_factors}")
+        self._last_k = 1
+
+    # ------------------------------------------------------------ decimation
+    @staticmethod
+    def _block_mean(x: torch.Tensor, k: int) -> torch.Tensor:
+        """[B, T, C] -> [B, T // k, C], mean over blocks of k, RIGHT-aligned
+        (the left remainder is dropped so the last block ends on the last
+        step): the tensor twin of `ratein.decimate`."""
+        if k == 1:
+            return x
+        B, T, C = x.shape
+        n = (T // k) * k
+        return x[:, T - n:].reshape(B, n // k, k, C).mean(dim=2)
+
+    def _maybe_decimate(self, batch: dict) -> dict:
+        """Train only, once per batch: read the window decimated by a drawn k.
+        The target becomes the last P*k native steps in blocks of k (P
+        decimated steps), the context the rest. A k whose decimated context
+        would be shorter than `decimation_min_context` is not eligible.
+        Returns a new dict; k = 1 leaves the batch untouched."""
+        self._last_k = 1
+        if not self.training or self.p_decimation <= 0 or not self.decimation_factors:
+            return batch
+        if random.random() >= self.p_decimation:
+            return batch
+        context, target = batch["context"], batch["target"]
+        P = target.shape[1]
+        T = context.shape[1] + P
+        eligible = [k for k in self.decimation_factors
+                    if (T - P * k) // k >= self.decimation_min_context]
+        if not eligible:
+            return batch
+        k = random.choice(eligible)
+        if k == 1:
+            return batch
+        full = torch.cat([context, target], dim=1)
+        origin = T - P * k
+        new = dict(batch)
+        new["context"] = self._block_mean(full[:, :origin], k)
+        new["target"] = self._block_mean(full[:, origin:], k)
+        mask = batch.get("target_mask")
+        if mask is not None:
+            # The native mask covers the last P steps; the (k-1)*P steps taken
+            # from the context are real. A decimated step is real only if
+            # every native step of its block is.
+            real = torch.ones(mask.shape[0], P * (k - 1), dtype=mask.dtype, device=mask.device)
+            native = torch.cat([real, mask], dim=1)                   # [B, P*k]
+            new["target_mask"] = native.reshape(mask.shape[0], P, k).all(dim=2)
+        self._last_k = k
+        return new
 
     # ------------------------------------------------------------ horizon
     def _maybe_resplit_horizon(self, batch: dict) -> dict:
@@ -140,8 +213,14 @@ class SSMFinetuneModule(FinetuneModule):
 
     def training_step(self, batch, batch_idx):
         batch = self._maybe_resplit_horizon(batch)
+        batch = self._maybe_decimate(batch)
         loss = super().training_step(batch, batch_idx)
         native = int(self.model.prediction_length)
+        self.log("aug/decimation_k", float(self._last_k), on_step=True, on_epoch=False, logger=True)
+        self.log("aug/decimation_neq1_frac", float(self._last_k != 1), on_step=True,
+                 on_epoch=True, logger=True)
+        self.log("geometry/horizon_native", float(batch["target"].shape[1] * self._last_k),
+                 on_step=True, on_epoch=False, logger=True)
         self.log("geometry/horizon_len", float(self._last_horizon or native), on_step=True,
                  on_epoch=False, logger=True)
         self.log("aug/horizon_neq_native_frac", float((self._last_horizon or native) != native),

@@ -5,6 +5,34 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-02 (PLAN « MÉDIANE » APPROUVÉ ; BRAS B5 LIVRÉ : fenêtre décimée par un k tiré par
+  batch ; P-SSM.9 GRAVÉE)** — Plan (`~/.claude/plans/playful-pondering-dragonfly.md`) : B5
+  (entraînement), puis S (sélecteur, inférence : rapport `ratein_selection_gap.py` sur
+  backtest contre oracle, puis 8 fenêtres, MIX_TAU en flag, pooling), puis W (pinball pondérée
+  sur la médiane, après B5 seulement). Deux faits d'exploration qui ont fixé la conception :
+  (1) la multi-résolution du dataset TimeJEPA est un sous-échantillonnage STRIDED (un point
+  sur f, ancré à gauche), pas la moyenne par blocs de l'inférence — le bras aug de TimeJEPA
+  (2026-09-04, +0.1 pt) s'entraînait sur des entrées différentes de celles de RateIN, ce qui
+  éclaire son faible gain ; (2) le collate par défaut exige une longueur de contexte par
+  batch et le sampler fractionnaire mélange les familles : une décimation par item au niveau
+  du dataset (contexte 1024/f) est impossible sans réécrire le sampler. D'où une décimation
+  PAR BATCH dans le module, à l'intérieur de la fenêtre de 1280 : cible = les 256·k derniers
+  pas natifs moyennés par blocs (256 pas décimés, le rollout natif), contexte = le reste,
+  moyenné et aligné à droite (`_block_mean`, égal à `ratein.decimate`, test). Toutes les
+  fenêtres sont éligibles ; k ∈ {1, 2, 3}, p 0.5, plancher de contexte décimé 128 (exclut
+  k = 4). Horizon natif couvert 256 / 512 / 768 ; contexte décimé 384 / 170. Différence avec
+  B1 (clos) : le rollout reste à 256, c'est l'échelle de l'entrée qui change, avec l'opérateur
+  de l'inférence. `SSMFinetuneModule._maybe_decimate` (train seulement, masque propagé par
+  ET de blocs), témoins `aug/decimation_k`, `aug/decimation_neq1_frac` (≈ 0.33 attendu),
+  `geometry/horizon_native` ; 7 tests (égalité à `ratein.decimate`, identité à p = 0 / k = 1,
+  formes et alignement, jamais en eval, plancher de contexte, masque, crop après décimation,
+  les trois tirages Δ / horizon / k ensemble). Config `ssm_mid_v3_dec` (= frac + les trois
+  clés ; horizon aléatoire à 0 ; Δ conservé), départ = dernier checkpoint de B1
+  (`3.0559-v1`), SEED0 obligatoire. **P-SSM.9** : dernier checkpoint, MASE nu medium/long
+  0.95 → ≤ 0.90 ; CRPS stack des H medium/long meilleur que B1 et le mélange pèse plus sur
+  k > 1 sur les H ; stack ≤ 0.519 ; short pas pire que 0.5486. ÉCHEC si MASE nu medium/long
+  ≥ 0.94. Hors budget noté : décimation par item (demande un sampler homogène en f).
+
 - **2026-10-02 (LES k DU STACK SUR LES 42 CONFIGS LONGUES, et le nu point par point : le bras
   « rollout entraîné dans l'espace décimé » a sa cible)** — Poids du mélange RateIN par
   config medium/long (2.5M wide `1.2841`) : sub-horaire (5T, 10T, 10S, 15T) k dominant 3-12,

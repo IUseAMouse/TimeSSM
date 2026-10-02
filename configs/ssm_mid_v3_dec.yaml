@@ -1,0 +1,52 @@
+# @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+#
+# DECIMATED-WINDOW ARM ON THE 10M (2026-10-02, plan B5). The bare model's median
+# collapses beyond 480 native steps (MASE 0.95-1.05, worse than seasonal naive
+# past 480) and the inference layer RateIN rescues it by decimating the context
+# with a block mean, which shrinks the horizon in steps. Sub-hourly configs get
+# k 3-48 (horizon back under 256 decimated steps); hourly ones stay at k 1-3 and
+# the rollout still extrapolates 2-3x beyond training: that is where FlowState
+# keeps its MASE edge. This arm trains on what RateIN presents at inference:
+# with probability 0.5 a k in {1, 2, 3} is drawn per batch and the SAME
+# 1280-step window is read decimated with the inference operator (right-aligned
+# block mean, ratein.decimate) - target = the last 256*k native steps in 256
+# decimated steps, context = the rest (384 steps at k=2, 170 at k=3). The
+# rollout length does not change (B1, which lengthened it, had no effect);
+# the native span it covers does, and decimated inputs become in-distribution.
+# k=4 is excluded by the 128-step context floor. Everything else is the frac
+# recipe (Delta draw kept, no horizon randomization).
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_dec --world-size 3 \
+#       --batches 250000 --windows 100e6                 # prints the schedule_fraction F
+#   SEED0=<new> nohup scripts/train_ssm_loop.sh ssm_mid_v3_dec ssm-mid-v3-dec \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_hrand_zs/pretrain_False/epoch00_valloss3.0559-v1.ckpt' \
+#       training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F> > logs/loop_dec.out 2>&1 &
+#
+# Start = the B1 arm's LAST checkpoint (3.0559-v1, stack 0.5219), not its best
+# by GIFT. W&B witnesses before leaving it alone: aug/decimation_neq1_frac ~ 0.33,
+# geometry/horizon_native in {256, 512, 768}, geometry/context_len <= 384 on the
+# decimated batches.
+#
+# P-SSM.9 (graved before the run), last checkpoint, 97 configs: bare (STACK="")
+# medium/long MASE 0.95 -> <= 0.90; stack CRPS on the H medium/long configs
+# better than B1's last checkpoint and the mix puts more weight on k > 1 there
+# (k_hist in per_config/*.json); stack global <= 0.519; short term not worse
+# than 0.5486. FAILURE if bare medium/long MASE >= 0.94: training on the
+# decimated geometry does not move the median, and the remaining hourly loss
+# is not a distribution-shift effect.
+defaults:
+  - ssm_mid_v3_frac
+  - _self_
+
+model:
+  name: "timessm_mid_v3_dec_zs"
+
+training:
+  decimation_factors: [1, 2, 3]
+  p_decimation: 0.5
+  decimation_min_context: 128
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "decimated-window", "fractional-sampler", "resume", "lotsa", "v3", "mid"]

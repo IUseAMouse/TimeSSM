@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from timessm.model import SSMForecaster  # noqa: E402
 from timessm.training import SSMFinetuneModule  # noqa: E402
 from timejepa.training.finetune_module import FinetuneModule  # noqa: E402
+from timejepa.evaluation import ratein  # noqa: E402
 
 KEYS = ("forecast", "forecast_denorm", "quantiles", "quantiles_denorm", "quantile_levels")
 
@@ -345,3 +346,91 @@ def test_both_draws_active():
     mod.train()
     loss = mod.training_step(_batch(), 0)
     assert torch.isfinite(loss) and mod._last_delta_scale in (0.5, 2.0) and mod._last_horizon in (16, 48)
+
+
+# ------------------------------------------------------------- 9. decimated window (B5)
+def test_block_mean_matches_ratein_decimate():
+    x = torch.randn(2, 37, 1)
+    for k in (1, 2, 3, 4):
+        ours = SSMFinetuneModule._block_mean(x, k)
+        for b in range(2):
+            ref = ratein.decimate(x[b, :, 0].numpy(), k)
+            assert ours.shape[1] == len(ref)
+            assert torch.allclose(ours[b, :, 0], torch.from_numpy(ref), atol=1e-6)
+
+
+def test_decimation_off_or_k1_leaves_the_batch_untouched():
+    m = _small(input_length=128, prediction_length=32)
+    b = _batch()
+    for mod in (_mod(m), _mod(m, decimation_factors=[1], p_decimation=1.0)):
+        mod.train()
+        out = mod._maybe_decimate(b)
+        assert out is b or (torch.equal(out["context"], b["context"]) and torch.equal(out["target"], b["target"]))
+        assert mod._last_k == 1
+
+
+def test_decimation_shapes_and_right_alignment():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, decimation_factors=[3], p_decimation=1.0, decimation_min_context=8)
+    mod.train()
+    b = _batch()                                    # L 128 + P 32 = 160 native steps
+    out = mod._maybe_decimate(b)
+    assert mod._last_k == 3
+    assert out["target"].shape == (4, 32, 1)         # the last 96 native steps in blocks of 3
+    assert out["context"].shape == (4, 21, 1)        # 64 native steps -> 21 blocks, 1 dropped on the left
+    full = torch.cat([b["context"], b["target"]], 1)
+    assert torch.allclose(out["target"][:, -1], full[:, -3:].mean(1))          # last block ends on the last step
+    assert torch.allclose(out["context"][:, -1], full[:, 61:64].mean(1))       # right-aligned context
+    assert torch.allclose(out["context"][:, 0], full[:, 1:4].mean(1))          # native step 0 dropped
+    assert b["context"].shape[1] == 128                                          # caller's batch untouched
+
+
+def test_decimation_never_runs_in_eval_and_respects_min_context():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, decimation_factors=[2, 4], p_decimation=1.0, decimation_min_context=40)
+    mod.eval()
+    assert mod._maybe_decimate(_batch())["context"].shape[1] == 128 and mod._last_k == 1
+    mod.train()
+    ks = {mod._maybe_decimate(_batch()) and mod._last_k for _ in range(20)}
+    assert ks == {2}                                 # k=4 gives (160-128)//4 = 8 < 40: never drawn
+
+
+def test_decimation_propagates_the_target_mask_by_block():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, decimation_factors=[2], p_decimation=1.0, decimation_min_context=8)
+    mod.train()
+    mask = torch.ones(4, 32, dtype=torch.bool); mask[:, -3:] = False
+    out = mod._maybe_decimate(_batch(mask=mask))
+    assert out["target_mask"].shape == (4, 32)
+    # 64 native target steps: 32 from the context (real) + 32 native target steps; last 3 padded
+    # -> decimated blocks 30 (steps 60,61: step 61 padded) and 31 (62,63) are False, 29 is True
+    assert out["target_mask"][:, :30].all() and not out["target_mask"][:, 30:].any()
+
+
+def test_context_crop_applies_after_decimation():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, decimation_factors=[2], p_decimation=1.0, decimation_min_context=8,
+               context_lengths=[16, 32, 48, 128], p_random_context_finetune=1.0)
+    seen = []
+    mod.log = lambda name, value, *a, **k: seen.append((name, float(value))) if name == "geometry/context_len" else None
+    mod.train()
+    for _ in range(6):
+        mod.training_step(_batch(), 0)
+    lens = {v for _, v in seen}
+    assert lens and all(v <= 48 for v in lens) and 128.0 not in lens   # decimated context is 48 steps
+
+
+def test_decimated_training_step_trains_and_all_three_draws_coexist():
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, delta_scales=[0.5, 2.0], p_delta_scale=1.0,
+               horizon_lengths=[16, 48], p_random_horizon=1.0, horizon_min_context=64,
+               decimation_factors=[2], p_decimation=1.0, decimation_min_context=8)
+    logged = {}
+    mod.log = lambda name, value, *a, **k: logged.__setitem__(name, float(torch.as_tensor(value).detach()))
+    mod.train()
+    loss = mod.training_step(_batch(), 0)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert m.future_token.grad is not None and m.decoder.decoder.mlp[0].weight.grad is not None
+    assert mod._last_delta_scale in (0.5, 2.0) and mod._last_horizon in (16, 48) and mod._last_k == 2
+    assert logged["aug/decimation_k"] == 2.0 and logged["geometry/horizon_native"] == 2.0 * mod._last_horizon
