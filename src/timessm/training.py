@@ -89,9 +89,15 @@ class SSMFinetuneModule(FinetuneModule):
         step): the tensor twin of `ratein.decimate`."""
         if k == 1:
             return x
+        # The datamodule yields [B, T]; the parent's training_step adds the
+        # channel axis later. Accept both (crashed on the pod, 2026-10-02).
+        squeeze = x.dim() == 2
+        if squeeze:
+            x = x.unsqueeze(-1)
         B, T, C = x.shape
         n = (T // k) * k
-        return x[:, T - n:].reshape(B, n // k, k, C).mean(dim=2)
+        out = x[:, T - n:].reshape(B, n // k, k, C).mean(dim=2)
+        return out.squeeze(-1) if squeeze else out
 
     def _maybe_decimate(self, batch: dict) -> dict:
         """Train only, once per batch: read the window decimated by a drawn k.

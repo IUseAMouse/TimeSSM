@@ -434,3 +434,16 @@ def test_decimated_training_step_trains_and_all_three_draws_coexist():
     assert m.future_token.grad is not None and m.decoder.decoder.mlp[0].weight.grad is not None
     assert mod._last_delta_scale in (0.5, 2.0) and mod._last_horizon in (16, 48) and mod._last_k == 2
     assert logged["aug/decimation_k"] == 2.0 and logged["geometry/horizon_native"] == 2.0 * mod._last_horizon
+
+
+def test_decimation_accepts_the_datamodule_layout():
+    """The datamodule yields [B, T] (no channel axis): the pod crash of 2026-10-02."""
+    m = _small(input_length=128, prediction_length=32)
+    mod = _mod(m, decimation_factors=[2], p_decimation=1.0, decimation_min_context=8)
+    mod.log = lambda *a, **k: None
+    mod.train()
+    b = {"context": _ctx(B=4, seed=3)[..., 0], "target": _ctx(B=4, L=32, seed=4)[..., 0]}
+    out = mod._maybe_decimate(b)
+    assert out["context"].shape == (4, 48) and out["target"].shape == (4, 32)
+    assert torch.allclose(out["target"][:, -1], b["target"][:, -2:].mean(1))
+    assert torch.isfinite(mod.training_step(b, 0))
