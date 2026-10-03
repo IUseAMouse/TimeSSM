@@ -5,6 +5,29 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-03 (BRAS R AJOUTÉ AU PLAN : résolution fermée — réajustement de la dernière couche de
+  la tête, et réservoir S4D gelé comme ligne de comparaison ; calendrier jusqu'à la publication)**
+  — Question de l'utilisateur : un réseau entraînable en une passe. Réponse consignée : possible
+  dès que le modèle est linéaire en ses paramètres appris (features fixes + lecture ridge,
+  `W = (ΦᵀΦ + λI)⁻¹ΦᵀY`, accumulable en flux par `G = Σφφᵀ`, `C = Σφyᵀ`) ; TimeSSM tel quel ne
+  l'est pas (pôles, Δ, portes, tête à attention appris). Deux expériences en découlent.
+  **R1, réajustement de la dernière couche** (inférence + une passe avant, aucun gradient sur
+  le corps) : geler le champion, extraire les activations d'entrée de la dernière couche
+  linéaire de la tête quantile (dimension 1536) sur ~20 M de fenêtres du corpus, résoudre la
+  pinball de cette couche (convexe) par moindres carrés repondérés, ~10 itérations ; variante
+  avec poids sur le niveau 0.5 (version sans entraînement du bras W). Attendu : CRPS 0 à
+  −0.3 pt (un run annealé est déjà près de l'optimum de sa dernière couche), effet possible
+  sur la calibration (γ a montré un fan mal formé en distribution) et sur la médiane.
+  Prédiction à graver au lancement. « Couche par couche » n'a pas de sens : les couches
+  intermédiaires n'ont pas de cible. **R2, réservoir pur** (ligne de comparaison du papier,
+  « ce que vaut l'apprentissage des features ») : banc de p = 4096 pôles gelés sur plusieurs
+  échelles (`s = Kx`), non-linéarité aléatoire gelée, lecture ridge sur une base de fonctions
+  du temps pour un horizon libre ; estimation 0.60-0.68 de CRPS nu (TimeSSM nu 0.58, TinyCast
+  0.545). Ni R1 ni R2 ne sont des conditions de publication. **Calendrier** : B5 finit
+  dimanche 04/10 ~14 h (checkpoints toutes les 10 h, plus rapide que prévu : les batches
+  décimés ont moins de tokens), éval en file ; puis S, B5 sur le 2.5M si P-SSM.9 tient, bras
+  fréquence en entrée, tableaux complets, R1, cartes et soumission avant le 16/10.
+
 - **2026-10-02 (PLAN « MÉDIANE » APPROUVÉ ; BRAS B5 LIVRÉ : fenêtre décimée par un k tiré par
   batch ; P-SSM.9 GRAVÉE)** — Plan (`~/.claude/plans/playful-pondering-dragonfly.md`) : B5
   (entraînement), puis S (sélecteur, inférence : rapport `ratein_selection_gap.py` sur
