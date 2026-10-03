@@ -5,6 +5,25 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (APRÈS LA RELEASE : exploration « entraînement en une passe », R2 dimensionné et
+  R3 noté ; prédictions gravées)** — Décision utilisateur : à explorer après les cartes de
+  modèle et la publication, pas avant. **R2, réservoir S4D gelé à 2.5 M de paramètres appris** :
+  p = 10 000 features gelées (banc de pôles multi-échelle `s = Kx`, puis non-linéarité
+  aléatoire gelée), lecture ridge `W = (G + λI)⁻¹C` avec `G = Σφφᵀ` (800 Mo en float64,
+  accumulation en double : G mal conditionnée), `C = Σφyᵀ` ; ~3·10¹⁶ opérations pour 300 M
+  fenêtres, 1 à 3 h sur une 3090, résolution en secondes — l'équivalent en données de six
+  jours × trois cartes du 2.5M appris. Lecture sur une base de fonctions du temps pour un
+  horizon libre ; fan par moindres carrés repondérés ou quantiles des résidus ; adaptateur
+  pour le harnais (contrat `ExternalForecaster`). **Prédiction** : CRPS nu 0.62 (fourchette
+  0.60-0.68), 0.57 avec le stack flip + RateIN ; TimeSSM 2.5M nu 0.584, stack 0.524. Lecture
+  du résultat : l'écart mesure ce que vaut l'apprentissage des features à données égales.
+  **R3, Recursive Feature Machines** (idée utilisateur) : régression à noyau en formule
+  fermée + métrique M mise à jour par la moyenne des produits extérieurs du gradient ; M
+  (d × d) se moyenne en flux sur des batches bien composés, le prédicteur reste borné par le
+  nombre de centres (~10⁵ sur 24 Go). Deux usages retenus : M comme diagnostic des retards
+  utilisés (double saisonnalité horaire), et RFM après canonicalisation du rythme par RateIN.
+  Estimation 0.58-0.65, très incertaine. Ordre : R2 puis R3, un week-end chacun.
+
 - **2026-10-03 (BRAS R AJOUTÉ AU PLAN : résolution fermée — réajustement de la dernière couche de
   la tête, et réservoir S4D gelé comme ligne de comparaison ; calendrier jusqu'à la publication)**
   — Question de l'utilisateur : un réseau entraînable en une passe. Réponse consignée : possible
