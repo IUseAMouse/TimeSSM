@@ -83,3 +83,17 @@ def test_sn_refuses_an_incomplete_run(tmp_path):
     raw, run = _fixture(tmp_path, n=5)
     out = _sn(raw, run)
     assert out.returncode != 0 and "97 needed" in out.stderr
+
+
+def test_error_parts_separate_level_shape_and_phase():
+    t = np.arange(48, dtype=float)
+    truth = np.sin(2 * np.pi * t / 24)
+    mase, level, shape, lag, at_lag = dm.error_parts(truth + 2.0, truth, 1.0, 6)       # pure level error
+    assert abs(mase - 2.0) < 1e-12 and abs(level - 2.0) < 1e-12 and shape < 1e-12 and lag == 0
+    late = np.sin(2 * np.pi * (t - 3) / 24)                                            # forecast 3 steps late
+    mase, level, shape, lag, at_lag = dm.error_parts(late, truth, 1.0, 6)
+    assert lag == 3 and at_lag < 1e-12 and mase > 0.3 and level < 0.05
+    mase, _, _, lag, at_lag = dm.error_parts(truth, truth, 0.5, 6)                     # exact: nothing to gain
+    assert mase == 0.0 and lag == 0 and at_lag < 1e-12
+    nan_truth = truth.copy(); nan_truth[:5] = np.nan
+    assert np.isfinite(dm.error_parts(truth + 1.0, nan_truth, 1.0, 6)[0])

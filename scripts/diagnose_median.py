@@ -12,6 +12,9 @@ map; none of them tunes anything on GIFT.
     # A and B - does the forecast flatten along the horizon? (GPU, minutes)
     python scripts/diagnose_median.py flat --checkpoint <ckpt> --config-name ssm_mini_v3_wide_eval
 
+    # what is wrong in a full-amplitude median: level, shape or phase? (GPU, minutes)
+    python scripts/diagnose_median.py decomp --checkpoint <ckpt> --configs m4_hourly/H/short --lags 24,168
+
 Hypotheses (docs/EXPERIMENTAL_LOG.md, 2026-10-04):
   B  no seasonal copy path: configs at or above the seasonal naive (`sn`), and
      a forecast amplitude already low in the first season (`flat`);
@@ -207,19 +210,107 @@ def cmd_data(args):
               f"decoupling {ratios[c][2]:.2f}")
 
 
-# ------------------------------------------------------------------ flat
-def cmd_flat(args):
+# ------------------------------------------------------------------ model
+def load_model(args):
+    """(model in eval mode, device). `--checkpoint random` keeps the fresh
+    weights: a smoke test of the plumbing, never a measurement."""
     import torch
     from hydra import compose, initialize_config_dir
-
-    sys.path.insert(0, str(TIMEJEPA / "scripts"))
-    from evaluate_gift import prepare_context
-    from timejepa.evaluation import create_model_from_config, gift, load_checkpoint
+    from timejepa.evaluation import create_model_from_config, load_checkpoint
 
     with initialize_config_dir(version_base=None, config_dir=str((HERE / "configs").resolve())):
         cfg = compose(config_name=args.config_name)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_checkpoint(create_model_from_config(cfg), args.checkpoint, device).to(device).eval()
+    model = create_model_from_config(cfg)
+    if args.checkpoint != "random":
+        model = load_checkpoint(model, args.checkpoint, device)
+    return model.to(device).eval(), device
+
+
+# ------------------------------------------------------------------ decomp
+def error_parts(forecast: np.ndarray, target: np.ndarray, scale: float, max_lag: int) -> tuple:
+    """One instance, forecast and target [h], scale = the MASE denominator ->
+    (MASE, level = |mean error| / scale, shape = MASE once the mean error is
+    removed, best lag in [-max_lag, max_lag], shape at that lag). A positive
+    lag means the forecast is LATE: forecast[t] matches target[t - lag]. The
+    lag is searched on the SHAPE (mean error removed, overlap only) and must
+    beat lag 0 by 5%: a level error alone moves with the overlap and would
+    otherwise be read as a phase error. NaN targets are masked."""
+    def shape_of(f, t):
+        err = f - t
+        return float(np.nanmean(np.abs(err - np.nanmean(err))) / scale)
+
+    err = forecast - target
+    mase = float(np.nanmean(np.abs(err)) / scale)
+    shape = shape_of(forecast, target)
+    h, best = len(target), (0, shape)
+    for lag in range(-max_lag, max_lag + 1):
+        if lag == 0 or abs(lag) >= h:
+            continue
+        f, t = (forecast[lag:], target[:h - lag]) if lag > 0 else (forecast[:h + lag], target[-lag:])
+        if np.isfinite(t).sum() < h // 2:
+            continue
+        score = shape_of(f, t)
+        if score < min(best[1], 0.95 * shape):
+            best = (lag, score)
+    return mase, abs(float(np.nanmean(err))) / scale, shape, best[0], best[1]
+
+
+def cmd_decomp(args):
+    import torch
+
+    sys.path.insert(0, str(TIMEJEPA / "scripts"))
+    from evaluate_gift import prepare_context
+    from timejepa.evaluation import gift
+
+    model, device = load_model(args)
+    gift_root = Path(args.gift_data_dir) if args.gift_data_dir else TIMEJEPA / "data" / "gift_eval"
+    lags = [int(v) for v in args.lags.split(",")] if args.lags else []
+    for config in [c.strip() for c in args.configs.split(",")]:
+        h = gift.prediction_length(config)
+        m = gift.seasonality(config.split("/")[1])
+        series = gift.load_series(gift_root, config)
+        windows = gift.num_windows(config, min(len(s) for s in series))
+        insts = list(gift.iter_test_instances(series, h, windows))
+        if len(insts) > args.max_instances:
+            insts = [insts[j] for j in np.linspace(0, len(insts) - 1, args.max_instances).astype(int)]
+        by_len = {}
+        for inst in insts:
+            ctx = prepare_context(inst.context, 1024, 1, 1)
+            scale = gift.seasonal_error(inst.context, m)
+            if ctx is not None and np.isfinite(scale) and scale > 0:
+                by_len.setdefault(len(ctx), []).append((ctx, inst, scale))
+        rows = {"model": []}
+        rows.update({f"naive lag {lag}": [] for lag in sorted(set([m] + lags))})
+        for items in by_len.values():
+            for i in range(0, len(items), args.batch_size):
+                chunk = items[i:i + args.batch_size]
+                batch = torch.from_numpy(np.stack([c for c, _, _ in chunk])).unsqueeze(-1).to(device)
+                with torch.no_grad():
+                    median = model.forecast(batch, n=h)["forecast_denorm"].squeeze(-1).float().cpu().numpy()
+                for b, (_, inst, scale) in enumerate(chunk):
+                    rows["model"].append(error_parts(median[b], inst.target, scale, args.max_lag))
+                    for lag in sorted(set([m] + lags)):
+                        naive = gift.seasonal_naive_forecast(inst.context, h, lag)
+                        rows[f"naive lag {lag}"].append(error_parts(naive, inst.target, scale, args.max_lag))
+        n = len(rows["model"])
+        print(f"\n== {config}: h {h}, season {m}, {n} instances (means over instances; MASE scale = seasonal error at lag {m})")
+        print("  forecast            MASE   level   shape   best-lag shape   share with a lag != 0   median lag")
+        for name, vals in rows.items():
+            v = np.asarray(vals, dtype=float)
+            print(f"  {name:16s}  {v[:, 0].mean():6.3f}  {v[:, 1].mean():6.3f}  {v[:, 2].mean():6.3f}   "
+                  f"{v[:, 4].mean():10.3f}   {(v[:, 3] != 0).mean():18.2f}   {np.median(v[:, 3]):10.0f}")
+
+
+# ------------------------------------------------------------------ flat
+def cmd_flat(args):
+    import torch
+
+    sys.path.insert(0, str(TIMEJEPA / "scripts"))
+    from evaluate_gift import prepare_context
+    from timejepa.evaluation import gift
+
+    model, device = load_model(args)
     gift_root = Path(args.gift_data_dir) if args.gift_data_dir else TIMEJEPA / "data" / "gift_eval"
 
     for config in [c.strip() for c in args.configs.split(",")]:
@@ -292,6 +383,16 @@ def main():
     p.add_argument("--max-instances", type=int, default=256)
     p.add_argument("--batch-size", type=int, default=32)
     p.set_defaults(fn=cmd_flat)
+    p = sub.add_parser("decomp", help="level / shape / phase parts of the median error, against naive copies")
+    p.add_argument("--checkpoint", required=True)
+    p.add_argument("--config-name", default="ssm_mini_v3_wide_eval")
+    p.add_argument("--configs", default="m4_hourly/H/short,m4_weekly/W/short")
+    p.add_argument("--lags", default="", help="extra naive-copy lags, e.g. 24,168")
+    p.add_argument("--max-lag", type=int, default=6)
+    p.add_argument("--gift-data-dir", default=None)
+    p.add_argument("--max-instances", type=int, default=512)
+    p.add_argument("--batch-size", type=int, default=32)
+    p.set_defaults(fn=cmd_decomp)
     args = ap.parse_args()
     args.fn(args)
 
