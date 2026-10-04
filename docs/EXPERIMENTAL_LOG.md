@@ -5,6 +5,35 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (PHASE 0, `decomp` : l'erreur sur m4_hourly et m4_weekly est une erreur de
+  NIVEAU ; l'hypothèse « statistiques périmées » est ÉCARTÉE sur m4_hourly et tient sur
+  m4_weekly ; AUCUN bras d'architecture avant le 16)** — 2.5M wide `1.2841` nu, 256
+  instances, moyennes par instance (sensibles aux extrêmes, non comparables au 1.165
+  officiel), erreur en unités de l'erreur saisonnière : total | niveau | forme.
+  **m4_hourly** : modèle 1.555 | 1.107 | 1.096 ; copie à 24 pas 1.197 | 0.845 | 0.897 ; copie
+  à 168 pas 2.829 | 2.279 | 1.180 (les séries dérivent en une semaine : pas de saison
+  hebdomadaire ignorée) ; décalage médian 0 (pas d'erreur de phase). **m4_weekly** : modèle
+  2.695 | 2.173 | 1.591 ; dernière valeur 2.865 | 2.506 | 1.668 : séries à tendance, erreur
+  de niveau. Hypothèse F formulée sur ces chiffres : médiane, MAD et RevIN sont pris sur
+  tout le contexte (40 jours en horaire), donc périmés sur une série qui dérive. Seuils
+  énoncés à l'utilisateur AVANT la mesure (pas inscrits ici à temps) : confirmé si le niveau
+  de m4_hourly baisse de ≥ 20 % avec un contexte plus court, écarté si < 5 %. **Mesure par
+  longueur de contexte**, m4_hourly : 1024 → 1.555 | 1.107 | 1.096 · 512 → 1.591 | 1.297 |
+  0.945 · 256 → 1.556 | 1.240 | 0.974 · 96 → 2.727 | 2.321 | 2.353 : le niveau MONTE de 12 à
+  17 % quand le contexte raccourcit (la forme gagne 11-14 %, le total ne bouge pas) : F
+  ÉCARTÉE sur m4_hourly. m4_weekly : 1024 → 2.695 | 2.173 · 512 → 2.621 | 2.201 · 256 → 2.254 |
+  1.741 · 96 → 2.040 | 1.636 : −24 % de total et −25 % de niveau à 96 points : sur l'hebdo à
+  tendance, un contexte court est nettement meilleur. Deux configs, deux réponses
+  opposées : pas un mécanisme unique, donc pas de bras de 12 h. Bilan de la phase 0 : A
+  confirmé (payé par RateIN), B / D / E / F écartés, C non testable sans entraînement ;
+  l'erreur de niveau de m4_hourly reste inexpliquée. Piste d'inférence ouverte : la
+  longueur de contexte comme second axe de sélection (les flags `+max_context` et
+  `+tta_lookbacks` existent dans le harnais). **Prédiction P-SSM.10** (nu, 97 configs,
+  `+max_context=256` et moyenne `+tta_lookbacks=256,1024`) : contexte 256 seul, global PIRE
+  que le nu (0.8542 / 0.5836) mais W/M/A/Q meilleurs de ≥ 3 % en MASE ; moyenne des deux
+  lookbacks : MASE globale ≤ 0.850 et W/M/A/Q meilleurs de ≥ 2 %. ÉCHEC si W/M/A/Q ne gagnent
+  pas 1 % dans les deux : l'effet vu sur m4_weekly ne se généralise pas, piste close.
+
 - **2026-10-04 (PHASE 0, `data` : D ET E ÉCARTÉS)** — 2.5M wide `1.2841` au stack, 97 configs,
   MASE relative à FlowState-9.1M en géomoyenne. **D** : 7 configs majoritairement sous 128
   points ×1.056, 86 configs sans contexte court ×1.045 : écart de 1.1 %, sous le seuil
