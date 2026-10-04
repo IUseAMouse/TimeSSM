@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (DÉCISION DE PUBLICATION + BRAS R1 : réajustement de la dernière couche,
+  PRÉDICTION P-SSM.11 gravée avant le run)** — Décision de l'utilisateur : publier le 2.5M
+  comme modèle principal, en assumant la limite d'itération d'un indépendant (un bras de
+  zéro = 5 jours des 3 cartes), RateIN étant ce qui a été optimisé autour. Bras R1 demandé
+  par l'utilisateur : `scripts/refit_last_layer.py`. Le corps du réseau est gelé ; les
+  entrées de la dernière projection de la tête (`unpatching.projection`, 192 → 9 sorties
+  brutes ; PAS la couche cachée de 1536 annoncée le 03/10, qui est suivie d'un LayerNorm)
+  sont stockées sur ~108 k fenêtres d'entraînement (1024 par famille, 16 positions par
+  batch, contexte recadré comme à l'entraînement), cible dans le repère de la perte ; la
+  pinball de la tête sur le fan monotone est minimisée en batch complet par L-BFGS depuis
+  les poids entraînés (ligne médiane = régression en écart absolu, convexe ; lignes de
+  largeur à travers softplus et somme cumulée). Checkpoint écrit seulement si la pinball
+  de VALIDATION baisse ; c'est le checkpoint d'entrée avec deux tenseurs remplacés. 4 tests.
+  File `scripts/queue_refit.sh` : réajustement, puis éval nue et stack RateIN-up.
+  **P-SSM.11** : pinball de validation −0.1 à −0.5 % ; GIFT stack RateIN-up dans ±0.05 pt
+  de 0.7621 / 0.5194 et nu dans ±0.1 pt de 0.8542 / 0.5836, donc dans le bruit de la bande.
+  Raison : 1737 paramètres derrière un LayerNorm, sur un modèle dont le cosinus est allé
+  au bout. SUCCÈS (prédiction fausse, bras à garder) si le stack gagne ≥ 0.15 pt de CRPS ou
+  de MASE. Si rien ne bouge, la mesure vaut quand même : elle dit que le gradient
+  stochastique a laissé la dernière couche à son optimum. Non testé de bout en bout hors
+  du pod (pas de corpus en local) : la partie datamodule reprend `calibrate_quantiles.py`.
+
 - **2026-10-04 (TEST « COUVERTURE DU CORPUS » : l'écart de MASE à FlowState est le même avec et
   sans famille cousine dans le corpus)** — 2.5M wide `1.2841`, stack + RateIN-up, 97 configs,
   `gift_gap_ssm.py --metric mase --by corpus_cousin,domain`. Sans cousin (64 configs) : MASE
