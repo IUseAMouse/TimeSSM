@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (VERDICT P-SSM.9 : ÉCHEC — B5 déplace la médiane nue dans le bon sens mais de 1 pt,
+  pas de 5, et le stack y perd ; B5 CLOS)** — Nu (aucune couche), 97 configs, B5 dernier
+  `3.0577` contre son départ B1 dernier `3.0559-v1` : global 0.8483 / 0.5765 contre 0.8506 /
+  0.5803 (−0.2 pt MASE, −0.4 pt CRPS). **Par terme, MASE nue** B5 | B1 : short 0.7840 | 0.7811
+  (+0.3) · medium 0.9227 | 0.9367 (−1.4) · long 0.9588 | 0.9658 (−0.7) ; CRPS nu medium 0.5804
+  | 0.5913, long 0.5725 | 0.5783. Par fréquence : 10T 0.976 | 1.028 (−5 %), A −2.5 %, D −1 %,
+  H −0.7 % ; W 0.866 | 0.836 (+3.6 %), 10S +2.4 %, M +1.4 %. Couverture nue 0.697 / 0.679 /
+  0.668 contre 0.708 / 0.684 / 0.679 (−1 pt). Critère gravé : medium/long ≤ 0.90 non atteint
+  (0.923 / 0.959, moyenne 0.941) ; seuil d'échec ≥ 0.94 : atteint. Le signe est celui prédit
+  (medium et long gagnent, short non), l'amplitude est cinq fois trop faible, et le stack
+  perd 0.3 pt (0.5248 contre 0.5219) : ce que le modèle apprend de la géométrie décimée,
+  RateIN le fournissait déjà à l'inférence, et un tiers des batches retirés à la tâche
+  native coûte au court terme et aux basses fréquences. Lecture : la médiane longue ne
+  se corrige pas par 100 M fenêtres de continuation sur des fenêtres de 1280 pas natifs
+  (cible décimée ≤ 768 pas natifs, contexte réduit à 170-384 pas) ; il faudrait des fenêtres
+  plus longues (sampler homogène en k, hors budget) ou un décodeur continu. Fait annexe
+  mesuré : nu du 10M (B1) 0.8506 / 0.5803 contre nu du 2.5M wide 0.8542 / 0.5836 : la
+  capacité vaut 0.3 pt au modèle nu ; l'avance du 10M au stack (0.5219 contre 0.5242) est
+  du même ordre. **Bilan des bras d'entraînement sur le 10M** : frac +0.3 pt, B1 0, B5 −0.3
+  au stack. Champion inchangé (B1 dernier + stack + RateIN-up + γ, 0.7582 / 0.5160). Suite :
+  bras S (en cours), fréquence en entrée, puis cartes.
+
 - **2026-10-04 (B5, TABLE AU STACK SUR 5 CHECKPOINTS : dernier 0.7737 / 0.5248 / couv. 0.705 — le
   stack se DÉGRADE au fil du bras ; critère stack de P-SSM.9 échoué ; éval nue en attente)** —
   Stack flip + mix + pool, 97 configs sans échec : 20 % 0.7682 / 0.5228 / 0.699 · 40 % 0.7709 /
