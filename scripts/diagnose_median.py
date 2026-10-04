@@ -266,6 +266,10 @@ def cmd_decomp(args):
     model, device = load_model(args)
     gift_root = Path(args.gift_data_dir) if args.gift_data_dir else TIMEJEPA / "data" / "gift_eval"
     lags = [int(v) for v in args.lags.split(",")] if args.lags else []
+    # One model row per context cap: the normalization statistics (median, MAD,
+    # RevIN) are taken on the whole context, so a level error that shrinks with
+    # a shorter context is a stale-statistics error, not a missing pattern.
+    caps = [int(v) for v in args.contexts.split(",")]
     for config in [c.strip() for c in args.configs.split(",")]:
         h = gift.prediction_length(config)
         m = gift.seasonality(config.split("/")[1])
@@ -274,26 +278,29 @@ def cmd_decomp(args):
         insts = list(gift.iter_test_instances(series, h, windows))
         if len(insts) > args.max_instances:
             insts = [insts[j] for j in np.linspace(0, len(insts) - 1, args.max_instances).astype(int)]
-        by_len = {}
-        for inst in insts:
-            ctx = prepare_context(inst.context, 1024, 1, 1)
-            scale = gift.seasonal_error(inst.context, m)
-            if ctx is not None and np.isfinite(scale) and scale > 0:
-                by_len.setdefault(len(ctx), []).append((ctx, inst, scale))
-        rows = {"model": []}
-        rows.update({f"naive lag {lag}": [] for lag in sorted(set([m] + lags))})
-        for items in by_len.values():
-            for i in range(0, len(items), args.batch_size):
-                chunk = items[i:i + args.batch_size]
-                batch = torch.from_numpy(np.stack([c for c, _, _ in chunk])).unsqueeze(-1).to(device)
-                with torch.no_grad():
-                    median = model.forecast(batch, n=h)["forecast_denorm"].squeeze(-1).float().cpu().numpy()
-                for b, (_, inst, scale) in enumerate(chunk):
-                    rows["model"].append(error_parts(median[b], inst.target, scale, args.max_lag))
-                    for lag in sorted(set([m] + lags)):
-                        naive = gift.seasonal_naive_forecast(inst.context, h, lag)
-                        rows[f"naive lag {lag}"].append(error_parts(naive, inst.target, scale, args.max_lag))
-        n = len(rows["model"])
+        kept = [(inst, gift.seasonal_error(inst.context, m)) for inst in insts]
+        kept = [(inst, sc) for inst, sc in kept if np.isfinite(sc) and sc > 0 and len(inst.context) > 0]
+        rows = {}
+        for cap in caps:
+            by_len, name = {}, f"model ctx {cap}"
+            rows[name] = []
+            for inst, scale in kept:
+                ctx = prepare_context(inst.context, cap, 1, 1)
+                if ctx is not None:
+                    by_len.setdefault(len(ctx), []).append((ctx, inst, scale))
+            for items in by_len.values():
+                for i in range(0, len(items), args.batch_size):
+                    chunk = items[i:i + args.batch_size]
+                    batch = torch.from_numpy(np.stack([c for c, _, _ in chunk])).unsqueeze(-1).to(device)
+                    with torch.no_grad():
+                        median = model.forecast(batch, n=h)["forecast_denorm"].squeeze(-1).float().cpu().numpy()
+                    rows[name].extend(error_parts(median[b], inst.target, scale, args.max_lag)
+                                      for b, (_, inst, scale) in enumerate(chunk))
+        for lag in sorted(set([m] + lags)):
+            rows[f"naive lag {lag}"] = [
+                error_parts(gift.seasonal_naive_forecast(inst.context, h, lag), inst.target, scale, args.max_lag)
+                for inst, scale in kept]
+        n = len(kept)
         print(f"\n== {config}: h {h}, season {m}, {n} instances (means over instances; MASE scale = seasonal error at lag {m})")
         print("  forecast            MASE   level   shape   best-lag shape   share with a lag != 0   median lag")
         for name, vals in rows.items():
@@ -388,6 +395,7 @@ def main():
     p.add_argument("--config-name", default="ssm_mini_v3_wide_eval")
     p.add_argument("--configs", default="m4_hourly/H/short,m4_weekly/W/short")
     p.add_argument("--lags", default="", help="extra naive-copy lags, e.g. 24,168")
+    p.add_argument("--contexts", default="1024", help="context caps, one model row each, e.g. 1024,512,256,96")
     p.add_argument("--max-lag", type=int, default=6)
     p.add_argument("--gift-data-dir", default=None)
     p.add_argument("--max-instances", type=int, default=512)
