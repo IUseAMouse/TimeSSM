@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (PHASE 0, `flat` : B ÉCARTÉ sur m4_hourly comme défaut d'amplitude ; A CONFIRMÉ
+  sur solar/10T et PAS sur electricity/H — l'aplatissement dépend de la PÉRIODE EN PAS, et
+  c'est le mécanisme de RateIN)** — 2.5M wide `1.2841` nu, 256 instances par config,
+  amplitude = écart-type par bloc d'une saison / celui des 4 derniers blocs du contexte,
+  médiane sur les instances, modèle | vérité. **m4_hourly** (h 48, période 24) : 0.987 |
+  1.007 puis 0.992 | 0.995 : rapport 0.98 et 1.00, seuil d'écart (≥ 0.9) atteint. La médiane
+  a la bonne amplitude et reste pire que la saisonnalité naïve (MASE nue 1.294) : l'erreur
+  est de niveau, de forme ou de phase, pas d'aplatissement. **electricity/H/long** (h 720,
+  période 24) : rapport 1.03 au premier jour, 0.99 au pas 408, 0.90 au pas 696 ; variation
+  des représentations par pas 0.56 → 0.14. Les représentations convergent bien, mais
+  l'amplitude tient 30 cycles : critère A (dernier ≤ 0.6 × premier) NON atteint (0.88).
+  **solar/10T/long** (h 720, période 144) : 0.489 | 1.032 au premier jour (rapport 0.47),
+  puis 0.088 | 1.116 (0.08) et 0.08 jusqu'au bout : la médiane est PLATE dès le deuxième
+  cycle ; critère A atteint (0.17). Lecture : le modèle tient une oscillation de période 24
+  pas sur 720 pas et ne tient pas une période de 144 pas plus d'un cycle. Décimer par 6
+  ramène 144 à 24 : c'est exactement ce que fait RateIN, et c'est une figure pour le papier
+  (amplitude le long de l'horizon, natif contre décimé). Conséquence pour le plan : A est
+  réel mais déjà payé par le stack ; B n'est pas un manque de copie d'amplitude. Suite :
+  `decomp` (niveau / forme / phase de l'erreur contre les copies naïves aux retards 24 et
+  168) sur m4_hourly et m4_weekly, les deux configs qui portent 0.8 pt d'écart.
+  `diag_data` reçu tronqué (croisements D et E à relire).
+
 - **2026-10-04 (BRAS S : CLOS SANS GAIN — ni 8 fenêtres ni la température ne bougent le
   stack ; le résidu à l'oracle est un désaccord backtest / test, pas du bruit de sélection.
   PHASE 0, `sn` : 20 configs au niveau de la saisonnalité naïve au stack, borne 0.43 pt)** —
