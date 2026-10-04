@@ -21,6 +21,10 @@ output itself); the width rows go through softplus and a cumulative sum.
 pinball: this is the iterative solution of the last layer's own problem, which
 SGD on the whole network only approaches.
 
+Scale. The rows are spread over every visible GPU (`--gb-per-gpu` of
+features each, 768 bytes per row at d_model 192) and the loss is accumulated
+over slices, so the fit is exact full-batch whatever the number of rows.
+
 Fit on TRAIN windows, report on VAL windows (never seen by the fit); the new
 checkpoint is written only if the validation pinball improves. It is the input
 checkpoint with two tensors replaced, so every eval script reads it unchanged.
@@ -43,6 +47,9 @@ logger = logging.getLogger("refit_last_layer")
 PROJECTION = "decoder.decoder.unpatching.projection"
 
 
+SLICE_ROWS = 1_000_000       # rows per forward/backward slice: bounds the transient memory
+
+
 def head_loss(head, phi, y, weight, bias):
     """Pinball of the head's monotone fan for a projection (weight [Q, D],
     bias [Q]) on features phi [N, D] against y [N]."""
@@ -50,10 +57,27 @@ def head_loss(head, phi, y, weight, bias):
     return head.loss(fan[None], y[None])
 
 
-def refit(head, phi, y, weight0, bias0, lam: float = 0.0, rows: str = "all", max_iter: int = 300):
-    """L-BFGS from (weight0, bias0); `rows` = 'all' or 'median' (only the
-    median row moves). Returns (weight, bias, loss before, loss after), the
-    losses without the penalty."""
+def chunked_loss(head, chunks, weight, bias, backward: bool = False) -> float:
+    """Mean pinball over `chunks` = [(phi, y), ...], each on its own device,
+    evaluated slice by slice. With `backward`, gradients accumulate into the
+    leaves behind (weight, bias): the same gradient as one full-batch pass."""
+    total = sum(len(y) for _, y in chunks)
+    value = 0.0
+    for phi, y in chunks:
+        w, b = weight.to(phi.device), bias.to(phi.device)
+        for i in range(0, len(y), SLICE_ROWS):
+            part = head_loss(head, phi[i:i + SLICE_ROWS], y[i:i + SLICE_ROWS], w, b)
+            part = part * (len(y[i:i + SLICE_ROWS]) / total)
+            if backward:
+                part.backward(retain_graph=True)
+            value += float(part.detach())
+    return value
+
+
+def refit(head, chunks, weight0, bias0, lam: float = 0.0, rows: str = "all", max_iter: int = 300):
+    """L-BFGS from (weight0, bias0) on `chunks` = [(phi, y), ...] (one per
+    device); `rows` = 'all' or 'median' (only the median row moves). Returns
+    (weight, bias, loss before, loss after), the losses without the penalty."""
     if rows not in ("all", "median"):
         raise ValueError(f"rows must be 'all' or 'median', got {rows!r}")
     move = torch.zeros(weight0.shape[0], 1, dtype=weight0.dtype, device=weight0.device)
@@ -68,18 +92,29 @@ def refit(head, phi, y, weight0, bias0, lam: float = 0.0, rows: str = "all", max
 
     def closure():
         opt.zero_grad()
-        loss = head_loss(head, phi, y, weight0 + move * dw, bias0 + move[:, 0] * db)
-        loss = loss + lam * (move * dw).pow(2).sum()
-        loss.backward()
-        return loss
+        value = chunked_loss(head, chunks, weight0 + move * dw, bias0 + move[:, 0] * db, backward=True)
+        penalty = lam * (move * dw).pow(2).sum()
+        penalty.backward()
+        return torch.tensor(value + float(penalty))
 
     with torch.no_grad():
-        before = float(head_loss(head, phi, y, weight0, bias0))
+        before = chunked_loss(head, chunks, weight0, bias0)
     opt.step(closure)
     with torch.no_grad():
         weight, bias = weight0 + move * dw, bias0 + move[:, 0] * db
-        after = float(head_loss(head, phi, y, weight, bias))
+        after = chunked_loss(head, chunks, weight, bias)
     return weight.detach(), bias.detach(), before, after
+
+
+def spread(phi, y, devices, rows_per_device: int, rng: np.random.Generator):
+    """Split (phi [N, D], y [N]) evenly over `devices`, at most
+    rows_per_device each; a random subset is kept when N exceeds the room."""
+    room = rows_per_device * len(devices)
+    if len(y) > room:
+        keep = torch.as_tensor(np.sort(rng.choice(len(y), size=room, replace=False)))
+        phi, y = phi[keep], y[keep]
+    bounds = np.linspace(0, len(y), len(devices) + 1).astype(int)
+    return [(phi[lo:hi].to(dev), y[lo:hi].to(dev)) for dev, lo, hi in zip(devices, bounds[:-1], bounds[1:])]
 
 
 @torch.no_grad()
@@ -135,6 +170,7 @@ def main():
     ap.add_argument("--val-per-dataset", type=int, default=256)
     ap.add_argument("--steps", type=int, default=16, help="horizon positions kept per batch")
     ap.add_argument("--batch-size", type=int, default=128)
+    ap.add_argument("--gb-per-gpu", type=float, default=15.0, help="feature memory per device")
     ap.add_argument("--seed", type=int, default=2026)
     args = ap.parse_args()
 
@@ -169,8 +205,15 @@ def main():
     head = model.decoder.decoder
     proj = head.unpatching.projection
     w0, b0 = proj.weight.detach().float(), proj.bias.detach().float()
-    phi, y, phi_val, y_val = (t.to(device) for t in (phi, y, phi_val, y_val))
-    weight, bias, before, after = refit(head, phi, y, w0, b0, lam=args.lam, rows=args.rows)
+    devices = ([torch.device(f"cuda:{i}") for i in range(torch.cuda.device_count())]
+               if device.type == "cuda" else [device])
+    per_device = int(args.gb_per_gpu * 1e9 / (phi.shape[1] * 4))
+    chunks = spread(phi, y, devices, per_device, rng)
+    logger.info(f"fit on {sum(len(c[1]) for c in chunks)} rows over {len(devices)} device(s), "
+                f"{phi.shape[1] * w0.shape[0] + w0.shape[0]} parameters")
+    del phi, y
+    phi_val, y_val = phi_val.to(device), y_val.to(device)
+    weight, bias, before, after = refit(head, chunks, w0, b0, lam=args.lam, rows=args.rows)
     mid = head.median_idx
     with torch.no_grad():
         val_before = float(head_loss(head, phi_val, y_val, w0, b0))

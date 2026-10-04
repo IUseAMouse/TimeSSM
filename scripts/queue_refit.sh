@@ -4,8 +4,8 @@
 # the RateIN-up stack. Waits for a marker line (default: the lookback queue).
 #   nohup scripts/queue_refit.sh > logs/queue_refit.out 2>&1 &
 #   WAIT_FILE=logs/queue_p0.out WAIT_FOR="phase 0 queue done" nohup scripts/queue_refit.sh > logs/queue_refit.out 2>&1 &
-#   REFIT_ARGS="--per-dataset 4096" ...      extra flags for refit_last_layer.py (rows live on one GPU:
-#                                             ~0.8 GB per million rows of 192 features)
+#   REFIT_ARGS="--per-dataset 8192 --steps 32" ...   extra flags for refit_last_layer.py; the rows
+#       are spread over the three GPUs (--gb-per-gpu 15 by default, 0.77 GB per million rows)
 set -u
 cd "$(dirname "$0")/.."
 D=checkpoints/timessm_mini_v3_wide_zs/pretrain_False; CK=epoch00_valloss1.2841
@@ -16,7 +16,7 @@ WAIT_FILE=${WAIT_FILE:-logs/queue_lb.out}
 until grep -q "${WAIT_FOR:-lookback queue done}" "$WAIT_FILE" 2>/dev/null; do sleep 60; done
 mkdir -p logs
 echo "== $(date '+%F %T') refit"
-CUDA_VISIBLE_DEVICES=0 python scripts/refit_last_layer.py --checkpoint "$D/$CK.ckpt" --out "$OUT" ${REFIT_ARGS:-} > logs/refit.out 2>&1
+python scripts/refit_last_layer.py --checkpoint "$D/$CK.ckpt" --out "$OUT" ${REFIT_ARGS:-} > logs/refit.out 2>&1
 grep -E "features|pinball|median MAE|weight change|written|no checkpoint" logs/refit.out
 [ -f "$OUT/$CK-refit.ckpt" ] || { echo "no refit checkpoint: nothing to evaluate"; echo "== refit queue done"; exit 0; }
 echo "== $(date '+%F %T') evals of the refit checkpoint"

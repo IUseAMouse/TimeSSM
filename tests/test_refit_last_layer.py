@@ -24,7 +24,7 @@ def _problem(n=4000, d=8):
 
 def test_refit_lowers_the_pinball_and_keeps_the_fan_sorted():
     head, phi, y, w0, b0 = _problem()
-    w, b, before, after = rl.refit(head, phi, y, w0, b0)
+    w, b, before, after = rl.refit(head, [(phi, y)], w0, b0)
     assert after < 0.5 * before
     fan = head._make_monotone(phi @ w.T + b)
     assert bool((fan[:, 1:] >= fan[:, :-1]).all())
@@ -33,7 +33,7 @@ def test_refit_lowers_the_pinball_and_keeps_the_fan_sorted():
 
 def test_median_mode_moves_the_median_row_only():
     head, phi, y, w0, b0 = _problem()
-    w, b, before, after = rl.refit(head, phi, y, w0, b0, rows="median")
+    w, b, before, after = rl.refit(head, [(phi, y)], w0, b0, rows="median")
     mid = head.median_idx
     others = [i for i in range(w.shape[0]) if i != mid]
     assert torch.equal(w[others], w0[others]) and torch.equal(b[others], b0[others])
@@ -42,9 +42,31 @@ def test_median_mode_moves_the_median_row_only():
 
 def test_ridge_penalty_pulls_toward_the_trained_weights():
     head, phi, y, w0, b0 = _problem()
-    free = rl.refit(head, phi, y, w0, b0)[0]
-    tied = rl.refit(head, phi, y, w0, b0, lam=10.0)[0]
+    free = rl.refit(head, [(phi, y)], w0, b0)[0]
+    tied = rl.refit(head, [(phi, y)], w0, b0, lam=10.0)[0]
     assert (tied - w0).norm() < 0.2 * (free - w0).norm()
+
+
+def test_chunks_and_slices_give_the_full_batch_fit(monkeypatch):
+    import numpy as np
+    head, phi, y, w0, b0 = _problem()
+    w = w0.clone().requires_grad_()
+    b = b0.clone().requires_grad_()
+    full = rl.head_loss(head, phi, y, w, b)
+    full.backward()
+    grad_w, grad_b = w.grad.clone(), b.grad.clone()
+    w.grad = None; b.grad = None
+    monkeypatch.setattr(rl, "SLICE_ROWS", 700)                    # uneven slices inside uneven chunks
+    chunks = rl.spread(phi, y, ["cpu", "cpu", "cpu"], rows_per_device=10_000, rng=np.random.default_rng(0))
+    assert [len(c[1]) for c in chunks] == [1333, 1333, 1334]
+    value = rl.chunked_loss(head, chunks, w, b, backward=True)
+    assert abs(value - float(full)) < 1e-6
+    assert torch.allclose(w.grad, grad_w, atol=1e-6) and torch.allclose(b.grad, grad_b, atol=1e-6)
+    whole = rl.refit(head, [(phi, y)], w0, b0, max_iter=40)
+    split = rl.refit(head, chunks, w0, b0, max_iter=40)
+    assert abs(whole[2] - split[2]) < 1e-6 and abs(whole[3] - split[3]) < 1e-3
+    capped = rl.spread(phi, y, ["cpu", "cpu"], rows_per_device=500, rng=np.random.default_rng(0))
+    assert sum(len(c[1]) for c in capped) == 1000
 
 
 def test_collect_reads_the_projection_input_in_the_loss_frame():
