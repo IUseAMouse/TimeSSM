@@ -5,6 +5,36 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (BRAS S : CLOS SANS GAIN — ni 8 fenêtres ni la température ne bougent le
+  stack ; le résidu à l'oracle est un désaccord backtest / test, pas du bruit de sélection.
+  PHASE 0, `sn` : 20 configs au niveau de la saisonnalité naïve au stack, borne 0.43 pt)** —
+  2.5M wide `1.2841`, flip + pool, 97 configs. Backtest dur 4 fenêtres 0.7668 / 0.5252 ; mix
+  8 fenêtres 0.7622 / 0.5195 ; mix 4 fenêtres τ 0.03 : 0.7637 / 0.5207 ; τ 0.08 : 0.7633 /
+  0.5203. Références : mix 4 fenêtres τ 0.05 = 0.7631 / 0.5201, RateIN-up = 0.7621 / 0.5194.
+  8 fenêtres : −0.06 pt de CRPS pour un backtest deux fois plus long, dans le bruit ; τ : rien
+  dans les deux sens. Aucun réglage adopté. Aucune prédiction n'avait été gravée pour ces
+  trois évals (elles sont parties dans la même file que le rapport d'écart) : à noter comme
+  un manquement à la règle, sans conséquence puisque rien n'est retenu. **Rapport d'écart**
+  (backtest dur contre oracle-k, CRPS absolu 0.1324 contre 0.1290, soit 0.5252 contre
+  0.5117) : missed 24 configs / 54 % du résidu, wrong_k 20 / 30 %, false_pos 5 / 16 %, match
+  48. Dans les plus gros contributeurs le backtest ne manque pas de puissance, il dit
+  l'INVERSE du test : loop_seattle/5T/medium k* = 12 gagne 26 % sur le test et PERD 9 % au
+  backtest ; ett1/D k* = 3 : −19 % test, +6 % backtest ; bitbrains_fast_storage/H k* = 16 :
+  −7 % test, +22 % backtest. Plus de fenêtres ou un mélange plus tranché ne peuvent pas
+  corriger un signal de signe opposé : le mélange a déjà pris la moitié de l'écart
+  (0.5252 → 0.5201), le reste n'est pas atteignable causalement par ce sélecteur. **`sn`**
+  (seuils gravés le même jour : B retenu si ≥ 8 configs ET borne ≥ 0.5 pt, écarté si < 4
+  configs ou < 0.2 pt) : au stack 20 configs à MASE ≥ 0.95 × SN dont 14 au-dessus de 1,
+  borne oracle 0.7578 (0.43 pt) : ENTRE les deux seuils, ni retenu ni écarté. Au nu 26
+  configs, borne 5.48 pt (bizitobs 10S ×2-2.6, solar/10T ×1.7-2.0 : ce que RateIN répare).
+  Lecture : la plupart des configs au niveau de SN sont dures pour tout le monde (FlowState
+  ×1.00-1.06 sur m4_daily, bitbrains_rnd, bizitobs, solar/10T). L'écart se concentre sur
+  DEUX configs : m4_hourly (1.165, FlowState ×1.90) et m4_weekly (1.031, ×1.42), soit
+  ln(1.90)/97 + ln(1.42)/97 = 1.0 % de MASE ≈ 0.8 pt sur les 3.6 pt d'écart à FlowState ;
+  puis bitbrains_fast_storage/H ×1.19, bizitobs_service/medium ×1.17, solar/H/long ×1.13.
+  En attente : `data --run` (D, E), `flat` (A, B sur m4_hourly), bande RateIN-up des
+  checkpoints wide.
+
 - **2026-10-04 (PLAN MASE DU 2.5M : cinq défauts lus dans le code, phase 0 de diagnostics —
   SEUILS GRAVÉS AVANT LES CHIFFRES)** — Le 2.5M wide `1.2841` devient le modèle principal
   (0.7621 / 0.5183 avec RateIN-up et γ). Leçon de B5 : corriger ce que RateIN compense ne
