@@ -5,6 +5,19 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (B5, TABLE AU STACK SUR 5 CHECKPOINTS : dernier 0.7737 / 0.5248 / couv. 0.705 — le
+  stack se DÉGRADE au fil du bras ; critère stack de P-SSM.9 échoué ; éval nue en attente)** —
+  Stack flip + mix + pool, 97 configs sans échec : 20 % 0.7682 / 0.5228 / 0.699 · 40 % 0.7709 /
+  0.5238 / 0.706 · 60 % 0.7704 / 0.5227 / 0.721 · 80 % 0.7730 / 0.5240 / 0.709 · 100 % 0.7737 /
+  0.5248 / 0.705. Départ (B1 dernier) : 0.7668 / 0.5219. Le bras perd 0.3 pt de CRPS et 0.7 pt
+  de MASE au stack, de façon monotone en MASE ; B1 et frac gagnaient 0.3 pt sur la même
+  durée. Critère « stack ≤ 0.519 » échoué. Le critère principal (MASE nue medium/long) attend
+  `logs/nu_dec.out`. Hypothèse à vérifier sur la carte, pas avant : un tiers des batches
+  retirés à la tâche native (k = 1, 256 pas) pour une géométrie que le stack traite déjà par
+  la décimation à l'inférence ; si le nu medium/long ne gagne pas, le bras est une perte
+  sèche. Champion inchangé : B1 dernier checkpoint (`3.0559-v1`) + stack + RateIN-up + γ =
+  0.7582 / 0.5160. B5 n'est pas rejoué sur le 2.5M.
+
 - **2026-10-04 (APRÈS LA RELEASE : exploration « entraînement en une passe », R2 dimensionné et
   R3 noté ; prédictions gravées)** — Décision utilisateur : à explorer après les cartes de
   modèle et la publication, pas avant. **R2, réservoir S4D gelé à 2.5 M de paramètres appris** :
