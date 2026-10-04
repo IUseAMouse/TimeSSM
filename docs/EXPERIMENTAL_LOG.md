@@ -5,6 +5,22 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (TEST « COUVERTURE DU CORPUS » : l'écart de MASE à FlowState est le même avec et
+  sans famille cousine dans le corpus)** — 2.5M wide `1.2841`, stack + RateIN-up, 97 configs,
+  `gift_gap_ssm.py --metric mase --by corpus_cousin,domain`. Sans cousin (64 configs) : MASE
+  0.7694, ×1.051 contre FlowState-9.1M (19/64), ×1.027 contre Toto-2.0-4m, ×1.063 contre
+  TTM-R3-PT. Avec cousin (33) : 0.7480, ×1.046 contre FlowState (8/33), ×0.970 contre Toto
+  (20/33), ×1.033 contre TTM. Contre FlowState l'écart ne dépend pas de la couverture
+  (0.5 pt de différence) ; contre Toto et TTM il en dépend de 3 à 6 pt, mais le rapport à un
+  concurrent mélange sa couverture à la nôtre (Toto est chez lui sur le CloudOps, sans
+  cousin chez nous). Par domaine contre FlowState : Energy ×1.044 (6/32), Web/CloudOps
+  ×1.029, Nature ×1.020, Transport ×1.049 (3/15, alors que Toto y est battu 11/15),
+  Healthcare ×1.027, Sales ×1.084, Econ/Fin ×1.237 (0/6). Lecture : hors Econ/Fin (les m4,
+  ~1.3 pt de l'écart global à eux six), FlowState est meilleur de 2 à 5 % PARTOUT, cousin ou
+  non : signature d'un modèle un peu meilleur en médiane sur tout, pas d'un trou de
+  couverture. L'hypothèse « le corpus ne couvre pas GIFT » n'est pas soutenue ; la
+  composition du corpus (tendances, synthétique) et le modèle restent ouverts, non séparés.
+
 - **2026-10-04 (PHASE 0, `decomp` : l'erreur sur m4_hourly et m4_weekly est une erreur de
   NIVEAU ; l'hypothèse « statistiques périmées » est ÉCARTÉE sur m4_hourly et tient sur
   m4_weekly ; AUCUN bras d'architecture avant le 16)** — 2.5M wide `1.2841` nu, 256
