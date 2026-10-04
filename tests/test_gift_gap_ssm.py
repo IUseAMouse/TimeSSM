@@ -69,3 +69,22 @@ def test_two_variants_of_the_same_checkpoint_get_two_columns(tmp_path):
                          capture_output=True, text=True, check=True).stdout
     assert "gift_a" in out and "gift_b" in out
     assert "0.4000" in out and "0.6000" in out
+
+
+def test_columns_are_restricted_to_the_common_configs(tmp_path):
+    raw = tmp_path / "raw"; raw.mkdir()
+    cfgs = ["solar/H/short", "ett1/H/long"]
+    _write_official(raw / "seasonal_naive.csv", [
+        {"dataset": c, "model": "SN", SN_COLS[2]: 1.0, SN_COLS[3]: 1.0, "domain": "Energy", "num_variates": 1} for c in cfgs])
+    _write_official(raw / "Comp.csv", [
+        {"dataset": c, "model": "Comp", SN_COLS[2]: 0.8, SN_COLS[3]: 0.5, "domain": "Energy", "num_variates": 1} for c in cfgs])
+    dirs = []
+    for tag, have in (("gift_full", cfgs), ("gift_partial", cfgs[:1])):
+        d = tmp_path / "run" / "ckpt" / tag; (d / "per_config").mkdir(parents=True); dirs.append(str(d))
+        for c in have:
+            json.dump({"config": c, "prediction_length": 48, "model": {"MASE": 0.7, "CRPS": 0.4 if "solar" in c else 0.9,
+                       "coverage": {"0.1": 0.1, "0.9": 0.9}}}, open(d / "per_config" / (c.replace("/", "__") + ".json"), "w"))
+    out = subprocess.run([sys.executable, str(HERE / "scripts" / "gift_gap_ssm.py"), *dirs,
+                          "--snapshot", str(raw), "--competitors", "Comp"], capture_output=True, text=True, check=True).stdout
+    assert "WARNING" in out and "1 common configs" in out
+    assert "1 configs in gift_full" in out and "0.9000" not in out        # the long config is not averaged in

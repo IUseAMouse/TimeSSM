@@ -181,7 +181,19 @@ def main():
 
     first = next(iter(runs))
     mi = 0 if args.metric == "crps" else 1          # ratio tuple index for the competitor columns
-    configs = sorted(ratios[first])
+    # Columns are only comparable on the SAME configs: a run still being
+    # evaluated has fewer, and a per-column mean over what each run holds
+    # compared 21 configs to a handful (2026-10-04). Restrict to the common set.
+    common = set(ratios[first])
+    for name in runs:
+        common &= set(ratios[name])
+    for name in runs:
+        if len(ratios[name]) != len(common):
+            print(f"WARNING: {name} has {len(ratios[name])} configs; every column is computed on the "
+                  f"{len(common)} common configs")
+    for name in runs:
+        ratios[name] = {c: v for c, v in ratios[name].items() if c in common}
+    configs = sorted(common)
     print(f"{len(configs)} configs in {first}" + (" (fewer than 97: NOT comparable)" if len(configs) < 97 else ""))
     unresolved = sorted({c.split('/')[0] for c in configs if has_cousin(c.split('/')[0], stems) == '?'})
     if stems is not None and unresolved:
