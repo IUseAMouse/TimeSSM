@@ -5,6 +5,20 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (PHASE 0, `data` : D ET E ÉCARTÉS)** — 2.5M wide `1.2841` au stack, 97 configs,
+  MASE relative à FlowState-9.1M en géomoyenne. **D** : 7 configs majoritairement sous 128
+  points ×1.056, 86 configs sans contexte court ×1.045 : écart de 1.1 %, sous le seuil
+  d'écart de 2 % (et 7 configs < 8). Les 4 configs « en partie courtes » sont à ×1.138, tiré
+  par m4_weekly (×1.42, 18 % de séries courtes seulement) : pas un effet de longueur de
+  contexte. **E** : Spearman(masse de queue, MASE/FlowState) −0.18, (masse, découplage)
+  +0.11 ; part de queue −0.15 / +0.14 ; poids moyen +0.01 / −0.14 : tous sous 0.2 en valeur
+  absolue, et le signe sur la MASE est l'inverse de l'hypothèse (les configs à queues
+  lourdes, bitbrains 5T ×0.82-1.00, solar ×0.96-1.03, sont celles où l'on tient FlowState).
+  Le repère arcsinh n'est pas ce qui coûte la médiane. Bilan de la phase 0 : D et E écartés,
+  A confirmé mais payé par RateIN, B écarté comme défaut d'amplitude ; il reste à qualifier
+  l'erreur sur m4_hourly et m4_weekly (`decomp`), puis l'écart diffus de ~4.5 % sur les 86
+  configs ordinaires, qu'aucune des cinq lectures du code n'explique.
+
 - **2026-10-04 (PHASE 0, `flat` : B ÉCARTÉ sur m4_hourly comme défaut d'amplitude ; A CONFIRMÉ
   sur solar/10T et PAS sur electricity/H — l'aplatissement dépend de la PÉRIODE EN PAS, et
   c'est le mécanisme de RateIN)** — 2.5M wide `1.2841` nu, 256 instances par config,
