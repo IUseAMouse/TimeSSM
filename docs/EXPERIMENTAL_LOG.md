@@ -5,6 +5,34 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-04 (PLAN MASE DU 2.5M : cinq défauts lus dans le code, phase 0 de diagnostics —
+  SEUILS GRAVÉS AVANT LES CHIFFRES)** — Le 2.5M wide `1.2841` devient le modèle principal
+  (0.7621 / 0.5183 avec RateIN-up et γ). Leçon de B5 : corriger ce que RateIN compense ne
+  bouge pas le stack ; on vise ce qu'il ne touche pas (H ×1.077 contre FlowState, W/M/A/Q à
+  k = 1, m4_hourly pire que la saisonnalité naïve). Correction : bizitobs/10S n'est PAS la
+  marge au stack (×1.08) ; le « 5 pt » annoncé le 04/10 portait sur le nu. Défauts lus dans
+  `model.py`, `block.py`, `quantile_head.py`, `robust_scale.py`, `prepare_context` : **E** la
+  pinball vit dans le repère arcsinh (erreur à z pondérée par 1/√(1+z²), MASE en brut) ;
+  **D** contextes d'entraînement ≥ 128 points, éval sur séries de ~30 points (m4 annuel) ;
+  **B** futur = token constant, une seule attention croisée par contenu, aucun chemin de
+  copie saisonnière ; **A** rollout non piloté (`Re(a) < 0`, représentations futures vers
+  un point fixe ; masqué par RateIN) ; **C** ni convolution ni sélectivité, sacrifiées à
+  l'équivalence Δ ≡ décimation que l'inférence n'utilise plus (P-SSM.3 jamais lancée).
+  Outil : `scripts/diagnose_median.py` (`sn`, `data`, `flat`), 5 tests. **Seuils** (champion
+  nu ET stack pour `sn` et `data --run`) : **B** retenu si ≥ 8 configs à MASE ≥ 0.95 × SN et
+  borne oracle ≥ 0.5 pt, écarté si < 4 configs ou < 0.2 pt ; **D** retenu si les configs
+  majoritairement sous 128 points (≥ 8 configs) perdent ≥ 5 % de plus contre FlowState que
+  celles sans contexte court, écarté si < 2 % ; **E** retenu si Spearman(masse de queue,
+  MASE/FlowState) ou (masse, découplage) ≥ 0.4, écarté si |ρ| < 0.2 ; **A** confirmé si
+  amplitude modèle/vérité du dernier bloc ≤ 0.6 × celle du premier sur electricity/H/long
+  et solar/10T/long ; **B** (bis) si modèle/vérité ≤ 0.7 dès le premier bloc de m4_hourly,
+  écarté si ≥ 0.9. Vu AVANT de graver, sur 5 configs d'essai sans résultat de modèle :
+  m4_hourly a des queues légères (masse 0.15), donc E n'explique pas m4_hourly quoi qu'il
+  arrive ; m4_yearly : contexte médian 29 points, 52 % des points cibles à |z| > 2 ;
+  us_births/M/short ne compte que 2 instances. Phase 1 : un seul bras de 12 h en
+  continuation du 2.5M, initialisé à l'identité, celui que la phase 0 désigne. Plan
+  complet dans `../TimeJEPA/PLAN.md`.
+
 - **2026-10-04 (VERDICT P-SSM.9 : ÉCHEC — B5 déplace la médiane nue dans le bon sens mais de 1 pt,
   pas de 5, et le stack y perd ; B5 CLOS)** — Nu (aucune couche), 97 configs, B5 dernier
   `3.0577` contre son départ B1 dernier `3.0559-v1` : global 0.8483 / 0.5765 contre 0.8506 /
