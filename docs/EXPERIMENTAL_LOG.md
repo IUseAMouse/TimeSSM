@@ -5,6 +5,40 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-05 (BANDE DU 2.5M AVEC RateIN-up : 0.761-0.765 / 0.519-0.522 ; R1 CLOS — la dernière
+  couche était à son optimum et le checkpoint réajusté fait un peu MOINS bien sur GIFT ;
+  P-SSM.10 : la longueur de contexte n'est pas un axe au niveau global)** — **Bande**, flip +
+  mix + pool + `k_up=2x3x4` + `min_bt=4` + `bt_windows=4`, 5 checkpoints wide à 97 configs sans
+  échec, dans l'ordre du run : `1.2836` 0.7607 / 0.5200 / 0.708 · `1.2845` 0.7613 / 0.5207 /
+  0.701 · `1.2841` 0.7621 / 0.5194 / 0.699 · `1.2817` 0.7654 / 0.5220 / 0.701 · `1.2822`
+  0.7644 / 0.5215 / 0.703. Étendue 0.47 pt de MASE, 0.26 pt de CRPS : c'est l'unité de bruit
+  de toute comparaison sur ce modèle. Le `1.2841` est le meilleur des cinq en CRPS : le
+  citer seul serait une sélection sur le test ; le chiffre à publier est la bande, et le
+  dernier checkpoint (`1.2822`, 0.7644 / 0.5215) est le point sans sélection. Les deux
+  files `queue_phase0` lancées en double ont calculé des configs deux fois (calcul
+  déterministe, 0 échec) ; `logs/diag_flat.txt` et `diag_data.txt` ont pu être réécrits
+  par le doublon, les chiffres de référence sont ceux des entrées du 04/10. **R1**
+  (`refit_last_layer.py`, 24.36 M lignes d'entraînement, 0.75 M de validation, 1737
+  paramètres, L-BFGS) : pinball d'entraînement 4.10683 → 4.10555 (−0.03 %), de validation
+  4.00015 → 3.99809 (−0.05 %), MAE de la médiane −0.02 %, poids déplacés de 0.8 %. GIFT du
+  checkpoint réajusté : stack RateIN-up 0.7653 / 0.5212 contre 0.7621 / 0.5194 (+0.32 pt de
+  MASE, +0.18 pt de CRPS, donc PIRE, dans la bande des checkpoints) ; nu 0.8571 / 0.5834
+  contre 0.8542 / 0.5836. P-SSM.11 : la partie validation est surestimée (prédit −0.1 à
+  −0.5 %, mesuré −0.05 %), la partie GIFT est fausse du mauvais côté (prédit ±0.05 pt).
+  Lecture : le gradient stochastique avait laissé la dernière couche à 0.05 % de son
+  optimum ; il n'y a rien à gagner dans la tête à features gelées, l'écart est dans le
+  corps. Et un déplacement de 0.8 % des poids de sortie bouge GIFT de 0.2-0.3 pt : même
+  ordre que la bande. Checkpoint réajusté NON retenu. **P-SSM.10** (nu, référence 0.8542 /
+  0.5836) : `+max_context=256` 0.9144 / 0.6334 (pire, prédit) ; moyenne des lookbacks
+  256 + 1024 : 0.8693 / 0.5947 (pire de 1.5 pt de MASE ; prédiction ≤ 0.850 fausse). Le
+  détail W/M/A/Q reste à lire sur la carte par fréquence avant de clore formellement.
+  **Constat pour le bras « fréquence en entrée »** : le corpus `lotsa_v3` ne porte AUCUNE
+  métadonnée de fréquence (`prepare_lotsa.py` ne la garde pas, le datamodule ne la
+  transmet pas) : le bras demande une table famille → fréquence, sa propagation
+  dataset → batch → modèle, et le passage de la fréquence GIFT dans le harnais (divisée
+  par k sous RateIN). Correction d'une phrase du 04/10 : le corpus contient déjà des
+  familles synthétiques (`generate_synthetic.py`, `build_corpus_v3.sh`).
+
 - **2026-10-04 (DÉCISION DE PUBLICATION + BRAS R1 : réajustement de la dernière couche,
   PRÉDICTION P-SSM.11 gravée avant le run)** — Décision de l'utilisateur : publier le 2.5M
   comme modèle principal, en assumant la limite d'itération d'un indépendant (un bras de
