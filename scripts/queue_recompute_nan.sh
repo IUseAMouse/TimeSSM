@@ -15,9 +15,11 @@ UP="$M +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4"
 [ -f "$D/$CK.ckpt" ] && [ -d "$R" ] || { echo "missing checkpoint or evaluation dir"; exit 2; }
 mkdir -p logs
 echo "== $(date '+%F %T') before the fix"
-for d in "$R"/gift*; do
-  [ -f "$d/all_results.csv" ] || continue
-  bash "$TIMEJEPA/scripts/requeue_nan_configs.sh" "$d"
+# Only the five directories of the model card; the diagnostic runs (oracle,
+# backtest, tau, lookbacks) keep their cache and their old MASE on 15 configs.
+for d in "$R/gift" "$R/gift_flip" "$R/gift_flip_ratein-mix-pool" "$R/gift_flip_ratein-mix-pool-up234-bt4-w4" \
+         "$R"/gift_flip_ratein-mix-pool-up234-bt4-w4_gamma-*; do
+  [ -d "$d/per_config" ] && bash "$TIMEJEPA/scripts/requeue_nan_configs.sh" "$d"
 done
 GAMMA=${GAMMA:-$(ls -t "$R"/gift*up234*_gamma-*/quantile_gamma.json evaluation/calibration/*${CK#epoch00_}*.json \
   "$TIMEJEPA"/evaluation/calibration/*${CK#epoch00_}*.json 2>/dev/null | head -n 1)}
