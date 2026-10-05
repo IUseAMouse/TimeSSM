@@ -5,6 +5,55 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-05 (BRAS « Δ LIÉ À LA FRÉQUENCE DÉCLARÉE » : code livré dans les deux dépôts,
+  rétrocompatibilité testée, PRÉDICTIONS P-SSM.12 gravées avant tout chiffre)** — Décision de
+  l'utilisateur : méthode A (fréquence déclarée, comme FlowState), pas l'estimation de période
+  (le détecteur FFT du 01/09 cassait D/W/M). **Convention** reprise pas à pas de l'implémentation
+  de référence de FlowState (`get_fixed_factor`, granite-tsfm, lue le 05/10), dans
+  `timejepa/data/frequency.py` : `w = 24 / saison` ; secondes → cycle d'une heure (10S : 360
+  pas), minutes et heures → cycle d'un jour (15T : 96, H : 24, 6H : 4), journalier → 7 si le
+  domaine suit un rythme humain (Transport, Healthcare, Sales) sinon 365, hebdo → 52.14,
+  mensuel → 12, trimestriel et annuel → 4 ; exception GIFT de leur enveloppe : bizitobs_l2c
+  sans cycle journalier (saison × 7). Leur commentaire sur 6H (« only CMIP6 in pretraining »)
+  indique qu'ils appliquent la même fonction au pré-entraînement. **Où vit la fréquence** :
+  pas dans les `.npy` ; une table versionnée `TimeJEPA/configs/corpus_v3_frequencies.yaml`
+  (stem → fréquence, `null` pour le synthétique), construite sur le pod par
+  `scripts/build_frequency_table.py` à partir du champ `freq` des sources Hugging Face à la
+  révision épinglée (vérifié : taxi_30min → 30T, kdd2022 → 10T, favorita_sales → D) ; les
+  fichiers journaliers sont écrits avec `weekly: REVIEW`, que le chargeur refuse tant qu'un
+  humain n'a pas tranché. Un fichier du corpus absent de la table est une erreur. **Chemin** :
+  table → `MultiDatasetMonashDataModule(frequency_table=)` → `TimeSeriesDataset(season_length=)`
+  → clé d'item `season` (divisée par le facteur de résolution) → `SSMFinetuneModule
+  (delta_from_frequency)` : `w = 24 / (saison / k)` par item, borné à `model.delta_range` ;
+  items sans fréquence : tirage aléatoire hérité en entraînement, 1 en éval ; la validation
+  tourne à Δ lié (val loss NON comparable aux bras précédents). **Zéro paramètre** : le
+  `state_dict` est identique, `1.2841` se charge tel quel. Couche : sur le chemin par item,
+  FFT des noyaux uniques PUIS indexation (le chemin à échelle unique n'est pas touché).
+  **Harnais** : `+freq_delta=true`, tag `_fdelta`, `w` passé à chaque prévision et à chaque
+  candidat du backtest (contexte décimé par k → `w · k`), exclusif avec `+ratein=delta` et
+  `+ratein_w`, avertissement si un modèle `expects_frequency` est évalué sans.
+  `calibrate_quantiles.py --frequency-table` (fichier γ suffixé `_fdelta`). **Rétro-
+  compatibilité** : fichier de référence `tests/golden/ssm_golden.pt` enregistré AVANT le
+  changement (prévisions à tous les types de `w`, pertes d'entraînement avec leurs tirages,
+  perte d'éval, noms des paramètres) : égalité stricte après ; mode éteint : clé `season`
+  ignorée, aucun tirage aléatoire en plus ; sans table : mêmes clés d'item, mêmes fenêtres ;
+  sans flag : mêmes appels (`w is None`) et mêmes résultats du harnais sur stub et sur un
+  vrai petit SSM. Suites : TimeMamba 71 verts (dont 11 nouveaux), TimeJEPA `test_frequency`
+  35. Contrôle sur poids réels : `scripts/check_regression_ssm.sh` (réévalue `1.2841` nu et
+  stack sur 5 configs dans un dossier neuf, exige l'égalité avec le cache). Non étendu :
+  `scripts/evaluate.py` (Nixtla / Monash), dont le chemin n'est pas modifié. Config du bras :
+  `ssm_mini_v3_freq` = `ssm_mini_v3_wide` + table + mode + `delta_range [1/64, 8]`
+  (trimestriel, annuel et 6H demandent w = 6), même sampler, même budget, LR 1e-4.
+  **P-SSM.12.** (a) Ligne de base sans entraînement, `1.2841` + `+freq_delta=true` (borné
+  à [1/48, 4]) : nu 0.570 ± 0.010 de CRPS (contre 0.5836), gain ≥ 5 % sur le sub-horaire,
+  perte possible sur le journalier sans cycle hebdo (w = 0.066) ; stack + RateIN-up dans
+  ±0.3 pt de 0.5194. (b) Bras, dernier checkpoint, `+freq_delta=true` : nu ≤ 0.560 de CRPS
+  et ≤ 0.830 de MASE (au moins 40 % du gain de RateIN obtenu nativement) ; stack +
+  RateIN-up ≤ 0.516 / ≤ 0.757 ; `flat` sur solar/10T/long : amplitude du dernier bloc ≥ 0.5
+  de la vérité (0.08 aujourd'hui). SUCCÈS si le stack passe sous 0.516. ÉCHEC si le nu reste
+  ≥ 0.575 ou si le stack ne bat pas 0.5194 : lier Δ à la fréquence ne suffit pas en 12 h de
+  continuation (un résultat nul en continuation prouve moins qu'un entraînement de zéro).
+
 - **2026-10-05 (CHIFFRES DÉFINITIFS DU CHECKPOINT PUBLIÉ `1.2841` après la correction de la MASE
   du harnais : −0.08 pt de MASE sur chaque empilement, CRPS inchangé au chiffre près)** —
   Correction dans TimeJEPA (`2733c47`) : la MASE est moyennée sur les observations valides,

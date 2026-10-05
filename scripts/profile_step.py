@@ -31,6 +31,9 @@ def main():
     ap.add_argument("--expand", type=int, default=None)
     ap.add_argument("--steps", type=int, default=10)
     ap.add_argument("--no-profile", action="store_true")
+    ap.add_argument("--scales", type=int, default=1,
+                    help="distinct Delta scales in the batch (1: the uniform draw; 12: a batch "
+                         "mixing sampling rates, as with Delta tied to the frequency)")
     ap.add_argument("--set", nargs="*", default=[], metavar="KEY=VALUE",
                     help="config overrides, dotlist (model.ssm.activation_checkpointing=true)")
     args = ap.parse_args()
@@ -52,6 +55,10 @@ def main():
     x = 50 + torch.randn(args.batch, args.context, 1, device=device)
     y = 50 + torch.randn(args.batch, cfg.model.prediction_length, 1, device=device)
     w = torch.full((args.batch,), 0.5, device=device)
+    if args.scales > 1:
+        grid = torch.logspace(-1.5, 0.75, args.scales, device=device)
+        w = grid[torch.arange(args.batch, device=device) % args.scales]
+    print(f"{int(torch.unique(w).numel())} distinct Delta scale(s) in the batch")
 
     def step():
         with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == "cuda"):

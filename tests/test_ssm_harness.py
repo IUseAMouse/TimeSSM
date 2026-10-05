@@ -125,3 +125,35 @@ def test_checkpoint_round_trip_through_timejepa_loader(tmp_path):
     with pytest.raises(RuntimeError):
         loading.load_checkpoint(loading.create_model_from_config(cfg), str(ck),
                                 torch.device("cpu"))
+
+
+def test_freq_delta_on_the_ssm_and_unchanged_without(harness):
+    """+freq_delta (2026-10-05): absent, the harness gives the same numbers as
+    before on a real SSM; present, every forecast runs at the tied scale and
+    the fan changes; the model's own range clamps it."""
+    EG = harness
+    m = _model()
+    off, again = _run(EG, m), _run(EG, m, freq_season=None)
+    assert off["model"] == again["model"]
+    calls = []
+    orig = m.forecast
+
+    def spy(batch, n=None, w=None, **kw):
+        calls.append(None if w is None else float(w.reshape(-1)[0]))
+        return orig(batch, n=n, w=w, **kw)
+
+    m.forecast = spy
+    tied = _run(EG, m, freq_season=96.0)                       # a 15-minute series: w = 0.25
+    assert calls and all(w == pytest.approx(0.25) for w in calls)
+    assert tied["model"]["CRPS"] != off["model"]["CRPS"] and np.isfinite(tied["model"]["CRPS"])
+    calls.clear()
+    hourly = _run(EG, m, freq_season=24.0)                     # w = 1: the same model time as off
+    assert all(w == 1.0 for w in calls)
+    assert hourly["model"]["CRPS"] == pytest.approx(off["model"]["CRPS"], rel=1e-5)
+    calls.clear()
+    _run(EG, m, freq_season=96.0, ratein_mode="mix", ratein_pool=True)
+    assert all(w is not None and 0.25 - 1e-6 <= w <= 4.0 for w in calls)
+    check = EG.check_model_flags
+    check(m, "mix", False, None, None, True)
+    with pytest.raises(ValueError, match="exclusive"):
+        check(m, "delta", False, None, None, True)

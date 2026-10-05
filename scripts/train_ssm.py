@@ -143,11 +143,27 @@ def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
         short_series_windows=bool(cfg.data.get("short_series_windows", False)),
         short_min_context=int(cfg.data.get("short_min_context", 16)),
         short_min_target=int(cfg.data.get("short_min_target", 4)),
+        **_frequency_kwargs(cfg),
         seed=cfg.data.seed,
         num_workers=int(cfg.data.get("num_workers", 4)),
         persistent_workers=bool(cfg.data.get("persistent_workers", False)),
         use_mmap=bool(cfg.data.get("use_mmap", False)),
     )
+
+
+def _frequency_kwargs(cfg: DictConfig) -> dict:
+    """`data.frequency_table` for the datamodule, only when set: an older
+    TimeJEPA checkout has no such argument and must keep working for every
+    config that does not ask for it."""
+    table = cfg.data.get("frequency_table")
+    if not table:
+        return {}
+    try:
+        import timejepa.data.frequency  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError("data.frequency_table needs timejepa.data.frequency: "
+                           "pull the TimeJEPA checkout (sota-roadmap)") from e
+    return {"frequency_table": str(table)}
 
 
 def build_module(cfg: DictConfig, model) -> SSMFinetuneModule:
@@ -169,6 +185,7 @@ def build_module(cfg: DictConfig, model) -> SSMFinetuneModule:
         decimation_factors=list(cfg.training.get("decimation_factors") or []),
         p_decimation=float(cfg.training.get("p_decimation", 0.0)),
         decimation_min_context=int(cfg.training.get("decimation_min_context", 128)),
+        delta_from_frequency=bool(cfg.model.ssm.get("delta_from_frequency", False)),
         extend_horizon_queries=cfg.training.get("extend_horizon_queries", False),
         pretrained_encoder_path=cfg.training.get("pretrained_encoder_path"),
         finetune_mode=cfg.training.get("finetune_mode", "full_finetune"),
@@ -211,6 +228,10 @@ def main(cfg: DictConfig):
                 f"p={pl_module.p_delta_scale}")
     logger.info(f"Random horizon (inside the window): horizon_lengths={pl_module.horizon_lengths} "
                 f"p={pl_module.p_random_horizon} min_context={pl_module.horizon_min_context}")
+    logger.info(f"Delta tied to the frequency: {pl_module.delta_from_frequency} "
+                f"(table {cfg.data.get('frequency_table')}, range {model.delta_range})")
+    if pl_module.delta_from_frequency and not cfg.data.get("frequency_table"):
+        raise ValueError("model.ssm.delta_from_frequency needs data.frequency_table")
     logger.info(f"Decimated window: decimation_factors={pl_module.decimation_factors} "
                 f"p={pl_module.p_decimation} min_context={pl_module.decimation_min_context}")
 

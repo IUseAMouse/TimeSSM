@@ -1,0 +1,47 @@
+# @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+# FREQUENCY-TIED DELTA (2026-10-05): resume the 2.5M wide champion (weights
+# only, fresh optimizer, the wide arm's short cosine) and change ONE thing:
+# Delta is no longer drawn at random, it is set from the declared sampling
+# frequency of each series, w = 24 / season (FlowState's rule, implemented in
+# timejepa.data.frequency). One reference cycle then spans the same model time
+# whatever the sampling rate: a 15-minute series runs at w = 0.25, hourly at 1,
+# daily with a weekly cycle at 3.43, monthly at 2.
+#
+# Why: the `flat` diagnostic (2026-10-04) - the model holds a 24-step season
+# over 30 cycles and loses a 144-step season within one - and FlowState, which
+# has this canonicalization, is 2-5% better on the median in every domain.
+#
+# What moves and what does not:
+#   * no parameter is added: the checkpoint 1.2841 loads as it is;
+#   * the frequency comes from a table versioned in TimeJEPA (file stem ->
+#     frequency), not from the .npy files; a corpus file missing from it is an
+#     error; the synthetic families are declared without a frequency (`null`)
+#     and keep the random draw below as an augmentation;
+#   * validation runs with the tied Delta too: its loss is NOT comparable with
+#     the earlier arms' (they validate at Delta scale 1);
+#   * delta_range widens to [1/64, 8]: quarterly, yearly and 6-hourly series
+#     ask for w = 6, above the wide arm's 4.
+# Sampler, budget, learning rate: the wide arm's, unchanged.
+#
+#   scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_wide_zs/pretrain_False/epoch00_valloss1.2841.ckpt'
+#   # eval: EVAL_CONFIG=ssm_mini_v3_freq_eval STACK="+freq_delta=true" ONLY=<stem> scripts/eval_checkpoints_ssm.sh <dir>
+#
+# Predictions P-SSM.12 in docs/EXPERIMENTAL_LOG.md, graved before the run.
+defaults:
+  - ssm_mini_v3_wide
+  - _self_
+
+model:
+  name: "timessm_mini_v3_freq_zs"
+  ssm:
+    delta_from_frequency: true
+    delta_range: [0.015625, 8.0]
+
+data:
+  frequency_table: "../TimeJEPA/configs/corpus_v3_frequencies.yaml"
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "frequency-tied-delta", "resume", "lotsa", "v3", "mini"]

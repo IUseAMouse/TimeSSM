@@ -114,6 +114,47 @@ STACK="+tta_flip=true +ratein=mix +ratein_pool=true" EVAL_CONFIG=ssm_mid_v3_eval
 DDP est le chemin validé ; FSDP (`trainer.strategy=fsdp`) n'a jamais tourné en multi-GPU : un smoke
 de 15 min sur le pod loué avant toute mention, jamais comme chemin principal.
 
+## Bras Δ lié à la fréquence (2026-10-05, P-SSM.12)
+
+Tirer les DEUX dépôts (TimeJEPA porte la convention, la table et le flag du harnais).
+
+```bash
+# 1. table des fréquences (une fois ; réseau Hugging Face requis), dans TimeJEPA
+cd /workspace/TimeJEPA && source .venv/bin/activate
+python scripts/build_frequency_table.py --corpus-dir data/processed/lotsa_v3 \
+    --out configs/corpus_v3_frequencies.yaml
+#    -> relire, remplacer chaque `weekly: REVIEW` (fichiers journaliers), commiter, pousser
+
+# 2. rien n'a bougé avec les modes éteints : poids réels, ~10 min sur une carte
+cd /workspace/TimeMamba && source .venv/bin/activate
+pytest -q tests/test_golden.py tests/test_frequency_delta.py tests/test_ssm_harness.py
+scripts/check_regression_ssm.sh                      # doit finir par "OK"
+
+# 3. ligne de base sans entraînement : le champion, Δ lié à l'inférence seule
+CK=epoch00_valloss1.2841; D=checkpoints/timessm_mini_v3_wide_zs/pretrain_False
+STACK="+freq_delta=true" ONLY=$CK scripts/eval_checkpoints_ssm.sh $D +gift_batch_size=32
+STACK="+tta_flip=true +ratein=mix +ratein_pool=true +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4 +freq_delta=true" \
+  ONLY=$CK scripts/eval_checkpoints_ssm.sh $D +gift_batch_size=32
+
+# 4. vitesse avec un batch à cadences mêlées, puis pré-vol, puis le bras (12 h)
+python scripts/profile_step.py --config ssm_mini_v3_freq --no-profile --scales 12
+DEVICES=3 CONFIG=ssm_mini_v3_freq scripts/preflight.sh
+SEED0=<jamais utilisé> nohup scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq \
+  '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_wide_zs/pretrain_False/epoch00_valloss1.2841.ckpt' \
+  > logs/loop_freq.out 2>&1 &
+
+# 5. éval du bras : toujours AVEC le flag (sans lui le harnais avertit, Δ = 1 partout)
+EVAL_CONFIG=ssm_mini_v3_freq_eval STACK="+freq_delta=true" scripts/eval_all_gpus_ssm.sh \
+  checkpoints/timessm_mini_v3_freq_zs/pretrain_False +gift_batch_size=32
+```
+
+Témoins W&B dans les 10 premières minutes : `freq/labelled_frac` (part des items à
+fréquence connue, de l'ordre de la part non synthétique du batch), `freq/n_unique`
+(une douzaine au plus), `freq/w_min` / `freq/w_max` dans `[1/64, 8]`. La val loss de ce
+bras n'est pas comparable à celle des bras précédents : elle est mesurée à Δ lié.
+Sans `data.frequency_table` ni `model.ssm.delta_from_frequency`, tout se comporte comme
+avant (fichier de référence `tests/golden/ssm_golden.pt`).
+
 ## Doctrine
 
 Une variable par bras, prédictions gravées dans `docs/EXPERIMENTAL_LOG.md`

@@ -47,6 +47,8 @@ import torch
 
 from timejepa.training.finetune_module import FinetuneModule
 
+BASE_SEASON = 24.0      # timejepa.data.frequency.BASE_SEASON (FlowState's convention)
+
 
 class SSMFinetuneModule(FinetuneModule):
     def __init__(self, model, *, delta_scales: Optional[Sequence[float]] = None,
@@ -55,8 +57,11 @@ class SSMFinetuneModule(FinetuneModule):
                  p_random_horizon: float = 0.0, horizon_min_context: int = 256,
                  decimation_factors: Optional[Sequence[int]] = None,
                  p_decimation: float = 0.0, decimation_min_context: int = 128,
+                 delta_from_frequency: bool = False,
                  **kwargs):
         super().__init__(model, **kwargs)
+        self.delta_from_frequency = bool(delta_from_frequency)
+        self._freq_stats = None
         self.delta_scales = [float(s) for s in (delta_scales or [])]
         self.p_delta_scale = float(p_delta_scale)
         if self.p_delta_scale > 0 and not self.delta_scales:
@@ -217,10 +222,52 @@ class SSMFinetuneModule(FinetuneModule):
                     and sd[key].shape != own[key].shape:
                 sd[key] = own[key].clone()
 
+    # ------------------------------------------------------------ frequency
+    def _tie_delta(self, batch: dict, k: int = 1) -> dict:
+        """Delta tied to the declared frequency: w = 24 / season per item,
+        clamped to the model's `delta_range`, `season` being the batch key the
+        datamodule emits with a frequency table (steps of the reference
+        cycle; a window decimated by k has a cycle k times shorter). Items
+        without a frequency (season 0, the synthetic families) keep the
+        legacy draw in train - one value for all of them, as before - and
+        w = 1 in eval. Off (default): the batch is returned as it came and
+        no random number is drawn."""
+        self._freq_stats = None
+        if not self.delta_from_frequency:
+            return batch
+        season = batch.get("season")
+        if season is None:
+            raise KeyError("delta_from_frequency needs the 'season' batch key: set "
+                           "data.frequency_table (timejepa.data.frequency)")
+        season = season.float() / k
+        known = season > 0
+        lo, hi = self.model.delta_range
+        w = (BASE_SEASON / season.clamp_min(1e-6)).clamp(lo, hi)
+        fallback = 1.0
+        if self.training and not bool(known.all()):
+            drawn = self._draw_delta_scale(1, season.device)
+            fallback = 1.0 if drawn is None else float(drawn[0])
+        w = torch.where(known, w, torch.full_like(w, fallback))
+        self._freq_stats = (float(known.float().mean()), float(w.min()), float(w.max()),
+                            float(torch.unique(w).numel()))
+        new = dict(batch)
+        new["w"] = w
+        return new
+
+    def validation_step(self, batch, batch_idx):
+        return super().validation_step(self._tie_delta(batch), batch_idx)
+
+    def test_step(self, batch, batch_idx):
+        return super().test_step(self._tie_delta(batch), batch_idx)
+
     def training_step(self, batch, batch_idx):
         batch = self._maybe_resplit_horizon(batch)
         batch = self._maybe_decimate(batch)
+        batch = self._tie_delta(batch, k=self._last_k)
         loss = super().training_step(batch, batch_idx)
+        if self._freq_stats is not None:
+            for name, value in zip(("labelled_frac", "w_min", "w_max", "n_unique"), self._freq_stats):
+                self.log(f"freq/{name}", value, on_step=True, on_epoch=False, logger=True)
         native = int(self.model.prediction_length)
         self.log("aug/decimation_k", float(self._last_k), on_step=True, on_epoch=False, logger=True)
         self.log("aug/decimation_neq1_frac", float(self._last_k != 1), on_step=True,

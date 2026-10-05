@@ -139,7 +139,6 @@ class S4DLayer(nn.Module):
         B, L, H = u.shape
         scales, inv = self._scales(delta_scale, B)
         K = self.kernel(L, scales)                                 # [U, H, L]
-        K = K[inv] if inv is not None else K                       # [B|1, H, L]
         # cuFFT has no bfloat16 path and autocast does not cast fft ops: the
         # convolution runs in float32 whatever the surrounding precision
         # (bf16-mixed training crashed here, 2026-09-10) and returns in the
@@ -147,9 +146,13 @@ class S4DLayer(nn.Module):
         fft_dtype = torch.float32 if u.dtype in (torch.bfloat16, torch.float16) else u.dtype
         u_t = u.transpose(1, 2).to(fft_dtype)                      # [B, H, L]
         n_fft = 2 * L
-        y = torch.fft.irfft(
-            torch.fft.rfft(u_t, n=n_fft) * torch.fft.rfft(K.to(fft_dtype), n=n_fft), n=n_fft
-        )[..., :L]
+        # One FFT per UNIQUE scale, then the per-item gather in the frequency
+        # domain: a batch mixing a dozen sampling rates (Delta tied to the
+        # frequency) costs a dozen kernel FFTs, not B. One scale: unchanged.
+        K_f = torch.fft.rfft(K.to(fft_dtype), n=n_fft)             # [U, H, F]
+        if inv is not None:
+            K_f = K_f[inv]                                         # [B, H, F]
+        y = torch.fft.irfft(torch.fft.rfft(u_t, n=n_fft) * K_f, n=n_fft)[..., :L]
         y = y + self.D[None, :, None].to(fft_dtype) * u_t
         return y.transpose(1, 2).to(u.dtype)
 

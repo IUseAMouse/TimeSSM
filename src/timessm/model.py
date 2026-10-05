@@ -22,7 +22,11 @@ The rate knob. `forecast(x, n, w=s)` multiplies every layer's Delta by s
 (float or [B]). w = 1 / k is the SSM's exact counterpart of decimating the
 context by k (SSM_cours prop. 2.4). `rate_knob = 'delta'` tells the harness;
 `predictor.w_film` is None so `+ratein_w` (the FiLM of the JEPA model) is
-refused as it should be. There is no online_encoder: the JEPA-side inference
+refused as it should be. `delta_range` is the range of w the model was trained
+on (the harness clamps a frequency-tied scale to it); `expects_frequency`
+says the model was trained with w tied to the declared sampling frequency
+(w = 24 / season, timejepa.data.frequency), so the harness can warn when it
+is evaluated without. Neither adds a parameter or a buffer. There is no online_encoder: the JEPA-side inference
 layers (+refine, +ttt, joint / critic terms) do not apply here.
 """
 
@@ -69,6 +73,8 @@ class SSMForecaster(nn.Module):
         robust_scale: bool = True,
         revin_affine: bool = False,
         activation_checkpointing: bool = False,
+        delta_range: Sequence[float] = (1.0 / 48.0, 4.0),
+        expects_frequency: bool = False,
         name: str = "timessm",
     ):
         super().__init__()
@@ -77,6 +83,10 @@ class SSMForecaster(nn.Module):
         self.prediction_length = int(prediction_length)
         self.d_model = int(d_model)
         self.activation_checkpointing = bool(activation_checkpointing)
+        self.delta_range = (float(delta_range[0]), float(delta_range[1]))
+        if not 0 < self.delta_range[0] <= self.delta_range[1]:
+            raise ValueError(f"delta_range must be 0 < lo <= hi, got {self.delta_range}")
+        self.expects_frequency = bool(expects_frequency)
         # One token per step: Linear(1 -> D). No padding: prepare_context in
         # the harness aligns lengths on stride = 1, i.e. never truncates.
         self.patching = Patching(patch_size=1, d_model=d_model, num_features=1,
@@ -268,5 +278,7 @@ def build_from_config(cfg) -> SSMForecaster:
         robust_scale=bool(cfg.model.get("robust_scale", True)),
         revin_affine=bool(cfg.model.get("revin_affine", False)),
         activation_checkpointing=bool(s.get("activation_checkpointing", False)),
+        delta_range=tuple(s.get("delta_range", (1.0 / 48.0, 4.0))),
+        expects_frequency=bool(s.get("delta_from_frequency", False)),
         name=cfg.model.name,
     )
