@@ -5,6 +5,23 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-05 (CHIFFRES DÉFINITIFS DU CHECKPOINT PUBLIÉ `1.2841` après la correction de la MASE
+  du harnais : −0.08 pt de MASE sur chaque empilement, CRPS inchangé au chiffre près)** —
+  Correction dans TimeJEPA (`2733c47`) : la MASE est moyennée sur les observations valides,
+  comme gluonts (`axis=None`), et non par instance ; 15 configs à cibles partiellement NaN
+  recalculées (`queue_recompute_nan.sh`), les 82 autres relues du cache. Avant → après,
+  MASE / CRPS : nu 0.8542 → **0.8534** / 0.5836 · flip 0.8351 → **0.8343** / 0.5644 · stack
+  0.7679 → **0.7671** / 0.5242 · RateIN-up 0.7621 → **0.7613** / 0.5194 · RateIN-up + γ 0.7621
+  → **0.7613** / 0.5183. Les cinq CRPS ressortent identiques : la correction ne touche que
+  l'agrégation de la MASE, comme prévu. L'hypothèse « le harnais sous-évalue TimeSSM » vaut
+  donc 0.08 pt de MASE et 0 de CRPS. Les anciens JSON sont dans
+  `per_config_before_2026-10-05/` de chaque dossier. Restent à l'ancienne MASE sur ces 15
+  configs : les quatre autres checkpoints de la bande, tous les runs 10M, les runs de
+  diagnostic (oracle, backtest, τ, lookbacks) ; écart attendu du même ordre (−0.08 pt), à
+  recalculer seulement pour ce qui est publié. La ligne « * fewer than 97 configs » dans
+  `queue_nan.out` est la légende du tableau attrapée par le grep de la file, pas un
+  avertissement sur ces runs.
+
 - **2026-10-05 (BANDE DU 2.5M AVEC RateIN-up : 0.761-0.765 / 0.519-0.522 ; R1 CLOS — la dernière
   couche était à son optimum et le checkpoint réajusté fait un peu MOINS bien sur GIFT ;
   P-SSM.10 : la longueur de contexte n'est pas un axe au niveau global)** — **Bande**, flip +
