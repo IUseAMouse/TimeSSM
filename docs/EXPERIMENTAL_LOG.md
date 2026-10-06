@@ -5,6 +5,35 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-06 (Δ LIÉ À LA FRÉQUENCE, LIGNE DE BASE SANS ENTRAÎNEMENT : nu 0.8126 / 0.5547,
+  stack + RateIN-up 0.7572 / 0.5155 — meilleur chiffre du 2.5M, obtenu à l'inférence seule ;
+  P-SSM.12(a) dépassée du bon côté ; SEUILS DU BRAS RE-GRAVÉS avant le lancement)** —
+  Rétrocompatibilité d'abord, sur le pod : `test_golden` (1e-5 entre machines, strict sur
+  la machine d'enregistrement), `test_frequency_delta`, `test_ssm_harness` verts ;
+  `check_regression_ssm.sh` : 10 comparaisons nu et stack sur poids réels, écart relatif
+  maximal 2.3e-8 contre le cache : OK. Table des fréquences relue et poussée (TimeJEPA
+  `f171b5f` : 76 fichiers à fréquence, 30 synthétiques sans ; journaliers à rythme hebdo :
+  favorita ×2, m5, nn5 ; nn5 décidé sur la donnée et non sur son étiquette de domaine).
+  **Mesure**, checkpoint `1.2841` (jamais entraîné avec un Δ lié), `+freq_delta=true`, plage
+  [1/48, 4], 97 configs sans échec : **nu 0.8126 / 0.5547 / couv. 0.700** contre 0.8534 /
+  0.5836 (−4.1 pt de MASE, −2.9 pt de CRPS) ; **flip + mix + pool + RateIN-up 0.7572 /
+  0.5155 / 0.696** contre 0.7613 / 0.5194 (−0.4 pt et −0.4 pt ; comparaison appariée, même
+  checkpoint, mêmes instances). Prédit : nu 0.570 ± 0.010 (réel 0.5547, mieux), stack dans
+  ±0.3 pt (réel −0.39, mieux). La règle seule rend au modèle nu la moitié de ce que RateIN
+  lui apporte (0.5836 → 0.5194), et les deux se composent. Exemples nus : solar/10T/long
+  MASE 1.753 → 0.947 ; m4_hourly inchangé (w = 1) ; bizitobs 10S toujours mauvais (2.5 à
+  4.7). Repères : Toto-2.0-4m 0.7565 / 0.5242 (égalité en MASE désormais), FlowState-9.1M
+  0.7262 / 0.5019 (reste 1.4 pt de CRPS, 3.1 pt de MASE). Réserves : (1) la règle emprunte
+  à FlowState deux connaissances propres à GIFT, le domaine de chaque jeu (journalier
+  hebdo ou non) et l'exception bizitobs_l2c ; à publier comme telles, et à mesurer sans
+  l'exception. (2) γ est à recalibrer à Δ lié (`calibrate_ssm.sh … --frequency-table`).
+  (3) carte par fréquence à lire (`gift_gap_ssm.py` avec et sans le flag) avant de conclure
+  sur M/Q/A où w est borné à 4. **Seuils du bras re-gravés** (ceux du 05/10 supposaient une
+  ligne de base à 0.570 et sont déjà atteints sans entraînement) : dernier checkpoint de
+  `ssm_mini_v3_freq`, `+freq_delta=true` : nu ≤ 0.545 de CRPS et ≤ 0.800 de MASE ; stack +
+  RateIN-up ≤ 0.512 / ≤ 0.752. SUCCÈS si le stack passe sous 0.512. ÉCHEC si le stack reste
+  ≥ 0.5155 : l'entraînement n'ajoute rien à la règle appliquée à l'inférence.
+
 - **2026-10-05 (BRAS « Δ LIÉ À LA FRÉQUENCE DÉCLARÉE » : code livré dans les deux dépôts,
   rétrocompatibilité testée, PRÉDICTIONS P-SSM.12 gravées avant tout chiffre)** — Décision de
   l'utilisateur : méthode A (fréquence déclarée, comme FlowState), pas l'estimation de période
