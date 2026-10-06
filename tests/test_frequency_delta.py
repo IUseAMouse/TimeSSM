@@ -189,3 +189,23 @@ def test_train_script_relays_the_table_only_when_set():
     assert train_ssm._frequency_kwargs(_compose("ssm_mini_v3_wide")) == {}
     kw = train_ssm._frequency_kwargs(_compose("ssm_mini_v3_freq"))
     assert set(kw) == {"frequency_table"}
+
+
+def test_release_config_carries_the_card_settings_and_the_others_carry_none():
+    """timessm_2.5m_gift: one command reproduces the model card; every other
+    config stays free of inference settings, so evaluating without them is
+    still the default."""
+    import json
+    cfg = _compose("timessm_2.5m_gift")
+    assert cfg.tta_flip is True and cfg.ratein == "mix" and cfg.ratein_pool is True
+    assert cfg.ratein_k_up == "2x3x4" and cfg.ratein_min_bt == 4 and cfg.ratein_bt_windows == 4
+    assert cfg.freq_delta is True and cfg.gift_batch_size == 32
+    assert cfg.model.name == "timessm_2.5m"
+    wide = _compose("ssm_mini_v3_wide_eval")
+    assert cfg.model.ssm == wide.model.ssm and cfg.model.decoder == wide.model.decoder   # same architecture
+    gamma = json.loads((HERE / cfg.quantile_gamma).read_text())
+    assert len(gamma["gamma"]) == len(gamma["levels"]) == 9 and gamma["gamma"][4] == 1.0   # the median is untouched
+    keys = ("tta_flip", "ratein", "ratein_pool", "ratein_k_up", "freq_delta", "quantile_gamma")
+    for name in ("ssm_mini_v3_eval", "ssm_mini_v3_wide_eval", "ssm_mini_v3_freq_eval", "ssm_mid_v3_eval"):
+        other = _compose(name)
+        assert all(other.get(k) is None for k in keys), name

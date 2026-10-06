@@ -1,0 +1,28 @@
+{
+  "levels": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ],
+  "gamma": [
+    1.1493778228759766,
+    0.9202782511711121,
+    1.0264923572540283,
+    1.0610988140106201,
+    1.0,
+    0.9214895963668823,
+    0.992718517780304,
+    0.8925819993019104,
+    1.1644920110702515
+  ],
+  "checkpoint": "checkpoints/timessm_mini_v3_wide_zs/pretrain_False/epoch00_valloss1.2841.ckpt",
+  "config_name": "ssm_mini_v3_wide",
+  "procedure": "scripts/calibrate_ssm.sh <ckpt> --flip --config-name ssm_mini_v3_wide --frequency-table ../TimeJEPA/configs/corpus_v3_frequencies.yaml (validation windows of the training corpus, never GIFT-Eval; one dataset = one vote), 2026-10-06",
+  "note": "values copied from the pod's evaluation/calibration/gamma_epoch00_valloss1.2841_flip_fdelta.json as logged by evaluate_gift.py; valid for THIS checkpoint with +tta_flip=true +freq_delta=true only"
+}

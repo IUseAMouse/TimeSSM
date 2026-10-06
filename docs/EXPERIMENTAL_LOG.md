@@ -5,6 +5,32 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-06 (CHIFFRE DE LA CARTE DU 2.5M : 0.7572 / 0.5142, couverture 0.758 ; config de
+  reproduction en une commande ; bras P-SSM.12 : option A, budget complet, ~24 h)** —
+  γ recalibré à Δ lié (`calibrate_ssm.sh … --flip --frequency-table`, fenêtres de validation
+  du corpus, jamais GIFT) : [1.149, 0.920, 1.026, 1.061, 1, 0.921, 0.993, 0.893, 1.164].
+  Checkpoint `1.2841`, flip + mix + pool + RateIN-up + `+freq_delta=true` + γ, 97 configs :
+  **0.7572 / 0.5142 / 0.758** (sans γ : 0.7572 / 0.5155 / 0.696 ; MASE inchangée au chiffre
+  près, comme il se doit). Échelle complète du même checkpoint : nu 0.8534 / 0.5836 · nu +
+  Δ lié 0.8126 / 0.5547 · stack + RateIN-up 0.7613 / 0.5194 · + Δ lié 0.7572 / 0.5155 ·
+  + γ 0.7572 / 0.5142. **Reproduction** : `configs/timessm_2.5m_gift.yaml` porte TOUS les
+  réglages d'inférence de ce chiffre (flip, RateIN, fenêtres, Δ lié, γ, batch) et le fichier
+  γ est versionné (`configs/calibration/gamma_epoch00_valloss1.2841_flip_fdelta.json`,
+  valable pour ce checkpoint et ces réglages seulement) :
+  `EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh <ckpt>`. Les réglages ne sont PAS des
+  défauts du harnais : toutes les autres configs en restent vierges (test), évaluer sans
+  eux reste le comportement par défaut. Le harnais résout désormais un chemin de fichier
+  relatif par rapport au dépôt de la config (`_resolve_data_file`) ; vérifié de bout en
+  bout avec un checkpoint factice depuis un autre répertoire (réglages lus, γ trouvé, même
+  nom de dossier que l'éval du pod). À faire après le bras : la reproduction complète sur
+  le pod dans `evaluation/timessm_2.5m/` (2 h), qui doit rendre 0.7572 / 0.5142.
+  **Vitesse du bras** (`profile_step.py --scales`, batch 128, une carte) : 1 cadence 3.02
+  it/s / 14.9 Gio ; première version du chemin mêlé : +3.5 Gio dès 2 cadences puis +0.7 Gio
+  par cadence, OOM à 5 ; après correctif (`495625f`, un noyau par cadence sous checkpoint,
+  convolution groupée par cadence) : 4 cadences 2.20 it/s / 14.4 Gio, 12 : 1.51 / 14.7, 16 :
+  1.31 / 14.9. Mémoire constante, vitesse divisée par deux à 12-16 cadences : le bras
+  prendra ~24 h au lieu de 12. Décision de l'utilisateur : budget complet (option A).
+
 - **2026-10-06 (Δ LIÉ À LA FRÉQUENCE, LIGNE DE BASE SANS ENTRAÎNEMENT : nu 0.8126 / 0.5547,
   stack + RateIN-up 0.7572 / 0.5155 — meilleur chiffre du 2.5M, obtenu à l'inférence seule ;
   P-SSM.12(a) dépassée du bon côté ; SEUILS DU BRAS RE-GRAVÉS avant le lancement)** —
