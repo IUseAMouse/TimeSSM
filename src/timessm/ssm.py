@@ -38,6 +38,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+import torch.utils.checkpoint
 
 Scale = Union[float, torch.Tensor]
 
@@ -133,12 +134,30 @@ class S4DLayer(nn.Module):
         K = (coef * powers).sum(dim=2)                             # [U, H, L]
         return K.real if torch.is_complex(K) else K
 
+    def _kernels(self, length: int, scales: torch.Tensor) -> torch.Tensor:
+        """K [U, H, L] for the unique scales of a batch. One scale: `kernel`,
+        as always. Several (a batch mixing sampling rates, Delta tied to the
+        frequency): one scale at a time, and under autograd each one is
+        checkpointed - the [H, N, L] powers are recomputed in backward
+        instead of being kept, so memory no longer grows with the number of
+        rates in the batch (measured 2026-10-06: +0.7 GiB per extra scale at
+        batch 128, out of memory at five)."""
+        if scales.numel() == 1:
+            return self.kernel(length, scales)
+        keep_graph = torch.is_grad_enabled() and self.log_dt.requires_grad
+        rows = []
+        for s in scales:
+            one = s.reshape(1)
+            rows.append(torch.utils.checkpoint.checkpoint(self.kernel, length, one, use_reentrant=False)
+                        if keep_graph else self.kernel(length, one))
+        return torch.cat(rows, dim=0)
+
     # ------------------------------------------------------------ forward
     def forward(self, u: torch.Tensor, delta_scale: Scale = 1.0) -> torch.Tensor:
         """u [B, L, H] -> y [B, L, H], causal FFT convolution + skip."""
         B, L, H = u.shape
         scales, inv = self._scales(delta_scale, B)
-        K = self.kernel(L, scales)                                 # [U, H, L]
+        K = self._kernels(L, scales)                               # [U, H, L]
         # cuFFT has no bfloat16 path and autocast does not cast fft ops: the
         # convolution runs in float32 whatever the surrounding precision
         # (bf16-mixed training crashed here, 2026-09-10) and returns in the
@@ -146,13 +165,18 @@ class S4DLayer(nn.Module):
         fft_dtype = torch.float32 if u.dtype in (torch.bfloat16, torch.float16) else u.dtype
         u_t = u.transpose(1, 2).to(fft_dtype)                      # [B, H, L]
         n_fft = 2 * L
-        # One FFT per UNIQUE scale, then the per-item gather in the frequency
-        # domain: a batch mixing a dozen sampling rates (Delta tied to the
-        # frequency) costs a dozen kernel FFTs, not B. One scale: unchanged.
         K_f = torch.fft.rfft(K.to(fft_dtype), n=n_fft)             # [U, H, F]
-        if inv is not None:
-            K_f = K_f[inv]                                         # [B, H, F]
-        y = torch.fft.irfft(torch.fft.rfft(u_t, n=n_fft) * K_f, n=n_fft)[..., :L]
+        u_f = torch.fft.rfft(u_t, n=n_fft)                         # [B, H, F]
+        if inv is None:
+            y = torch.fft.irfft(u_f * K_f, n=n_fft)[..., :L]
+        else:
+            # The items of each scale are convolved together with that scale's
+            # kernel: no [B, H, F] copy of the kernels is ever built.
+            order = torch.argsort(inv, stable=True)
+            counts = torch.bincount(inv, minlength=scales.numel()).tolist()
+            parts = [torch.fft.irfft(chunk * K_f[k:k + 1], n=n_fft)[..., :L]
+                     for k, chunk in enumerate(torch.split(u_f[order], counts))]
+            y = torch.cat(parts, dim=0)[torch.argsort(order)]
         y = y + self.D[None, :, None].to(fft_dtype) * u_t
         return y.transpose(1, 2).to(u.dtype)
 

@@ -166,3 +166,24 @@ def test_forward_under_bf16_autocast_matches_float32():
     with torch.autocast("cpu", dtype=torch.bfloat16):
         out = block(u, delta_scale=torch.tensor([0.5, 2.0]))
     assert torch.isfinite(out).all()
+
+
+def test_mixed_scales_match_the_loop_in_values_and_gradients():
+    """A batch mixing rates (2026-10-06: one kernel per unique scale,
+    checkpointed, items grouped by scale): same outputs as item by item, same
+    gradients on the layer's parameters and on the input, whatever the order
+    of the scales in the batch."""
+    torch.manual_seed(0)
+    layer = S4DLayer(d_model=6, d_state=4).double()
+    u = torch.randn(7, 40, 6, dtype=torch.float64, requires_grad=True)
+    w = torch.tensor([2.0, 0.25, 1.0, 0.25, 2.0, 0.5, 1.0], dtype=torch.float64)
+    y = layer(u, delta_scale=w)
+    ref = torch.cat([layer(u[i:i + 1], delta_scale=float(w[i])) for i in range(7)])
+    assert torch.allclose(y, ref, atol=1e-10, rtol=1e-10)
+    names = [n for n, _ in layer.named_parameters()]
+    g = torch.autograd.grad(y.pow(2).sum(), [u] + list(layer.parameters()))
+    g_ref = torch.autograd.grad(ref.pow(2).sum(), [u] + list(layer.parameters()))
+    for name, a, b in zip(["u"] + names, g, g_ref):
+        assert torch.allclose(a, b, atol=1e-8, rtol=1e-8), name
+    with torch.no_grad():
+        assert torch.allclose(layer(u, delta_scale=w), ref, atol=1e-10, rtol=1e-10)   # no-grad path
