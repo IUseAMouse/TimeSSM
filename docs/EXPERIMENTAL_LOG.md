@@ -5,6 +5,23 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-06 (BRAS P-SSM.12 LANCÉ, témoins W&B à 5 k pas : conformes, sauf la part
+  étiquetée — 52 % et non ~70 % ; réserve inscrite AVANT le résultat)** — `ssm-mini-v3-freq`,
+  SEED0 2026, départ `1.2841`, budget complet (~24 h). `freq/w_min` 0.016667 (séries à la
+  minute), `freq/w_max` 6 (6H), `freq/n_unique` 9 à 14, décimation et horizon inactifs,
+  contexte tiré entre 128 et 1024. `freq/labelled_frac` 0.51-0.53 : j'avais annoncé ~0.7
+  en comptant les fichiers (30 synthétiques sur 106) ; l'échantillonneur pondère par
+  famille et le synthétique pèse près de la moitié de chaque batch (remarque de
+  l'utilisateur). `aug/w_neq1_frac` alterne entre 0.37 et 0.87 selon que le tirage hérité
+  des items sans fréquence vaut 1 ou non : 37 % du batch a un Δ lié ≠ 1, ~15 % est horaire.
+  **Conséquence pour la lecture du verdict** : la moitié du signal d'entraînement reste un
+  Δ aléatoire ; le bras teste « Δ lié sur une moitié du batch ». Un succès n'en est que
+  plus net ; un échec est moins concluant que les seuils ne le disent (dilution par le
+  synthétique non exclue), et la variante suivante serait de donner au synthétique une
+  fréquence cohérente avec son générateur. Les seuils ne changent pas. À surveiller :
+  `train_loss_step` montre des pics à 15-20 pour une base ~1, à comparer aux bras
+  précédents (wide, B5) avant d'y lire quoi que ce soit.
+
 - **2026-10-06 (CHIFFRE DE LA CARTE DU 2.5M : 0.7572 / 0.5142, couverture 0.758 ; config de
   reproduction en une commande ; bras P-SSM.12 : option A, budget complet, ~24 h)** —
   γ recalibré à Δ lié (`calibrate_ssm.sh … --flip --frequency-table`, fenêtres de validation
