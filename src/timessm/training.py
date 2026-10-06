@@ -285,7 +285,9 @@ class SSMFinetuneModule(FinetuneModule):
         # Memory witness (2026-09-18): three processes died at their 111,111th
         # batch whatever the batch size and the seed. Peak since the last
         # reading, so a climb and a single-batch jump look different in W&B.
-        if torch.cuda.is_available() and batch_idx % 200 == 0:
+        # (the module's own device: a CPU module on a machine that has a GPU
+        # made reset_peak_memory_stats raise, 2026-10-06)
+        if self.device.type == "cuda" and batch_idx % 200 == 0:
             dev = self.device
             self.log("mem/peak_allocated_gib", torch.cuda.max_memory_allocated(dev) / 2**30,
                      on_step=True, on_epoch=False, logger=True)
