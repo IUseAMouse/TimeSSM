@@ -1,6 +1,6 @@
 # TimeSSM-2.5M
 
-<!-- DRAFT 2026-10-07. Cells marked [ ] are filled from the evaluation logs; every number
+<!-- DRAFT 2026-10-08. One checkpoint only, the released one: bare and with the full inference stack; no band of checkpoints, no 10M line (user decisions 2026-10-08). Cells marked [ ] are filled from the evaluation logs; every number
      in this card must be traceable to a per_config/ directory on the pod or to an official
      leaderboard file. Nothing here is rounded beyond what the harness prints. -->
 
@@ -18,9 +18,9 @@ official leaderboard files: it reproduces t0-beta's published per-configuration 
 GIFT-Eval, 97 configurations, zero-shot. MASE and CRPS are geometric means of the ratio to
 the official seasonal naive, as on the leaderboard. Lower is better.
 
-### The published checkpoint, layer by layer
+### The released checkpoint, layer by layer
 
-Checkpoint `epoch00_valloss1.2841`. Each row adds one inference-time layer to the previous
+Checkpoint `epoch00_valloss1.2814` [numbers below still those of 1.2841: to update]. Each row adds one inference-time layer to the previous
 one; the model's weights never change.
 
 | Inference setting | MASE | CRPS | 80% coverage |
@@ -34,23 +34,6 @@ one; the model's weights never change.
 
 The last row is the card's number. One command reproduces it (see Reproduction).
 
-### The last five checkpoints of the run, at the published setting
-
-The published checkpoint is the one with the lowest CRPS of the five; the table shows how
-much that choice is worth. [To be filled: four more evaluations at the full setting.]
-
-| Checkpoint (order in the run) | MASE | CRPS | 80% coverage |
-|---|---|---|---|
-| epoch00_valloss1.2836 | [ ] | [ ] | [ ] |
-| epoch00_valloss1.2845 | [ ] | [ ] | [ ] |
-| epoch00_valloss1.2841 (published) | 0.7572 | 0.5142 | 0.758 |
-| epoch00_valloss1.2817 | [ ] | [ ] | [ ] |
-| epoch00_valloss1.2822 (last) | [ ] | [ ] | [ ] |
-
-Without the frequency rule and the calibration, the five checkpoints span MASE 0.761 to
-0.765 and CRPS 0.519 to 0.522 (MASE before the harness correction of 2026-10-05, about
-0.001 high; to be recomputed).
-
 ### Where it stands
 
 | Model | Parameters | MASE | CRPS | Source |
@@ -61,9 +44,6 @@ Without the frequency rule and the calibration, the five checkpoints span MASE 0
 | Toto-2.0-4m | 4M | 0.7565 | 0.5242 | leaderboard |
 | Chronos-Bolt small, bare | 48M | 0.8259 | 0.5636 | this harness, chronos-forecasting 2.3.2 |
 | Chronos-Bolt small + the same resampling layer | 48M | 0.7467 | 0.5148 | this harness |
-
-[Decide: keep or drop the TimeSSM-10M and TimeJEPA ablation lines; if kept, recompute their
-MASE with the corrected harness.]
 
 ### By frequency and by term
 
@@ -91,8 +71,8 @@ Read this before quoting the card.
   `ratein` is the internal name of this layer in the code.
 - **Zero-shot.** The training corpus excludes the GIFT-Eval sources by construction; it
   includes synthetic series and decimated copies of some real ones.
-- **Checkpoint selection.** The published checkpoint has the lowest CRPS of the run's last
-  five; the table above shows the spread.
+- **Checkpoint.** The released checkpoint is the last one of its training run; no
+  checkpoint was picked on GIFT-Eval.
 - **Harness fidelity.** The harness recomputes the leaderboard metrics from the raw data.
   t0-beta's official per-configuration results are reproduced on 97/97 configurations;
   Chronos-Bolt's differ on medium and long horizons (its autoregressive rollout changed

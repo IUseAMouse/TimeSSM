@@ -5,6 +5,13 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (DÉCISIONS DE PUBLICATION, utilisateur)** — La carte montre UN checkpoint, celui
+  que les gens téléchargeront (`1.2814`), nu et avec l'empilement complet, avec le tableau
+  couche par couche de ce checkpoint ; aucune bande de checkpoints ; le 10M n'est pas
+  publié (ses configs restent dans le dépôt pour qui veut réutiliser le code). Files
+  `band_full` et `band_freq` : abandonnées. Reproduction à neuf à refaire sur `1.2814` une
+  fois la config `timessm_2.5m_gift` basculée.
+
 - **2026-10-08 (CHIFFRE DE LA CARTE : `1.2814` + γ recalibré = 0.7544 / 0.5128 / couv. 0.764 ;
   le 10M avec la règle ne fait pas mieux que le 2.5M)** — γ de `1.2814` calibré à Δ lié
   (`calibrate_ssm.sh … --config-name ssm_mini_v3_freq --flip --frequency-table`) ; stack
