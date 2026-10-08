@@ -5,6 +5,23 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (CHIFFRE DE LA CARTE : `1.2814` + γ recalibré = 0.7544 / 0.5128 / couv. 0.764 ;
+  le 10M avec la règle ne fait pas mieux que le 2.5M)** — γ de `1.2814` calibré à Δ lié
+  (`calibrate_ssm.sh … --config-name ssm_mini_v3_freq --flip --frequency-table`) ; stack
+  RateIN-up + `+freq_delta=true` + γ : **0.7544 / 0.5128 / 0.764** (sans γ 0.7544 / 0.5139 /
+  0.698 : MASE inchangée, −0.11 pt de CRPS, couverture +6.6 pt). Le fichier γ est à
+  versionner dans `configs/calibration/` et la config `timessm_2.5m_gift` à basculer sur
+  ce checkpoint (hérite de `ssm_mini_v3_freq_eval`). **10M** `3.0559-v1` avec la règle : nu
+  0.8157 / 0.5461 (contre 0.8506 / 0.5803 : −3.5 / −3.4 pt, la règle vaut ~3 pt de CRPS sur
+  les deux tailles) ; stack RateIN-up + règle, sans γ : 0.7515 / 0.5136 contre 0.7544 /
+  0.5139 pour le 2.5M `1.2814` au même réglage : ×4 paramètres = −0.3 pt de MASE, 0 en CRPS.
+  Ligne d'ablation de la carte, à réglage strictement égal, sans γ des deux côtés. Le 2.5M
+  entraîné à Δ lié atteint en nu (0.5451) le 10M avec la règle seule (0.5461). Bande wide
+  au réglage complet (γ de `1.2841`), en cours : `1.2845` 0.7565 / 0.5172 · `1.2836` 0.7596 /
+  0.5170 · `1.2841` 0.7572 / 0.5142 : elle devient la ligne « avant entraînement » ; le
+  tableau ligne par ligne de la carte sera celui des cinq checkpoints du run `freq` avec le
+  γ de `1.2814` (file `queue_band_freq`).
+
 - **2026-10-08 (BRAS P-SSM.13 PRÉPARÉ : Δ lié avec le synthétique étiqueté — PRÉDICTIONS gravées
   avant toute donnée)** — Motif (utilisateur) : réduire l'écart nu / stack avant publication
   (3.1 pt aujourd'hui, 0.5451 contre 0.5139). Le bras P-SSM.12 a déplacé le nu d'un point
