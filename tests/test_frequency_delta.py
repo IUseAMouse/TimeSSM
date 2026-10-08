@@ -177,6 +177,11 @@ def test_configs_only_the_freq_arm_asks_for_the_mode():
         model = build_from_config(cfg)
         assert model.expects_frequency and model.delta_range == (0.015625, 8.0)
         assert cfg.data.frequency_table.endswith("corpus_v3_frequencies.yaml")
+    for name in ("ssm_mini_v3_freq_syn", "ssm_mini_v3_freq_syn_eval"):
+        cfg = _compose(name)
+        assert build_from_config(cfg).expects_frequency
+        assert cfg.data.frequency_table.endswith("corpus_v3_frequencies_syn.yaml")
+        assert cfg.model.name == "timessm_mini_v3_freq_syn_zs"
     wide, freq = _compose("ssm_mini_v3_wide"), _compose("ssm_mini_v3_freq")
     for key in ("schedule_fraction", "p_delta_scale", "delta_scales"):
         assert wide.training[key] == freq.training[key]

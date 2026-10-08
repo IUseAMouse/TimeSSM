@@ -5,6 +5,28 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (BRAS P-SSM.13 PRÉPARÉ : Δ lié avec le synthétique étiqueté — PRÉDICTIONS gravées
+  avant toute donnée)** — Motif (utilisateur) : réduire l'écart nu / stack avant publication
+  (3.1 pt aujourd'hui, 0.5451 contre 0.5139). Le bras P-SSM.12 a déplacé le nu d'un point
+  avec la moitié du batch (synthétique) restée en Δ aléatoire. **Méthode** : le générateur
+  synthétique est déterministe ; `sample_series(…, info=)` rapporte la période du cycle de
+  référence de chaque série (composante saisonnière de plus grand poids pour le genre
+  kernel, période de modulation pour ops et intermittent, 0 sans cycle) SANS tirage
+  supplémentaire (test : séries identiques avec et sans) ; `build_season_sidecars.py` rejoue
+  la graine de chaque fichier (`synthetic_<famille>` : graine = index dans DEFAULT_FAMILIES ;
+  `_s<N>` : N × 1000 ; `_dec<K>` : parent / K), compare CHAQUE ligne au fichier et écrit
+  `_season/<fichier>.npy` ; une ligne différente arrête le fichier. Les `.npy` ne bougent pas.
+  Table `corpus_v3_frequencies_syn.yaml` : les 30 synthétiques en `{season: per_row}`
+  (sentinelle `PER_ROW`), le dataset lit le fichier annexe par ligne. Config
+  `ssm_mini_v3_freq_syn` (= `freq` + table syn, départ `1.2814`, même budget). **P-SSM.13**,
+  dernier checkpoint, `+freq_delta=true` : `freq/labelled_frac` ≈ 0.9 (les ops et
+  intermittents sans cycle restent aléatoires) ; nu ≤ 0.790 / ≤ 0.535 (contre 0.7985 /
+  0.5451) ; stack + RateIN-up ≤ 0.7520 / ≤ 0.5125 (contre 0.7544 / 0.5139). SUCCÈS si le nu
+  passe sous 0.535. ÉCHEC si le nu reste ≥ 0.542 : étiqueter le synthétique n'apporte rien,
+  le gain de P-SSM.12 venait des seules familles réelles. Réserve : la « saison » d'une
+  série synthétique à plusieurs composantes est celle de plus grand poids, convention
+  posée ici, pas mesurée.
+
 - **2026-10-08 (P-SSM.12, NU DU DERNIER CHECKPOINT AVEC LA RÈGLE : 0.7985 / 0.5451 / couv. 0.701 —
   les deux seuils du nu sont atteints ; l'entraînement a changé le modèle, le stack en
   reprend peu)** — `1.2814` + `+freq_delta=true`, 97 configs : 0.7985 / 0.5451 contre 0.8126 /

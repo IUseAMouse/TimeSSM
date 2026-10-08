@@ -1,0 +1,33 @@
+# @package _global_
+# CONTINUATION ARM: launch with SEED0=<seed never used by the run it resumes from>.
+# FREQUENCY-TIED DELTA, SYNTHETIC FILES LABELLED TOO (2026-10-08, P-SSM.13): resume
+# the last checkpoint of the frequency-tied arm (1.2814) with ONE change: the
+# synthetic families, half of every batch, now carry the season of each series
+# (read back from the generator by replaying its seed, _season/ sidecar), so
+# their Delta is tied like everyone else's instead of drawn at random.
+#
+# Why: the first tied arm moved the bare model by 1 pt of CRPS with half the
+# batch still random; the user wants the bare model as close as possible to
+# the stacked number before release. Expected: another point on the bare
+# model, little on the stack (RateIN supplies the rest at inference).
+#
+#   python ../TimeJEPA/scripts/build_season_sidecars.py --corpus-dir ../TimeJEPA/data/processed/lotsa_v3 --jobs 4
+#   DEVICES=3 CONFIG=ssm_mini_v3_freq_syn scripts/preflight.sh
+#   SEED0=<new> scripts/train_ssm_loop.sh ssm_mini_v3_freq_syn ssm-mini-v3-freq-syn \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt'
+# Budget, LR, sampler: the wide arm's, as in ssm_mini_v3_freq. ~24 h.
+# Witness: freq/labelled_frac must jump from ~0.52 to ~0.9 (ops / intermittent
+# series without a cycle keep the random draw).
+# Predictions P-SSM.13 in docs/EXPERIMENTAL_LOG.md, graved before the run.
+defaults:
+  - ssm_mini_v3_freq
+  - _self_
+
+model:
+  name: "timessm_mini_v3_freq_syn_zs"
+
+data:
+  frequency_table: "../TimeJEPA/configs/corpus_v3_frequencies_syn.yaml"
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "frequency-tied-delta", "synthetic-labelled", "resume", "lotsa", "v3", "mini"]

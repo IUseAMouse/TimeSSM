@@ -1,0 +1,8 @@
+# @package _global_
+# Eval twin of ssm_mini_v3_freq_syn. Evaluate with +freq_delta=true.
+defaults:
+  - ssm_mini_v3_freq_syn
+  - _self_
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "frequency-tied-delta", "synthetic-labelled", "eval", "v3"]
