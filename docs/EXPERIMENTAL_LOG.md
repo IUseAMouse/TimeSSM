@@ -5,6 +5,18 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (P-SSM.12, NU DU DERNIER CHECKPOINT AVEC LA RÈGLE : 0.7985 / 0.5451 / couv. 0.701 —
+  les deux seuils du nu sont atteints ; l'entraînement a changé le modèle, le stack en
+  reprend peu)** — `1.2814` + `+freq_delta=true`, 97 configs : 0.7985 / 0.5451 contre 0.8126 /
+  0.5547 pour `1.2841` sans entraînement (−1.4 pt de MASE, −1.0 pt de CRPS) ; seuils nu
+  ≤ 0.800 et ≤ 0.545 : atteints (le second à 1e-4 près). Avec le stack : −0.3 / −0.16 pt
+  seulement (entrée précédente). Schéma de B5 une seconde fois, le stack fournissait déjà
+  à l'inférence ce que le modèle vient d'apprendre, mais cette fois sans recul du stack.
+  Par config, nu : m4_hourly 1.544 → 1.841 (à vérifier par fréquence : bruit sur 414 séries
+  ou effet de la règle), electricity/W 1.646 → 1.469, bizitobs_service/10S/short 1.392 →
+  1.215. Carte par fréquence (`gift_gap_ssm.py … --by freq,term`, nu et stack, `1.2814`
+  contre `1.2841` même flag) à lire demain avec la bande complète et le 10M.
+
 - **2026-10-08 (VERDICT P-SSM.12 : ENTRE LES DEUX SEUILS — dernier checkpoint 0.7544 / 0.5139 au
   stack, −0.3 pt de MASE et −0.16 pt de CRPS sur la ligne de base ; le dernier checkpoint
   `1.2814` devient le checkpoint à publier)** — `ssm_mini_v3_freq`, 5 checkpoints, flip + mix +
