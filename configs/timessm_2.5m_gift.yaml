@@ -1,8 +1,8 @@
 # @package _global_
 # TimeSSM-2.5M on GIFT-Eval, the model card's number in one command (2026-10-06):
 #
-#   EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh <path to epoch00_valloss1.2841.ckpt>
-#   -> MASE 0.7572 | CRPS 0.5142 | 80% coverage 0.758 (97 configs, ratios to the official seasonal naive)
+#   EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh <path to epoch00_valloss1.2814.ckpt>
+#   -> MASE 0.7544 | CRPS 0.5128 | 80% coverage 0.764 (97 configs, ratios to the official seasonal naive)
 #
 # Every inference setting of that number is written here instead of on the
 # command line, so nothing has to be remembered:
@@ -11,15 +11,17 @@
 #   ratein_pool         pooled over the config's series,
 #   ratein_k_up, ratein_min_bt, ratein_bt_windows   with upsampling candidates and four backtest windows
 #   freq_delta          Delta tied to the declared sampling frequency (w = 24 / season,
-#                       timejepa.data.frequency: FlowState's rule, with its GIFT domains)
+#                       timejepa.data.frequency: FlowState's rule, with its GIFT domains).
+#                       The model was TRAINED with it: the frequency is an input, not a layer.
 #   quantile_gamma      per-level widening of the fan, calibrated on validation windows of the
 #                       TRAINING corpus under the same flip and frequency rule; never on GIFT-Eval.
 #                       Valid for this checkpoint only (configs/calibration/).
 #   gift_batch_size     the batch size of the reference run
-# Each setting can still be overridden or removed from the command line; the bare model is
-#   scripts/eval_ssm.sh <ckpt>        (default config: no flag at all, MASE 0.8534 | CRPS 0.5836)
+# Each setting can still be overridden or removed from the command line; the bare model
+# (frequency given, no inference layer) is
+#   EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true     (MASE 0.7985 | CRPS 0.5451)
 defaults:
-  - ssm_mini_v3_wide_eval
+  - ssm_mini_v3_freq_eval
   - _self_
 
 model:
@@ -32,5 +34,5 @@ ratein_k_up: "2x3x4"
 ratein_min_bt: 4
 ratein_bt_windows: 4
 freq_delta: true
-quantile_gamma: "configs/calibration/gamma_epoch00_valloss1.2841_flip_fdelta.json"
+quantile_gamma: "configs/calibration/gamma_epoch00_valloss1.2814_flip_fdelta.json"
 gift_batch_size: 32

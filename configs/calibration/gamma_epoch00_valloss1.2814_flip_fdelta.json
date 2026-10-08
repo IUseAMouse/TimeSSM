@@ -1,0 +1,28 @@
+{
+  "levels": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9
+  ],
+  "gamma": [
+    1.1656851768493652,
+    0.9650939702987671,
+    1.1082677841186523,
+    1.2404111623764038,
+    1.0,
+    0.8029124140739441,
+    0.9305725693702698,
+    0.8701575994491577,
+    1.140767216682434
+  ],
+  "checkpoint": "checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt",
+  "config_name": "ssm_mini_v3_freq",
+  "procedure": "scripts/calibrate_ssm.sh <ckpt> --flip --config-name ssm_mini_v3_freq --frequency-table ../TimeJEPA/configs/corpus_v3_frequencies.yaml (192 validation windows per training-corpus file, Delta tied to the file's frequency, one file = one vote, median per level), 2026-10-08",
+  "note": "values as logged by evaluate_gift.py for the released run (logs/final_1.2814.out); valid for THIS checkpoint with +tta_flip=true +freq_delta=true only"
+}

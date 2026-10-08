@@ -206,8 +206,9 @@ def test_release_config_carries_the_card_settings_and_the_others_carry_none():
     assert cfg.ratein_k_up == "2x3x4" and cfg.ratein_min_bt == 4 and cfg.ratein_bt_windows == 4
     assert cfg.freq_delta is True and cfg.gift_batch_size == 32
     assert cfg.model.name == "timessm_2.5m"
-    wide = _compose("ssm_mini_v3_wide_eval")
-    assert cfg.model.ssm == wide.model.ssm and cfg.model.decoder == wide.model.decoder   # same architecture
+    freq = _compose("ssm_mini_v3_freq_eval")
+    assert cfg.model.ssm == freq.model.ssm and cfg.model.decoder == freq.model.decoder   # same architecture
+    assert build_from_config(cfg).expects_frequency and "1.2814" in cfg.quantile_gamma
     gamma = json.loads((HERE / cfg.quantile_gamma).read_text())
     assert len(gamma["gamma"]) == len(gamma["levels"]) == 9 and gamma["gamma"][4] == 1.0   # the median is untouched
     keys = ("tta_flip", "ratein", "ratein_pool", "ratein_k_up", "freq_delta", "quantile_gamma")

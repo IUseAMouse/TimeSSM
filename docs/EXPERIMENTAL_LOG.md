@@ -5,6 +5,20 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (γ DE `1.2814` VERSIONNÉ, config de reproduction basculée, carte mise à jour ;
+  bande wide au réglage complet lue ; bras P-SSM.13 lancé)** — γ = [1.1657, 0.9651, 1.1083,
+  1.2404, 1, 0.8029, 0.9306, 0.8702, 1.1408] (`configs/calibration/gamma_epoch00_valloss1.2814
+  _flip_fdelta.json`) ; `timessm_2.5m_gift` hérite de `ssm_mini_v3_freq_eval` et pointe sur
+  ce γ : attendu 0.7544 / 0.5128 / 0.764, reproduction à neuf à faire après le bras.
+  Définition retenue pour la carte : le « nu » est le modèle avec sa fréquence déclarée et
+  sans couche d'inférence (0.7985 / 0.5451) ; la fréquence est une entrée du modèle, pas
+  une couche (le modèle a été entraîné avec). Bande wide au réglage complet (γ de
+  `1.2841`), pour mémoire, non publiée : `1.2836` 0.7596 / 0.5170 · `1.2845` 0.7565 / 0.5172 ·
+  `1.2841` 0.7572 / 0.5142 · `1.2817` 0.7588 / 0.5158 · `1.2822` 0.7593 / 0.5160 : étendue
+  0.3 pt de CRPS, `1.2841` en est le meilleur de 1.6 pt sur le dernier ; le run `freq` (0.5139
+  sur ses deux derniers, 0.5128 avec γ) est devant toute la bande wide. Le 10M (0.5136 au
+  même réglage sans γ) n'est pas publié : décision du 08/10 confirmée par la bande.
+
 - **2026-10-08 (DÉCISIONS DE PUBLICATION, utilisateur)** — La carte montre UN checkpoint, celui
   que les gens téléchargeront (`1.2814`), nu et avec l'empilement complet, avec le tableau
   couche par couche de ce checkpoint ; aucune bande de checkpoints ; le 10M n'est pas

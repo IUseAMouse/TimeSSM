@@ -18,19 +18,17 @@ official leaderboard files: it reproduces t0-beta's published per-configuration 
 GIFT-Eval, 97 configurations, zero-shot. MASE and CRPS are geometric means of the ratio to
 the official seasonal naive, as on the leaderboard. Lower is better.
 
-### The released checkpoint, layer by layer
+### The released checkpoint
 
-Checkpoint `epoch00_valloss1.2814` [numbers below still those of 1.2841: to update]. Each row adds one inference-time layer to the previous
-one; the model's weights never change.
+Checkpoint `epoch00_valloss1.2814`, the last one of its training run. The model always
+receives the declared sampling frequency of the series (see below); each row adds one
+inference-time layer to the previous one, the weights never change.
 
 | Inference setting | MASE | CRPS | 80% coverage |
 |---|---|---|---|
-| Bare model | 0.8534 | 0.5836 | [ ] |
-| + sign-flip averaging | 0.8343 | 0.5644 | [ ] |
-| + backtest-selected resampling (mix, pooled) | 0.7671 | 0.5242 | [ ] |
-| + upsampling candidates, four backtest windows | 0.7613 | 0.5194 | 0.699 |
-| + sampling interval set from the declared frequency | 0.7572 | 0.5155 | 0.696 |
-| + quantile widening calibrated on the training corpus | **0.7572** | **0.5142** | **0.758** |
+| Bare model | 0.7985 | 0.5451 | 0.701 |
+| + sign-flip averaging, backtest-selected resampling (mix, pooled, upsampling candidates, four backtest windows) | 0.7544 | 0.5139 | 0.698 |
+| + quantile widening calibrated on the training corpus | **0.7544** | **0.5128** | **0.764** |
 
 The last row is the card's number. One command reproduces it (see Reproduction).
 
@@ -39,7 +37,7 @@ The last row is the card's number. One command reproduces it (see Reproduction).
 | Model | Parameters | MASE | CRPS | Source |
 |---|---|---|---|---|
 | FlowState-9.1M | 9.1M | 0.7262 | 0.5019 | leaderboard |
-| **TimeSSM-2.5M** (this card) | 2.5M | 0.7572 | 0.5142 | this harness |
+| **TimeSSM-2.5M** (this card) | 2.5M | 0.7544 | 0.5128 | this harness |
 | TTM-R3-PT | 1.4M | 0.7240 | 0.5195 | leaderboard (saw GIFT-Eval in pretraining) |
 | Toto-2.0-4m | 4M | 0.7565 | 0.5242 | leaderboard |
 | Chronos-Bolt small, bare | 48M | 0.8259 | 0.5636 | this harness, chronos-forecasting 2.3.2 |
@@ -59,8 +57,9 @@ Read this before quoting the card.
   including two pieces of GIFT-Eval knowledge taken from its reference implementation: the
   dataset's domain decides whether daily data has a weekly cycle (transport, healthcare,
   sales), and `bizitobs_l2c` is treated as having no daily cycle. The model therefore
-  receives the frequency, like FlowState does. Without this rule the number is 0.7613 /
-  0.5194.
+  receives the frequency, like FlowState does, and was trained with it (its sampling
+  interval was tied to the frequency of every training series). Evaluated without it, the
+  model runs at the hourly scale for every series and is not the model of this card.
 - **Quantile widening.** Nine per-level factors applied to the fan around the median,
   calibrated on validation windows of the training corpus under the same inference setting.
   GIFT-Eval data were never used to fit them. The median, hence MASE, is untouched.
@@ -80,9 +79,10 @@ Read this before quoting the card.
 
 ## Model
 
-- Architecture: [n] blocks of gated S4D (complex diagonal state, d_model [ ], d_state 32),
-  one token per time step, a learned future token for the horizon, a quantile head with
-  cross-attention on the context. [Exact counts from `get_num_params`.]
+- Architecture: six gated S4D blocks (complex diagonal state, d_model 192, d_state 32;
+  1,782,144 parameters), one token per time step, a learned future token for the horizon,
+  a quantile head with cross-attention on the context (hidden 1536; 742,283 parameters).
+  2,525,771 parameters in all.
 - Input normalization: robust arcsinh scaling then instance normalization, both from the
   context.
 - Horizon: any length, no autoregressive loop; GIFT-Eval asks for 6 to 900 steps.
@@ -105,13 +105,13 @@ Read this before quoting the card.
 
 ```bash
 # TimeJEPA (harness, data loaders) and TimeMamba (model) side by side; GIFT-Eval data via `make gift-download`
-EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh <path/to/epoch00_valloss1.2841.ckpt>
-# bare model, no inference layer:
-scripts/eval_ssm.sh <path/to/epoch00_valloss1.2841.ckpt>
+EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh <path/to/epoch00_valloss1.2814.ckpt>
+# bare model (frequency given, no inference layer):
+EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <path/to/epoch00_valloss1.2814.ckpt> +freq_delta=true
 ```
 
 The first command carries every setting of the card's number (configs/timessm_2.5m_gift.yaml)
-and the calibration file (configs/calibration/). Expected: MASE 0.7572, CRPS 0.5142.
+and the calibration file (configs/calibration/). Expected: MASE 0.7544, CRPS 0.5128.
 [Confirmed on a fresh directory on YYYY-MM-DD.]
 
 ## Limitations
