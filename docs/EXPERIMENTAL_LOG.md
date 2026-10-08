@@ -5,6 +5,27 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-08 (VERDICT P-SSM.12 : ENTRE LES DEUX SEUILS — dernier checkpoint 0.7544 / 0.5139 au
+  stack, −0.3 pt de MASE et −0.16 pt de CRPS sur la ligne de base ; le dernier checkpoint
+  `1.2814` devient le checkpoint à publier)** — `ssm_mini_v3_freq`, 5 checkpoints, flip + mix +
+  pool + RateIN-up + `+freq_delta=true`, 97 configs sans échec, dans l'ordre du run : `1.2906`
+  0.7547 / 0.5140 / 0.690 · `1.2842` 0.7576 / 0.5177 / 0.680 · `1.2820` 0.7565 / 0.5153 / 0.693 ·
+  `1.2817` 0.7537 / 0.5139 / 0.696 · **`1.2814` (dernier) 0.7544 / 0.5139 / 0.698**. Ligne de
+  base (`1.2841` sans entraînement, même flag) : 0.7572 / 0.5155. Seuils : succès ≤ 0.512 NON
+  atteint, échec ≥ 0.5155 NON atteint : ni l'un ni l'autre. Lecture : la bande des cinq
+  (0.5139-0.5177) est décalée d'environ 0.15 pt sous la ligne de base, soit la moitié du
+  bruit entre checkpoints (0.3 pt) ; les deux derniers sont égaux au dixième de point et
+  sont les meilleurs, ce qui est cohérent avec un petit apprentissage réel plutôt qu'avec
+  du bruit (le bruit aurait placé le meilleur n'importe où). L'effet est donc petit et
+  probablement réel, dilué par la moitié synthétique du batch (réserve écrite le 06/10).
+  Le nu avec flag du dernier checkpoint (`logs/freq_nu.out`) reste à lire. **Décision de
+  l'utilisateur** : publier `1.2814`, qui est le DERNIER checkpoint du run (aucune sélection
+  sur le test ; il se trouve aussi à égalité de meilleur). Suite : γ recalibré sur `1.2814`
+  à Δ lié, éval avec γ, config de reproduction `timessm_2.5m_gift` basculée sur ce
+  checkpoint (hérite de `ssm_mini_v3_freq_eval`, plage Δ [1/64, 8]), contrôle de
+  régression et reproduction à neuf. Le val loss de ce bras, plus régulier à l'annealing
+  (remarque de l'utilisateur), n'est pas comparable aux bras précédents (validation à Δ lié).
+
 - **2026-10-06 (BRAS P-SSM.12 LANCÉ, témoins W&B à 5 k pas : conformes, sauf la part
   étiquetée — 52 % et non ~70 % ; réserve inscrite AVANT le résultat)** — `ssm-mini-v3-freq`,
   SEED0 2026, départ `1.2841`, budget complet (~24 h). `freq/w_min` 0.016667 (séries à la
