@@ -5,6 +5,17 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-10 (VERDICT P-SSM.13 : ÉCHEC — le nu du dernier checkpoint est identique à celui de
+  `1.2814`)** — `1.2769` + `+freq_delta=true`, nu : 0.7982 / 0.5446 / couv. 0.694 contre 0.7985 /
+  0.5451 / 0.701 pour `1.2814` (seuil d'échec : ≥ 0.542). Étiqueter la moitié synthétique du
+  batch (saisons par ligne, arrondies) ne déplace ni le nu ni le stack : le point gagné par
+  P-SSM.12 venait des familles réelles seules. Lecture : les cycles synthétiques sont
+  tirés au hasard par série et n'ont pas de rapport avec un rythme physique ; les
+  canoniser à 24 pas n'apprend rien que le modèle n'avait déjà. Bras clos ; les deux
+  variantes d'après-release (synthétique étiqueté, de zéro) sont à réviser à la lumière de
+  ce résultat : la version « de zéro à Δ lié » garde son intérêt, l'étiquetage synthétique
+  n'en a plus. Checkpoint publié inchangé : `1.2814`.
+
 - **2026-10-10 (P-SSM.13, STACK : le synthétique étiqueté n'améliore pas le stack — dernier
   checkpoint 0.7565 / 0.5156 contre 0.7544 / 0.5139 ; `1.2814` reste le checkpoint publié)** —
   `ssm_mini_v3_freq_syn` (départ `1.2814`, saisons synthétiques arrondies à 2 niveaux par
