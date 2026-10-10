@@ -5,6 +5,18 @@ gravées avant chaque run, une variable par bras, oracle = diagnostic jamais off
 
 ## Journal des mises à jour
 
+- **2026-10-10 (P-SSM.13, STACK : le synthétique étiqueté n'améliore pas le stack — dernier
+  checkpoint 0.7565 / 0.5156 contre 0.7544 / 0.5139 ; `1.2814` reste le checkpoint publié)** —
+  `ssm_mini_v3_freq_syn` (départ `1.2814`, saisons synthétiques arrondies à 2 niveaux par
+  octave, `freq/labelled_frac` 0.87-0.89, 0.43 pas/s, ~50 h), flip + mix + pool + RateIN-up +
+  `+freq_delta=true`, 97 configs : `1.2819` 0.7527 / 0.5125 / 0.707 · `1.2791` 0.7539 / 0.5153 ·
+  `1.2780` 0.7554 / 0.5158 · `1.2771` 0.7565 / 0.5152 · `1.2769` (dernier) 0.7565 / 0.5156 /
+  0.694. Le meilleur est le premier et le dernier est au niveau de la ligne de base : bruit,
+  pas d'apprentissage visible au stack. Seuil stack (≤ 0.5125) non atteint sur le dernier.
+  Le nu du dernier (`syn_nu.out`), qui porte les seuils de P-SSM.13, reste à lire. Décision
+  (utilisateur) : `1.2814` reste le checkpoint publié. Oracles externes lancés derrière
+  (`queue_day10`) ; l'éval sans flip de `1.2814` a échoué, à relancer après les oracles.
+
 - **2026-10-08 (γ DE `1.2814` VERSIONNÉ, config de reproduction basculée, carte mise à jour ;
   bande wide au réglage complet lue ; bras P-SSM.13 lancé)** — γ = [1.1657, 0.9651, 1.1083,
   1.2404, 1, 0.8029, 0.9306, 0.8702, 1.1408] (`configs/calibration/gamma_epoch00_valloss1.2814
