@@ -1,0 +1,194 @@
+"""
+S4D: a diagonal linear time-invariant state space layer with a rate knob.
+
+Continuous system per channel h and state n:
+
+    x'(t) = a x(t) + b u(t),   y(t) = Re(sum_n c_n x_n(t)) + d u(t),   Re(a) < 0
+
+sampled every Delta with a zero-order hold (exact for piecewise-constant inputs):
+
+    A_bar = exp(Delta a),   B_bar = (A_bar - 1) / a * b
+    x_t = A_bar x_{t-1} + B_bar u_t,   y_t = Re(c . x_t) + d u_t
+
+The recurrence is a causal convolution y = K * u with kernel
+K_j = Re(c . A_bar^j B_bar), computed in closed form (Vandermonde) and
+applied by FFT; no sequential loop at train time.
+
+Rate equivariance. `delta_scale` multiplies Delta for the whole layer (per
+batch or per item): Delta_eff = exp(log_dt) * delta_scale. Because the system
+is LTI, running the series decimated by k at Delta equals running the full
+series at Delta / k, so the evaluation passes w = 1 / k here instead of
+decimating and re-interpolating. A selective (input-dependent) Delta would
+break this equivalence, which is why the layer is S4D rather than Mamba.
+
+Stability by construction: Re(a) = -exp(log_a_re) < 0, so |A_bar| < 1 for any
+positive Delta_eff.
+
+Parameterization (all real tensors, so any optimizer works):
+    log_a_re [H, N], a_im [H, N] (complex state only), B_re/B_im [H, N],
+    C_re/C_im [H, N], log_dt [H], D [H].
+Init 's4d-lin' (complex): a_n = -1/2 + i pi n. Init 's4d-real': a_n = -(n+1).
+"""
+
+import math
+from typing import Optional, Tuple, Union
+
+import torch
+import torch.nn as nn
+import torch.utils.checkpoint
+
+Scale = Union[float, torch.Tensor]
+
+
+class S4DLayer(nn.Module):
+    def __init__(
+        self,
+        d_model: int,
+        d_state: int = 32,
+        real: bool = False,
+        dt_min: float = 1e-3,
+        dt_max: float = 1e-1,
+        init: str = "s4d-lin",
+    ):
+        super().__init__()
+        H, N = d_model, d_state
+        self.d_model, self.d_state, self.real = H, N, real
+        n = torch.arange(N, dtype=torch.float32)
+        if real or init == "s4d-real":
+            self.real = True
+            log_a_re = torch.log(n + 1.0).repeat(H, 1)
+        elif init == "s4d-lin":
+            log_a_re = torch.full((H, N), math.log(0.5))
+        else:
+            raise ValueError(f"unknown init {init!r} (s4d-lin, s4d-real)")
+        self.log_a_re = nn.Parameter(log_a_re)
+        if self.real:
+            self.a_im = None
+            self.B_im = None
+            self.C_im = None
+        else:
+            self.a_im = nn.Parameter((math.pi * n).repeat(H, 1))
+            self.B_im = nn.Parameter(torch.zeros(H, N))
+            self.C_im = nn.Parameter(torch.randn(H, N) * math.sqrt(0.5))
+        self.B_re = nn.Parameter(torch.ones(H, N))
+        self.C_re = nn.Parameter(torch.randn(H, N) * math.sqrt(0.5))
+        # Delta per channel, log-uniform over [dt_min, dt_max] (S4 recipe).
+        self.log_dt = nn.Parameter(
+            torch.rand(H) * (math.log(dt_max) - math.log(dt_min)) + math.log(dt_min)
+        )
+        self.D = nn.Parameter(torch.ones(H))
+
+    # ------------------------------------------------------------ pieces
+    def _a(self) -> torch.Tensor:
+        a_re = -torch.exp(self.log_a_re)
+        if self.real:
+            return a_re
+        return torch.complex(a_re, self.a_im)
+
+    def _b(self) -> torch.Tensor:
+        return self.B_re if self.real else torch.complex(self.B_re, self.B_im)
+
+    def _c(self) -> torch.Tensor:
+        return self.C_re if self.real else torch.complex(self.C_re, self.C_im)
+
+    def _scales(self, delta_scale: Scale, batch: int) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """(unique scales [U], inverse index [B] or None when one scale)."""
+        p = self.log_dt
+        if not torch.is_tensor(delta_scale):
+            return torch.tensor([float(delta_scale)], dtype=p.dtype, device=p.device), None
+        s = delta_scale.to(device=p.device, dtype=p.dtype).reshape(-1)
+        if s.numel() == 1:
+            return s, None
+        if s.numel() != batch:
+            raise ValueError(f"delta_scale has {s.numel()} entries for a batch of {batch}")
+        uniq, inv = torch.unique(s, return_inverse=True)
+        if uniq.numel() == 1:
+            # One scale for the whole batch: one kernel and one FFT of it.
+            # Gathering B copies of the kernel instead slowed training to
+            # 2.7 it/s.
+            return uniq, None
+        return uniq, inv
+
+    def discretize(self, delta_scale: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """ZOH for each scale in `delta_scale` [U]: (A_bar, B_bar, z) each
+        [U, H, N] with z = Delta_eff * a (so A_bar = exp(z))."""
+        dt = torch.exp(self.log_dt)                                # [H]
+        delta = dt[None, :, None] * delta_scale.reshape(-1)[:, None, None]  # [U, H, 1]
+        a = self._a()[None]                                        # [1, H, N]
+        z = delta * a
+        a_bar = torch.exp(z)
+        b_bar = (a_bar - 1.0) / a * self._b()[None]
+        return a_bar, b_bar, z
+
+    def kernel(self, length: int, delta_scale: torch.Tensor) -> torch.Tensor:
+        """Convolution kernel K [U, H, L], K_j = Re(c . A_bar^j B_bar)."""
+        _, b_bar, z = self.discretize(delta_scale)
+        j = torch.arange(length, device=z.device, dtype=self.log_dt.dtype)
+        powers = torch.exp(z[..., None] * j)                       # [U, H, N, L]
+        coef = (self._c()[None] * b_bar)[..., None]                # [U, H, N, 1]
+        K = (coef * powers).sum(dim=2)                             # [U, H, L]
+        return K.real if torch.is_complex(K) else K
+
+    def _kernels(self, length: int, scales: torch.Tensor) -> torch.Tensor:
+        """K [U, H, L] for the unique scales of a batch. With several scales
+        each kernel is computed one at a time and checkpointed under autograd,
+        so the [H, N, L] powers are recomputed in backward instead of kept
+        (otherwise memory grows by about 0.7 GiB per extra scale at batch 128)."""
+        if scales.numel() == 1:
+            return self.kernel(length, scales)
+        keep_graph = torch.is_grad_enabled() and self.log_dt.requires_grad
+        rows = []
+        for s in scales:
+            one = s.reshape(1)
+            rows.append(torch.utils.checkpoint.checkpoint(self.kernel, length, one, use_reentrant=False)
+                        if keep_graph else self.kernel(length, one))
+        return torch.cat(rows, dim=0)
+
+    # ------------------------------------------------------------ forward
+    def forward(self, u: torch.Tensor, delta_scale: Scale = 1.0) -> torch.Tensor:
+        """u [B, L, H] -> y [B, L, H], causal FFT convolution + skip."""
+        B, L, H = u.shape
+        scales, inv = self._scales(delta_scale, B)
+        K = self._kernels(L, scales)                               # [U, H, L]
+        # cuFFT has no bfloat16 path and autocast does not cast fft ops: the
+        # convolution runs in float32 whatever the surrounding precision and
+        # returns in the input dtype.
+        fft_dtype = torch.float32 if u.dtype in (torch.bfloat16, torch.float16) else u.dtype
+        u_t = u.transpose(1, 2).to(fft_dtype)                      # [B, H, L]
+        n_fft = 2 * L
+        K_f = torch.fft.rfft(K.to(fft_dtype), n=n_fft)             # [U, H, F]
+        u_f = torch.fft.rfft(u_t, n=n_fft)                         # [B, H, F]
+        if inv is None:
+            y = torch.fft.irfft(u_f * K_f, n=n_fft)[..., :L]
+        else:
+            # The items of each scale are convolved together with that scale's
+            # kernel: no [B, H, F] copy of the kernels is ever built.
+            order = torch.argsort(inv, stable=True)
+            counts = torch.bincount(inv, minlength=scales.numel()).tolist()
+            parts = [torch.fft.irfft(chunk * K_f[k:k + 1], n=n_fft)[..., :L]
+                     for k, chunk in enumerate(torch.split(u_f[order], counts))]
+            y = torch.cat(parts, dim=0)[torch.argsort(order)]
+        y = y + self.D[None, :, None].to(fft_dtype) * u_t
+        return y.transpose(1, 2).to(u.dtype)
+
+    # ------------------------------------------------------------ recurrence
+    def init_state(self, batch: int, dtype=None, device=None) -> torch.Tensor:
+        dtype = dtype or self.log_dt.dtype
+        device = device or self.log_dt.device
+        if not self.real:
+            dtype = torch.complex128 if dtype == torch.float64 else torch.complex64
+        return torch.zeros(batch, self.d_model, self.d_state, dtype=dtype, device=device)
+
+    def step(self, u_t: torch.Tensor, state: torch.Tensor,
+             delta_scale: Scale = 1.0) -> Tuple[torch.Tensor, torch.Tensor]:
+        """One step of the recurrence: u_t [B, H], state [B, H, N] ->
+        (y_t [B, H], new state). Same numbers as `forward`, step by step."""
+        B = u_t.shape[0]
+        scales, inv = self._scales(delta_scale, B)
+        a_bar, b_bar, _ = self.discretize(scales)                  # [U, H, N]
+        if inv is not None:
+            a_bar, b_bar = a_bar[inv], b_bar[inv]
+        state = a_bar * state + b_bar * u_t.unsqueeze(-1).to(state.dtype)
+        y = (self._c()[None] * state).sum(-1)
+        y = y.real if torch.is_complex(y) else y
+        return y + self.D[None] * u_t, state
