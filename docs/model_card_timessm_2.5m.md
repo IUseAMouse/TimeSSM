@@ -238,10 +238,25 @@ resampling layer runs through the evaluation harness, see the repository.
 
 ## Reproduction
 
-Code, configs and the evaluation harness: [github.com/IUseAMouse/TimeSSM](https://github.com/IUseAMouse/TimeSSM).
-The model repository (TimeSSM) and the harness repository (TimeJEPA) contain the
-training configs, the inference config of the card's number, the calibration file, the
-frequency table and one command per row of this card.
+The submitted number (MASE 0.7544, CRPS 0.5128) is produced by one command of the
+[TimeSSM repository](https://github.com/IUseAMouse/TimeSSM), whose config
+`configs/timessm_2.5m_gift.yaml` carries every inference setting of this card: the
+frequency rule, sign-flip averaging, backtest resampling (decimation by 2 to 48,
+upsampling by 2 to 4, pooled backtest on four windows) and the calibration file. The bare
+number is the second command.
+
+```bash
+git clone https://github.com/IUseAMouse/TimeJEPA && git clone https://github.com/IUseAMouse/TimeSSM
+cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train
+CK=epoch00_valloss1.2814.ckpt                                              # from this repository
+EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh $CK                      # MASE 0.7544, CRPS 0.5128
+EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true # bare: MASE 0.7985, CRPS 0.5451
+```
+
+The harness writes `all_results.csv` in the leaderboard's format and a JSON per
+configuration. It recomputes the leaderboard metrics from the raw data with gluonts'
+conventions and reproduces t0-beta's official per-configuration results on 97 of 97
+configurations.
 
 ## Files and license
 
