@@ -1,3 +1,7 @@
+# DEPRECATED (2026-09) - see src/timessm/. This file is the March 2025 Mamba
+# attempt, kept as is (no-delete policy): its "selective" SSM is a static LTI
+# scan whose divide-by-A^i recurrence is unstable at long lengths. It runs on
+# the `legacy` extra (uv sync --extra legacy).
 """
 Implementation of all MAMBA core components :
 
@@ -11,7 +15,7 @@ Implementation of all MAMBA core components :
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import lightning.pytorch as pl
+import lightning.pytorch as L
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -211,7 +215,7 @@ class MambaBlock(nn.Module):
             return self._forward_impl(x, mask)
 
 
-class MambaForecastingModel(pl.LightningModule):
+class MambaForecastingModel(L.LightningModule):
     """
     Enhanced Mamba model for time series forecasting with support for:
     - Variable input lengths
@@ -444,7 +448,7 @@ class MambaForecastingModel(pl.LightningModule):
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
 
 
-class MambaMixModule(pl.LightningModule):
+class MambaMixModule(L.LightningModule):
     """
     Advanced Mamba architecture that supports both classification and forecasting
     with mixed-task capabilities. Suitable for large-scale training.

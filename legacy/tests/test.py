@@ -1,3 +1,7 @@
+# DEPRECATED (2026-09) - see src/timessm/. This file is the March 2025 Mamba
+# attempt, kept as is (no-delete policy): its "selective" SSM is a static LTI
+# scan whose divide-by-A^i recurrence is unstable at long lengths. It runs on
+# the `legacy` extra (uv sync --extra legacy).
 # tests/test_mamba_models.py
 
 import os
@@ -5,7 +9,7 @@ import sys
 
 import numpy as np
 import pytest
-import lightning.pytorch as pl
+import lightning as L
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -288,7 +292,7 @@ def test_quick_training(synthetic_time_series):
     )
 
     # Create trainer
-    trainer = pl.Trainer(
+    trainer = L.Trainer(
         max_epochs=1,  # Just one epoch for testing
         accelerator="cpu",
         devices=1,
