@@ -248,7 +248,8 @@ number is the second command.
 ```bash
 git clone https://github.com/IUseAMouse/TimeJEPA && git clone https://github.com/IUseAMouse/TimeSSM
 cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train
-CK=epoch00_valloss1.2814.ckpt                                              # from this repository
+hf download IUseAMouse/timessm-2.5m epoch00_valloss1.2814.ckpt --local-dir .   # the checkpoint
+CK=epoch00_valloss1.2814.ckpt
 EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh $CK                      # MASE 0.7544, CRPS 0.5128
 EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true # bare: MASE 0.7985, CRPS 0.5451
 ```

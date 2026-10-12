@@ -172,8 +172,9 @@ uv run pytest -q           # about 5 minutes on CPU
 ## Train and evaluate
 
 ```bash
-# the released number (backtest resampling, calibrated fan, frequency rule)
-EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt
+# the released number (backtest resampling, calibrated fan, frequency rule); the checkpoint from Hugging Face
+hf download IUseAMouse/timessm-2.5m epoch00_valloss1.2814.ckpt --local-dir .
+EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh epoch00_valloss1.2814.ckpt
 # bare model, frequency given
 EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true
 # training, three stages: from scratch, wide-range rate augmentation, frequency-tied rate
