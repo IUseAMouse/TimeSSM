@@ -67,3 +67,16 @@ wheels/
 
 # Generated diagrams
 diagram.png
+# Local data and run outputs
+src/dataset/
+lightning_logs/
+mlruns/
+checkpoints/
+logs/
+wandb/
+evaluation/
+outputs/
+
+# Hugging Face export directories (scripts/export_hf.py)
+export/
+docs/EXPERIMENTAL_LOG.md

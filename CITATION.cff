@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software or the TimeSSM-2.5M weights, please cite it as below."
+title: "TimeSSM: a state space forecaster with a rate knob"
+authors:
+  - family-names: Vincent
+    given-names: Yvann
+year: 2026
+url: "https://github.com/IUseAMouse/TimeSSM"
+repository-code: "https://github.com/IUseAMouse/TimeSSM"
+license: Apache-2.0

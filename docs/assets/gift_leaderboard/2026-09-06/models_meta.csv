@@ -1,0 +1,128 @@
+model,org,params_m,model_type,model_link,testdata_leakage,replication_code_available
+CHARM,C3 AI,,zero-shot,https://huggingface.co/c3aiia3c/CHARM,No,No
+CastStar,USTC-AGI,,agentic,https://arxiv.org/abs/2602.01776,No,No
+Chronos_small,AWS AI Labs,46.2,pretrained,https://huggingface.co/amazon/chronos-t5-small,Yes,Yes
+CleanTS-65M,Shandong University,65.4,zero-shot,https://huggingface.co/EINK/CleanTS-65M,No,Yes
+Cobra-Agent,Dalpha AI,,agentic,https://huggingface.co/dalpha-ai/Cobra-Agent,No,No
+Credence,ContinualIST,,agentic,https://app.credence.continualist.ai,No,Yes
+DLinear,The Chinese University of Hong Kong,,deep-learning,,No,No
+DeOSAlphaTimeGPTPredictor-2025,vencortex®,,zero-shot,https://huggingface.co/vencortexio/DeOSAlphaTimeGPTPredictor-2025,No,No
+EFG-base,LAIR,,zero-shot,,No,No
+EXAONE-Forecast,LG AI Research,,zero-shot,,No,No
+EXAONE-Forecast-Agent,LG AI Research,,agentic,,No,No
+FFM,IBM Research,,deep-learning,TBD,No,No
+FLAIR,Mellon Inc.,,statistical,https://github.com/TakatoHonda/FLAIR,No,Yes
+Falcon-2.0,ant-intl,,pretrained,https://github.com/ant-intl/Falcon-TST,No,Yes
+Falcon-Agent,ant-intl,,agentic,,No,No
+Falcon-X,ant-intl,,pretrained,https://github.com/ant-intl/Falcon-TST/tree/main/falconx,No,Yes
+FastCastrage,sme,,agentic,,No,No
+FlowState-9.1M,IBM Research,9.1,zero-shot,https://huggingface.co/ibm-research/flowstate,No,Yes
+FlowState-r1.1,IBM TSFM,9.1,zero-shot,https://huggingface.co/ibm-research/flowstate,No,Yes
+ForecastMate,Zhejiang University,,agentic,,No,No
+Granite-FlowState-r1.1,IBM TSFM,9.1,zero-shot,https://huggingface.co/ibm-granite/granite-timeseries-flowstate-r1,No,Yes
+Granite-PatchTST-FM-r1,IBM TSFM & Rensselaer Polytechnic Institute,257.9,zero-shot,https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r1,No,Yes
+Granite-PatchTST-FM-r2,IBM TSFM & Rensselaer Polytechnic Institute,384.6,zero-shot,https://huggingface.co/ibm-granite/granite-timeseries-patchtst-fm-r2,No,Yes
+HistRoute-CV,Hitsz iLearn-ML,,agentic,,No,No
+Kairos_10m,ShanghaiTech University,9.9,zero-shot,https://huggingface.co/mldi-lab/Kairos_10m,No,Yes
+Kairos_23m,ShanghaiTech University,23.0,zero-shot,https://huggingface.co/mldi-lab/Kairos_23m,No,Yes
+Kairos_50m,ShanghaiTech University,50.1,zero-shot,https://huggingface.co/mldi-lab/Kairos_50m,No,Yes
+LS-Agent,LongShine AI Research,,agentic,,No,No
+Lag-Llama,Morgan Stanley & Service Now,2.4,pretrained,https://huggingface.co/time-series-foundation-models/Lag-Llama,Yes,No
+Lingjiang,Alibaba Cloud,,zero-shot,,No,No
+LongSeer-v1.0,LongShine AI Research,,zero-shot,,No,No
+Metamorph1.0,SRI International,,pretrained,,No,No
+Metamorph1.0-4.5M,SRI International,,pretrained,,No,No
+Migas-1.0,Synthefy,,pretrained,To your HF model link,No,No
+Moirai2,Salesforce AI Research,11.4,pretrained,https://huggingface.co/Salesforce/moirai-2.0-R-small,No,Yes
+MoiraiAgent,Salesforce AI Research,3397.1,agentic,https://huggingface.co/Salesforce/moirai-agent,No,Yes
+MoiraiAgent-leaking,Salesforce AI Research,3397.1,agentic,https://huggingface.co/Salesforce/moirai-agent,Yes,Yes
+Moirai_base,Salesforce AI Research,91.4,zero-shot,https://huggingface.co/Salesforce/moirai-1.1-R-base,No,Yes
+Moirai_large,Salesforce AI Research,311.0,zero-shot,https://huggingface.co/Salesforce/moirai-1.1-R-large,No,Yes
+Moirai_small,Salesforce AI Research,311.0,zero-shot,https://huggingface.co/Salesforce/moirai-1.1-R-large,No,Yes
+N-BEATS,ServiceNow,,deep-learning,,No,No
+PatchFM,LITIS,345.2,zero-shot,https://huggingface.co/vilhess/PatchFM,No,Yes
+PatchTST,Princeton University,,deep-learning,,No,No
+PatchTST-FM-r1,IBM TSFM & Rensselaer Polytechnic Institute,257.9,zero-shot,https://huggingface.co/ibm-research/patchtst-fm-r1,No,Yes
+Prism,Birla AI Labs,,agentic,https://huggingface.co/birlaailabs/Prism,No,No
+RAES-Conductance-Ensemble,California State University Northridge,,agentic,https://github.com/AriGoldbach/raes-gift-eval,Yes,Yes
+RAES-Conductance-Ensemble-V,SETI,,agentic,https://github.com/AriGoldbach/raes-conductance-v,No,Yes
+RacineCast-1,Racine.ai,,agentic,https://huggingface.co/racineai/RacineCast-1,No,Yes
+RacineCast-1-NC,Racine.ai,,agentic,https://huggingface.co/racineai/RacineCast-1-NC,No,Yes
+Reverso,MIT,,zero-shot,,No,No
+Reverso-Nano,MIT,,zero-shot,,No,No
+Reverso-Small,MIT,,zero-shot,https://huggingface.co/shinfxh/reverso/tree/main/checkpoints/reverso_small,No,Yes
+STRIDE (+Chronos-2),Google Cloud AI Research,,pretrained,https://arxiv.org/abs/2605.08625v1,No,No
+STRIDE (+Timer-S1),Google Cloud AI Research,,pretrained,https://arxiv.org/abs/2605.08625v1,No,No
+STRIDE_w_Synapse,Google Cloud AI Research,,agentic,https://arxiv.org/pdf/2605.08625,No,No
+Samay,Kairosity,,agentic,,No,No
+Super-Linear,Ben-Gurion University of the Negev,,pretrained,https://huggingface.co/SequentialLearning/SuperLinear,Yes,Yes
+Synapse,Google Cloud AI Research,,agentic,https://arxiv.org/abs/2511.05460,No,No
+TSOrchestra,Melady Lab @ USC,,agentic,https://github.com/DC-research/TSorchestra,No,No
+TSOrchestra-test,Melady Lab @ USC,,fine-tuned,https://huggingface.co/Melady/TEMPO,Yes,No
+TTM-R1-Pretrained,IBM Research,0.8,pretrained,https://huggingface.co/ibm-granite/granite-timeseries-ttm-r1,Yes,Yes
+TTM-R2-Finetuned,IBM Research,0.8,fine-tuned,https://huggingface.co/ibm-granite/granite-timeseries-ttm-r2,Yes,Yes
+TTM-R2-Pretrained,IBM Research,0.8,pretrained,https://huggingface.co/ibm-granite/granite-timeseries-ttm-r2,Yes,Yes
+TTM-R3-FT,IBM TSFM,1.4,fine-tuned,https://huggingface.co/ibm-research/ttm-r3,No,Yes
+TTM-R3-PT,IBM TSFM,1.4,pretrained,https://huggingface.co/ibm-research/ttm-r3,No,Yes
+Taichu-TimeSeries-Agent,zidongtaichu,,agentic,None,No,No
+TempoPFN,University of Freiburg,,zero-shot,https://github.com/automl/TempoPFN,No,Yes
+TiRex,NXAI,,zero-shot,https://huggingface.co/NX-AI/TiRex-1.1-gifteval,No,Yes
+TiRex-2-Pretrained,NXAI,,pretrained,https://huggingface.co/NX-AI/TiRex-2-gifteval-pretrain,No,Yes
+TiRex-2-Zeroshot,NXAI,,zero-shot,https://huggingface.co/NX-AI/TiRex-2-gifteval-zs,No,Yes
+TimeCopilot,,,agentic,https://github.com/AzulGarza/TimeCopilot,No,Yes
+TimeRouter,UConn & Morgan Stanley,,agentic,https://huggingface.co/nkh/timerouter-v1,No,Yes
+TimeTron-v2-33M,Corteri Intelligence,46.1,pretrained,https://huggingface.co/CorteriIntelligence/TimeTron-v2-33M,Yes,No
+Timer-s1,Tsinghua & ByteDance,8303.7,pretrained,https://huggingface.co/bytedance-research/Timer-S1,No,Yes
+TimesFM-2.5,Google Research,231.3,zero-shot,https://huggingface.co/google/timesfm-2.5-200m-pytorch,No,Yes
+TimesFM-3,Google Research,330.7,zero-shot,https://huggingface.co/google/timesfm-3.0-pytorch,No,Yes
+TinyCast,RAWS Labs,0.1,zero-shot,https://huggingface.co/raws-labs/tinycast,No,Yes
+Toto-2.0-1B,Datadog,1041.0,pretrained,https://huggingface.co/Datadog/Toto-2.0-1B,No,Yes
+Toto-2.0-2.5B,Datadog,2454.3,pretrained,https://huggingface.co/Datadog/Toto-2.0-2.5B,No,Yes
+Toto-2.0-2.5B-FT,Datadog,2454.3,fine-tuned,https://huggingface.co/Datadog/Toto-2.0-2.5B-FT,No,Yes
+Toto-2.0-22m,Datadog,21.9,pretrained,https://huggingface.co/Datadog/Toto-2.0-22m,No,Yes
+Toto-2.0-313m,Datadog,312.7,pretrained,https://huggingface.co/Datadog/Toto-2.0-313m,No,Yes
+Toto-2.0-4m,Datadog,4.1,pretrained,https://huggingface.co/Datadog/Toto-2.0-4m,No,Yes
+Toto-2.0-FnF,Datadog,,agentic,https://huggingface.co/Datadog/Toto-2.0-Family-and-Friends,No,Yes
+Toto_Open_Base_1.0,Datadog,151.3,zero-shot,https://huggingface.co/Datadog/Toto-Open-Base-1.0,No,Yes
+TurkForecast-FM-Chronos2-LoRA-v1,TurkForecast (Mert Karatay),,fine-tuned,https://huggingface.co/Verm1ion/turkforecast-fm-chronos2-lora-v1,No,Yes
+VISIT-1.0,,,pretrained,,No,No
+VISIT-2.0,,,pretrained,,No,No
+ValBestSingle-cmtt,N/A,,agentic,N/A,No,No
+Xihe-max,Ant,,zero-shot,To your HF model link,No,No
+Xihe-ultra,Ant,,zero-shot,To your HF model link,No,No
+YingLong_110m,Alibaba,120.5,zero-shot,https://huggingface.co/qcw2333/YingLong_110m,No,Yes
+YingLong_300m,Alibaba,310.1,zero-shot,https://huggingface.co/qcw2333/YingLong_300m,No,Yes
+YingLong_50m,Alibaba,36.3,zero-shot,https://huggingface.co/qcw2333/YingLong_50m,No,Yes
+YingLong_6m,Alibaba,7.3,zero-shot,https://huggingface.co/qcw2333/YingLong_6m,No,Yes
+Zeus,GestaltCog Lab @ ICT,102.1,pretrained,https://huggingface.co/GestaltCog/zeus,No,Yes
+ZooCast-Top1,,,agentic,,No,No
+auto_arima,,,statistical,,No,No
+auto_ets,,,statistical,,No,No
+auto_theta,,,statistical,,No,No
+chronos-2,AWS,119.5,pretrained,https://huggingface.co/amazon/chronos-2,No,Yes
+chronos-2-synth,AWS,119.0,zero-shot,https://huggingface.co/autogluon/chronos-2-synth,No,Yes
+chronos_base,AWS AI Labs,201.4,pretrained,https://huggingface.co/amazon/chronos-t5-base,Yes,Yes
+chronos_bolt_base,AWS AI Labs,205.3,pretrained,https://huggingface.co/amazon/chronos-bolt-base,Yes,Yes
+chronos_bolt_small,AWS AI Labs,47.7,pretrained,https://huggingface.co/amazon/chronos-bolt-small,Yes,Yes
+chronos_large,AWS AI Labs,709.0,pretrained,https://huggingface.co/amazon/chronos-t5-large,Yes,Yes
+crossformer,Shanghai Jiao Tong University,,deep-learning,,No,No
+deepar,Amazon Research,,deep-learning,,No,No
+goia-forecast-nano-v0,Gredio,4.7,zero-shot,https://huggingface.co/gredio/goia-forecast-nano-v0,No,Yes
+iTransformer,Tsinghua University,,deep-learning,,No,Yes
+limix_moe,,,agentic,,No,No
+litespecformer,FlowVortex (Xidian University),36.7,zero-shot,https://huggingface.co/FlowVortex/LiteSpecFormer-1.0-36M,No,Yes
+metis-autocast,Metis,,agentic,https://metiscast.com/agent,No,No
+naive,,,statistical,https://github.com/SalesforceAIResearch/gift-eval/blob/main/notebooks/naive.ipynb,No,Yes
+recursive-moirai-2,Emilio Cantu,,pretrained,https://huggingface.co/emiliocantuc/recursive-moirai-2,No,Yes
+seasonal_naive,,,statistical,https://github.com/SalesforceAIResearch/gift-eval/blob/main/notebooks/naive.ipynb,No,Yes
+sundial_base_128m,Tsinghua University,128.3,zero-shot,https://huggingface.co/thuml/sundial-base-128m,No,Yes
+t0-alpha,The Forecasting Company,101.6,pretrained,https://huggingface.co/theforecastingcompany/t0-alpha,No,Yes
+tabpfn_ts,PriorLabs,,zero-shot,https://github.com/liam-sbhoo/tabpfn-time-series/tree/main,No,Yes
+tafsut,Tafsut-FM (Huawei GTS x EURECOM),105.3,pretrained,https://huggingface.co/Tafsut-FM/tafsut-univariate-base,No,Yes
+tempo_ensemble,Melady Lab @ USC,,fine-tuned,https://huggingface.co/Melady/TEMPO,Yes,No
+tft,Google Research,,deep-learning,,No,No
+tide,Google Research,,deep-learning,,No,No
+timesfm,Google Research,,pretrained,https://huggingface.co/google/timesfm-1.0-200m,Yes,Yes
+timesfm_2_0_500m,Google Research,,pretrained,https://huggingface.co/google/timesfm-2.0-500m-jax,Yes,Yes
+visionts,Zhejiang University,,zero-shot,https://github.com/Keytoyze/VisionTS,No,No
+xLSTM-Mixer,AIML Lab @ TU Darmstadt,,deep-learning,https://github.com/mauricekraus/xlstm-mixer,No,No
