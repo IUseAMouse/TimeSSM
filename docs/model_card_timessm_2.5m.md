@@ -211,21 +211,29 @@ files (LOTSA subsets at a pinned revision, four Chronos datasets, synthetic fami
 
 ## Inference
 
+```bash
+pip install git+https://github.com/IUseAMouse/TimeSSM.git
+```
+
 ```python
+import numpy as np
 import torch
 from timessm import from_pretrained, delta_scale
 
 model = from_pretrained("IUseAMouse/timessm-2.5m")   # or a local directory; device="cuda" to run there
 
+series = np.sin(np.arange(1024) * 2 * np.pi / 24)   # your history: raw values, any scale
 context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)   # [1, length]
-w = delta_scale(24, *model.delta_range)   # hourly data with a daily cycle
+w = delta_scale(24, *model.delta_range)   # season length in steps: 24 for hourly data with a daily cycle
 with torch.no_grad():
     out = model.forecast(context, 48, w=w)
 quantiles = out["quantiles_denorm"][0]   # [48, 9], levels 0.1 to 0.9; column 4 is the median
 ```
 
-`w` is 24 divided by the season length of the declared frequency: 96 for 15-minute data,
-24 for hourly, 7 for daily data with a weekly cycle, 12 for monthly. The backtest
+The first argument of `delta_scale` is the season length of the declared frequency, in
+steps: 96 for 15-minute data, 24 for hourly, 7 for daily data with a weekly cycle, 12 for
+monthly. The function divides 24 by it and clamps the result to the range the model was
+trained on, so `w` is 0.25 for 15-minute data and 1 for hourly data. The backtest
 resampling layer runs through the evaluation harness, see the repository.
 
 ## Reproduction
