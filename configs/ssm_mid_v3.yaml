@@ -1,0 +1,74 @@
+# @package _global_
+# The ssm_mini_v3 architecture at 10M parameters (d_model 384, 8 blocks,
+# 32 states); capacity is the only variable against the parent. DDP rather
+# than FSDP: at 10-20M the optimizer states are small.
+#
+#   python scripts/train_ssm.py --config-name ssm_mid_v3 wandb.run_name=ssm-mid-v3
+#
+# Default for 3x RTX 3090 (24 GB): batch 48 x accumulation 8 x 3 GPUs = 1152
+# effective. Memory profile at a fixed 1024 context on one GPU: batch 48
+# 15.2 GiB, 64 19.6 GiB, 80 and 96 OOM; batch 128 with activation
+# checkpointing 9.6 GiB but slower (107 vs 134 windows/s). The training peak
+# sits about 3 GiB above the profile (cuFFT workspaces, DDP buckets), so
+# batch 64 ran out of memory in a real run; batch 48 costs nothing in
+# throughput (memory-bound regime) and leaves headroom. The allocator runs
+# with expandable segments (train_ssm.py).
+#
+# 8-GPU machine, same effective batch:
+#   ... data.batch_size=48 trainer.accumulate_grad_batches=3 data.num_workers=2
+#   and training.schedule_fraction recomputed so that batches x 48 x 8 = 298M
+#
+# Budget: 298M windows. The budget is counted in windows, not in epoch
+# fractions, because the sampler's epoch depends on the batch size; with
+# fractional_batch the realized batch averages batch_size, and the fraction
+# is read from scripts/audit_batch_sizes.py (it prints it for 298M windows).
+# Under DDP on 3x 3090: 3.14 it/s per GPU, about 603 windows/s, checkpoints
+# every 5% of the run. Resume after a crash with
+# +training.resume_ckpt=<last checkpoint>: the loop state, optimizer and
+# scheduler are restored. Multi-rate training uses the wide delta_scales list.
+defaults:
+  - ssm_mini_v3
+  - _self_
+
+model:
+  name: "timessm_mid_v3_zs"
+  ssm:
+    d_model: 384
+    n_layers: 8
+    d_state: 32
+    activation_checkpointing: false
+
+training:
+  delta_scales: [0.020833, 0.03125, 0.041667, 0.0625, 0.083333, 0.125, 0.166667, 0.25, 0.333333, 0.5, 1.0, 2.0, 4.0]
+  p_delta_scale: 0.7
+  # null on purpose (a `???` would not override the parent's 0.3 through the
+  # defaults merge): the epoch length depends on the realized batch.
+  # scripts/audit_batch_sizes.py prints the fraction for 298M windows; pass
+  # it as training.schedule_fraction=<value>.
+  schedule_fraction: null
+  lr_scheduler:
+    # Warmup is in epoch units like schedule_fraction: 0.006667 = 10% of a
+    # 0.06667 run. The parent's 0.1 would exceed the whole run; train_ssm.py
+    # refuses a warmup that is not shorter than the run.
+    warmup_epochs: 0.006667
+
+data:
+  batch_size: 48
+  num_workers: 8
+  # TimeJEPA TemperatureSampler options, both opt-in. fractional_batch keeps
+  # the T=0.5 mix at a batch smaller than the number of families (the integer
+  # allocation gives 1 per family, so the temperature is lost and the
+  # validation mix becomes uniform: its val_loss is not comparable with an
+  # integer-sampler run), and the realized batch averages batch_size.
+  # max_batch_size defers the deterministic quota bursts: the backlog stays
+  # bounded and the memory peak is that of batch_size windows.
+  fractional_batch: true
+  max_batch_size: 48
+
+trainer:
+  accumulate_grad_batches: 8
+  val_check_interval: 0.05
+  strategy: "ddp_find_unused_parameters_true"
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "scaling", "10M", "lotsa", "v3", "ddp"]

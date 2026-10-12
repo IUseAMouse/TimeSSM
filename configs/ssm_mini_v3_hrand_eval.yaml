@@ -1,0 +1,9 @@
+# @package _global_
+# Eval namespace for the random-horizon arm (evaluation/timessm_mini_v3_hrand_zs/...).
+#   EVAL_CONFIG=ssm_mini_v3_hrand_eval scripts/eval_all_gpus_ssm.sh checkpoints/timessm_mini_v3_hrand_zs/pretrain_False +gift_batch_size=32
+defaults:
+  - ssm_mini_v3_eval
+  - _self_
+
+model:
+  name: "timessm_mini_v3_hrand_zs"

@@ -1,0 +1,27 @@
+# @package _global_
+# Continuation: launch with SEED0=<seed never used by the run it resumes from>.
+#
+# Frequency-tied Delta with the synthetic files labelled too: resume a
+# ssm_mini_v3_freq checkpoint with one change, the synthetic families (half
+# of every batch) carry the season of each series (read back from the
+# generator by replaying its seed, `_season/` sidecar), so their Delta is
+# tied like the real files' instead of drawn at random.
+#
+#   python ../TimeJEPA/scripts/build_season_sidecars.py --corpus-dir ../TimeJEPA/data/processed/lotsa_v3 --jobs 4
+#   DEVICES=3 CONFIG=ssm_mini_v3_freq_syn scripts/preflight.sh
+#   SEED0=<new> scripts/train_ssm_loop.sh ssm_mini_v3_freq_syn ssm-mini-v3-freq-syn \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt'
+# Budget, LR, sampler: as in ssm_mini_v3_freq. The logged freq/labelled_frac
+# rises from about 0.52 to about 0.9 (series without a cycle keep the random draw).
+defaults:
+  - ssm_mini_v3_freq
+  - _self_
+
+model:
+  name: "timessm_mini_v3_freq_syn_zs"
+
+data:
+  frequency_table: "../TimeJEPA/configs/corpus_v3_frequencies_syn.yaml"
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "frequency-tied-delta", "synthetic-labelled", "resume", "lotsa", "v3", "mini"]

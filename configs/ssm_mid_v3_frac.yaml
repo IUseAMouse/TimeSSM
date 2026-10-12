@@ -1,0 +1,47 @@
+# @package _global_
+# Continuation: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+#
+# Fractional-sampler continuation of the 10M: resume a ssm_mid_v3 checkpoint
+# (weights only, fresh optimizer, short cosine) and train it on the mix the
+# fractional sampler produces (the integer sampler gives one window per big
+# family and the rest by quotas, so the temperature is lost). Same recipe as
+# ssm_mini_v3_wide.
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_frac --world-size 3 \
+#       --batches 250000 --windows 100e6           # prints the schedule_fraction
+#   python scripts/train_ssm.py --config-name ssm_mid_v3_frac \
+#       '+training.pretrained_encoder_path="checkpoints/timessm_mid_v3_zs/pretrain_False/<last>.ckpt"' \
+#       training.schedule_fraction=<value> wandb.run_name=ssm-mid-v3-frac
+#   # or through the loop: scripts/train_ssm_loop.sh ssm_mid_v3_frac ssm-mid-v3-frac <the two overrides>
+#
+# Budget: 100M realized windows (about 2.5 days at 450 windows/s on 3x 3090),
+# validation and checkpoint every 20% of it. LR 1e-4 (a third of the parent's
+# peak: the weights are already trained), warmup 10% of the run.
+defaults:
+  - ssm_mid_v3
+  - _self_
+
+model:
+  name: "timessm_mid_v3_frac_zs"
+
+training:
+  pretrained_encoder_path: null      # pass on the command line, never bake a path
+  schedule_fraction: null            # from the audit, --windows 100e6
+  optimizer:
+    learning_rate: 1.0e-4
+  lr_scheduler:
+    warmup_epochs: null              # set below from the fraction: 10% of the run
+  # warmup_epochs is in epoch units like schedule_fraction: pass
+  # training.lr_scheduler.warmup_epochs = 0.1 x schedule_fraction on the
+  # command line (check_schedule refuses a null).
+
+data:
+  fractional_batch: true
+  max_batch_size: 48
+
+trainer:
+  val_check_interval: 0.2
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "fractional-sampler", "resume", "lotsa", "v3", "mid"]

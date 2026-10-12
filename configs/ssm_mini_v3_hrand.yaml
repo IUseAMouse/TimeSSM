@@ -1,0 +1,40 @@
+# @package _global_
+# Continuation: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+#
+# Random horizon: resume the 2.5M wide checkpoint (weights only, fresh
+# optimizer, the parent's short cosine) and re-draw the horizon inside the
+# fixed 1280-step window (context = first 1280 - h steps, target = last h),
+# h in horizon_lengths with probability 0.5. No corpus window is lost and the
+# rollout is trained up to 512 steps. Validation stays at 256.
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mini_v3_hrand --world-size 3 \
+#       --batches 250000 --windows 89e6            # prints the schedule_fraction F
+#   scripts/train_ssm_loop.sh ssm_mini_v3_hrand ssm-mini-v3-hrand \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mini_v3_wide_zs/pretrain_False/epoch00_valloss1.2841.ckpt' \
+#       training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F>
+#
+# Budget: 89M realized windows (the parent's budget), fractional sampler at
+# batch 128 with the cap (h = 512 gives context 768 + target 512, the same
+# 1280 tokens as 1024 + 256).
+defaults:
+  - ssm_mini_v3_wide
+  - _self_
+
+model:
+  name: "timessm_mini_v3_hrand_zs"
+
+training:
+  horizon_lengths: [32, 64, 128, 256, 384, 512]
+  p_random_horizon: 0.5
+  horizon_min_context: 256
+  schedule_fraction: null            # from the audit, --windows 89e6
+  lr_scheduler:
+    warmup_epochs: null              # 0.1 x schedule_fraction, on the command line
+
+data:
+  fractional_batch: true
+  max_batch_size: 128
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "random-horizon", "fractional-sampler", "resume", "lotsa", "v3", "mini"]

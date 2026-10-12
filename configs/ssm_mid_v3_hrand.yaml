@@ -1,0 +1,29 @@
+# @package _global_
+# Continuation: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+#
+# Random horizon on the 10M: the ssm_mid_v3_frac recipe plus the horizon
+# re-drawn inside the fixed 1280-step window (see ssm_mini_v3_hrand).
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_hrand --world-size 3 \
+#       --batches 250000 --windows 100e6           # same fraction as the frac run: 0.04316
+#   nohup scripts/train_ssm_loop.sh ssm_mid_v3_hrand ssm-mid-v3-hrand \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_frac_zs/pretrain_False/epoch00_valloss3.0571.ckpt' \
+#       training.schedule_fraction=0.04316 training.lr_scheduler.warmup_epochs=0.004316 > logs/loop_hrand.out 2>&1 &
+#
+# The start is the frac run's last checkpoint, not its best by GIFT: picking
+# a start on the test score would be selection on the test.
+defaults:
+  - ssm_mid_v3_frac
+  - _self_
+
+model:
+  name: "timessm_mid_v3_hrand_zs"
+
+training:
+  horizon_lengths: [32, 64, 128, 256, 384, 512]
+  p_random_horizon: 0.5
+  horizon_min_context: 256
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "random-horizon", "fractional-sampler", "resume", "lotsa", "v3", "mid"]

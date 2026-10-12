@@ -1,0 +1,10 @@
+# @package _global_
+# Eval namespace for the fractional-sampler continuation of the 10M
+# (evaluation/timessm_mid_v3_frac_zs/<ckpt>/gift<tag>/).
+#   EVAL_CONFIG=ssm_mid_v3_frac_eval scripts/eval_all_gpus_ssm.sh checkpoints/timessm_mid_v3_frac_zs/pretrain_False +gift_batch_size=48
+defaults:
+  - ssm_mid_v3_eval
+  - _self_
+
+model:
+  name: "timessm_mid_v3_frac_zs"

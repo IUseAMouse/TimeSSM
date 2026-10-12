@@ -1,0 +1,10 @@
+# @package _global_
+# Eval twin of ssm_mini_v3_freq (same architecture keys, delta_range and
+# expects_frequency included). Evaluate with +freq_delta=true; without it the
+# harness warns and every config runs at Delta scale 1.
+defaults:
+  - ssm_mini_v3_freq
+  - _self_
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "frequency-tied-delta", "eval", "v3"]

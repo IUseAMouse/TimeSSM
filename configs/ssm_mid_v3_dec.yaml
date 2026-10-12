@@ -1,0 +1,35 @@
+# @package _global_
+# Continuation: launch with SEED0=<seed never used by the run it resumes from>
+# (train_ssm_loop.sh), otherwise the sampler replays that run's batch sequence.
+#
+# Decimated window on the 10M: train on what RateIN presents at inference.
+# With probability 0.5 a k in {1, 2, 3} is drawn per batch and the same
+# 1280-step window is read decimated with the inference operator
+# (right-aligned block mean, ratein.decimate): target = the last 256*k native
+# steps in 256 decimated steps, context = the rest (384 steps at k=2, 170 at
+# k=3). The rollout length does not change; the native span it covers does.
+# k=4 is excluded by the 128-step context floor. Everything else is the
+# parent's recipe (Delta draw kept, no horizon randomization).
+#
+#   python scripts/audit_batch_sizes.py --config-name ssm_mid_v3_dec --world-size 3 \
+#       --batches 250000 --windows 100e6                 # prints the schedule_fraction F
+#   SEED0=<new> nohup scripts/train_ssm_loop.sh ssm_mid_v3_dec ssm-mid-v3-dec \
+#       '+training.pretrained_encoder_path=checkpoints/timessm_mid_v3_hrand_zs/pretrain_False/epoch00_valloss3.0559-v1.ckpt' \
+#       training.schedule_fraction=F training.lr_scheduler.warmup_epochs=<0.1 x F> > logs/loop_dec.out 2>&1 &
+#
+# Logged checks: aug/decimation_neq1_frac about 0.33, geometry/horizon_native
+# in {256, 512, 768}, geometry/context_len <= 384 on the decimated batches.
+defaults:
+  - ssm_mid_v3_frac
+  - _self_
+
+model:
+  name: "timessm_mid_v3_dec_zs"
+
+training:
+  decimation_factors: [1, 2, 3]
+  p_decimation: 0.5
+  decimation_min_context: 128
+
+wandb:
+  tags: ["timessm", "ssm", "lti", "decimated-window", "fractional-sampler", "resume", "lotsa", "v3", "mid"]

@@ -1,0 +1,293 @@
+"""
+Train an SSMForecaster from scratch on the pinball with the TimeJEPA stack.
+
+    python scripts/train_ssm.py --config-name ssm_mini_v3 wandb.run_name=ssm-mini-v3
+
+The datamodule block and the FinetuneModule kwargs are those of
+TimeJEPA/scripts/train.py (finetune branch), key for key; train.py is not an
+importable module, so `apply_schedule_fraction` is copied here. Additions:
+the SSMFinetuneModule keys (`training.delta_scales`, `training.p_delta_scale`,
+horizon and decimation augmentations) and `model.ssm.*`.
+"""
+
+import logging
+import os
+import sys
+from pathlib import Path
+
+# Randomized context lengths and per-item FFT sizes fragment the caching
+# allocator (a run died with 4.6 GiB reserved but unallocated). Expandable
+# segments let the allocator grow blocks in place. Set before torch is
+# imported; the DDP worker processes inherit it.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+import hydra
+import pytorch_lightning as pl
+import torch
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from timejepa.data.datamodule import MultiDatasetMonashDataModule  # noqa: E402
+from timessm.model import build_from_config  # noqa: E402
+from timessm.training import SSMFinetuneModule  # noqa: E402
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def apply_schedule_fraction(trainer_kwargs: dict, cfg) -> dict:
+    """Copy of TimeJEPA/scripts/train.py: with training.schedule_fraction < 1
+    the run ends where the cosine ends (limit_train_batches), unless the
+    config already limits it. Inert at 1.0."""
+    frac = float(cfg.training.get("schedule_fraction", 1.0))
+    if not (0.0 < frac <= 1.0):
+        raise ValueError("training.schedule_fraction must be in (0, 1]")
+    if frac < 1.0 and trainer_kwargs.get("limit_train_batches") is None:
+        trainer_kwargs["limit_train_batches"] = frac
+        logger.info(f"schedule_fraction={frac}: cosine annealed and run bounded at "
+                    f"{frac:.0%} of the epoch")
+    return trainer_kwargs
+
+
+def build_strategy(cfg: DictConfig):
+    """`trainer.strategy`: any Lightning string, or "fsdp" for Fully Sharded
+    Data Parallel (one FSDP unit per GatedSSMBlock, full single-file
+    checkpoints so the GIFT harness loads them unchanged, activation
+    checkpointing per block when model.ssm.activation_checkpointing is set).
+    DDP is enough at the sizes trained here; FSDP is for larger runs."""
+    name = str(cfg.trainer.strategy)
+    if name.lower() != "fsdp":
+        return name
+    from pytorch_lightning.strategies import FSDPStrategy
+    from timessm.block import GatedSSMBlock
+    kwargs = dict(auto_wrap_policy={GatedSSMBlock}, sharding_strategy="FULL_SHARD",
+                  state_dict_type="full")
+    if bool(cfg.model.ssm.get("activation_checkpointing", False)):
+        kwargs["activation_checkpointing_policy"] = {GatedSSMBlock}
+    return FSDPStrategy(**kwargs)
+
+
+def check_schedule(cfg: DictConfig) -> None:
+    """warmup_epochs and schedule_fraction are both in epoch units: a warmup
+    that is not shorter than the bounded run leaves the cosine no room.
+    Refuse before the datamodule is built."""
+    if str(cfg.training.lr_scheduler.type) != "cosine":
+        return
+    # The config leaves it null (a `???` would not override the parent's value
+    # through the defaults merge).
+    if OmegaConf.is_missing(cfg.training, "schedule_fraction") \
+            or cfg.training.get("schedule_fraction", 1.0) is None:
+        raise ValueError(
+            "training.schedule_fraction is left MISSING in this config on purpose: the "
+            "epoch length depends on the realized batch. Run scripts/audit_batch_sizes.py "
+            "(it prints the fraction for the windows budget) and pass "
+            "training.schedule_fraction=<value>.")
+    frac = float(cfg.training.get("schedule_fraction", 1.0))
+    if cfg.training.lr_scheduler.get("warmup_epochs", 0.0) is None:
+        raise ValueError(
+            "training.lr_scheduler.warmup_epochs is null in this config on purpose: pass "
+            "training.lr_scheduler.warmup_epochs=<0.1 x schedule_fraction> (epoch units, "
+            "10% of the run).")
+    run = float(cfg.training.max_epochs) * frac
+    warmup = float(cfg.training.lr_scheduler.warmup_epochs)
+    if warmup >= 0.5 * run:
+        raise ValueError(
+            f"training.lr_scheduler.warmup_epochs={warmup} covers {warmup / run:.0%} of the "
+            f"run (max_epochs x schedule_fraction = {run:.4g} epochs); keep it under 50%, "
+            "10% is the convention (both are in epoch units)")
+
+
+def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
+    """TimeJEPA/scripts/train.py datamodule block, finetune branch."""
+    aug_root = cfg.get("augmentations") or {}
+    aug_cfg = aug_root.get("finetune") if aug_root else None
+    if aug_cfg is not None:
+        aug_cfg = OmegaConf.to_container(aug_cfg, resolve=True)
+        if not aug_cfg.get("enabled", True):
+            aug_cfg = None
+    logger.info("Augmentations (finetune): " + ("enabled" if aug_cfg else "disabled"))
+    return MultiDatasetMonashDataModule(
+        data_dir=cfg.data.data_dir,
+        context_length=cfg.model.seq_length,
+        prediction_length=cfg.model.prediction_length,
+        datasets=cfg.data.get("datasets_finetune"),
+        dataset_pattern=cfg.data.get("dataset_pattern", "*.npy"),
+        combine_mode=cfg.data.get("combine_mode", "concatenate"),
+        balanced_sampling=cfg.data.balanced_sampling,
+        sampling_temperature=cfg.data.sampling_temperature,
+        max_oversample_ratio=cfg.data.max_oversample_ratio,
+        ration_oversample=bool(cfg.data.get("ration_oversample", False)),
+        max_batch_size=cfg.data.get("max_batch_size"),
+        fractional_batch=bool(cfg.data.get("fractional_batch", False)),
+        batch_size=cfg.data.batch_size,
+        stride=cfg.data.stride,
+        normalize_mode=cfg.data.normalize_mode,
+        normalizer_type=cfg.data.normalizer_type,
+        clip_outliers=cfg.data.clip_outliers,
+        clip_sigma=cfg.data.clip_sigma,
+        train_val_test_split=cfg.data.train_val_test_split,
+        augmentation_config=aug_cfg,
+        multi_resolution_factors=list(cfg.data.get("multi_resolution_factors_finetune") or [1]),
+        p_multi_resolution=float(cfg.data.get("p_multi_resolution_finetune", 0.0)),
+        cross_resolution=bool(cfg.model.get("cross_resolution", False)),
+        short_series_windows=bool(cfg.data.get("short_series_windows", False)),
+        short_min_context=int(cfg.data.get("short_min_context", 16)),
+        short_min_target=int(cfg.data.get("short_min_target", 4)),
+        **_frequency_kwargs(cfg),
+        seed=cfg.data.seed,
+        num_workers=int(cfg.data.get("num_workers", 4)),
+        persistent_workers=bool(cfg.data.get("persistent_workers", False)),
+        use_mmap=bool(cfg.data.get("use_mmap", False)),
+    )
+
+
+def _frequency_kwargs(cfg: DictConfig) -> dict:
+    """`data.frequency_table` for the datamodule, only when set: an older
+    TimeJEPA checkout has no such argument."""
+    table = cfg.data.get("frequency_table")
+    if not table:
+        return {}
+    try:
+        import timejepa.data.frequency  # noqa: F401
+    except ImportError as e:
+        raise RuntimeError("data.frequency_table needs timejepa.data.frequency: "
+                           "pull the TimeJEPA checkout (sota-roadmap)") from e
+    return {"frequency_table": str(table)}
+
+
+def build_module(cfg: DictConfig, model) -> SSMFinetuneModule:
+    """TimeJEPA/scripts/train.py FinetuneModule kwargs, key for key, plus the
+    SSM augmentation keys. The JEPA-side terms (anchor, joint, critic, score)
+    are refused: the SSM has no latent target."""
+    loss = cfg.training.loss
+    if float(loss.get("lambda_anchor", 0.0)) or float(loss.get("lambda_joint", 0.0)) \
+            or float(loss.get("lambda_score", 0.0)) or list(loss.get("critic_steps") or []):
+        raise ValueError("anchor / joint / critic / score terms need a JEPA model; "
+                         "SSMForecaster trains on the pinball alone")
+    return SSMFinetuneModule(
+        model=model,
+        delta_scales=list(cfg.training.get("delta_scales") or []),
+        p_delta_scale=float(cfg.training.get("p_delta_scale", 0.0)),
+        horizon_lengths=list(cfg.training.get("horizon_lengths") or []),
+        p_random_horizon=float(cfg.training.get("p_random_horizon", 0.0)),
+        horizon_min_context=int(cfg.training.get("horizon_min_context", 256)),
+        decimation_factors=list(cfg.training.get("decimation_factors") or []),
+        p_decimation=float(cfg.training.get("p_decimation", 0.0)),
+        decimation_min_context=int(cfg.training.get("decimation_min_context", 128)),
+        delta_from_frequency=bool(cfg.model.ssm.get("delta_from_frequency", False)),
+        extend_horizon_queries=cfg.training.get("extend_horizon_queries", False),
+        pretrained_encoder_path=cfg.training.get("pretrained_encoder_path"),
+        finetune_mode=cfg.training.get("finetune_mode", "full_finetune"),
+        unfreeze_after_epoch=cfg.training.unfreeze_after_epoch,
+        loss_type=loss.finetune_type,
+        learning_rate=cfg.training.optimizer.learning_rate,
+        weight_decay=cfg.training.optimizer.weight_decay,
+        encoder_lr_multiplier=cfg.training.optimizer.get("encoder_lr_multiplier", 1.0),
+        betas=tuple(cfg.training.optimizer.betas),
+        warmup_epochs=cfg.training.lr_scheduler.warmup_epochs,
+        max_epochs=cfg.training.max_epochs,
+        schedule_fraction=float(cfg.training.get("schedule_fraction", 1.0)),
+        lr_scheduler=cfg.training.lr_scheduler.type,
+        min_lr=cfg.training.lr_scheduler.min_lr,
+        dropout=cfg.training.dropout,
+        context_lengths=list(cfg.training.get("context_lengths") or []),
+        p_random_context_finetune=float(cfg.training.get("p_random_context_finetune", 0.0)),
+        log_every_n_steps=cfg.training.log_every_n_steps,
+    )
+
+
+@hydra.main(version_base=None, config_path="../configs", config_name="ssm_mini_v3")
+def main(cfg: DictConfig):
+    logger.info("=" * 80)
+    logger.info("CONFIGURATION")
+    logger.info("=" * 80)
+    logger.info("\n" + OmegaConf.to_yaml(cfg))
+    pl.seed_everything(cfg.data.seed, workers=True)
+    check_schedule(cfg)
+
+    datamodule = build_datamodule(cfg)
+    datamodule.prepare_data()
+
+    model = build_from_config(cfg)
+    parts = model.get_num_params()
+    logger.info(f"SSMForecaster {cfg.model.name}: {parts['total']:,} parameters "
+                f"(blocks {parts['blocks']:,}, decoder {parts['decoder']:,})")
+    pl_module = build_module(cfg, model)
+    logger.info(f"Multi-rate training: delta_scales={pl_module.delta_scales} "
+                f"p={pl_module.p_delta_scale}")
+    logger.info(f"Random horizon (inside the window): horizon_lengths={pl_module.horizon_lengths} "
+                f"p={pl_module.p_random_horizon} min_context={pl_module.horizon_min_context}")
+    logger.info(f"Delta tied to the frequency: {pl_module.delta_from_frequency} "
+                f"(table {cfg.data.get('frequency_table')}, range {model.delta_range})")
+    if pl_module.delta_from_frequency and not cfg.data.get("frequency_table"):
+        raise ValueError("model.ssm.delta_from_frequency needs data.frequency_table")
+    logger.info(f"Decimated window: decimation_factors={pl_module.decimation_factors} "
+                f"p={pl_module.p_decimation} min_context={pl_module.decimation_min_context}")
+
+    checkpoint_dir = Path(cfg.data.checkpoint_dir) / cfg.model.name / "pretrain_False"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    callbacks = [ModelCheckpoint(
+        dirpath=checkpoint_dir,
+        monitor=cfg.checkpoint.monitor,
+        mode=cfg.checkpoint.mode,
+        save_top_k=cfg.checkpoint.save_top_k,
+        save_last=cfg.checkpoint.save_last,
+        filename=cfg.checkpoint.filename,
+        auto_insert_metric_name=bool(cfg.checkpoint.get("auto_insert_metric_name", False)),
+        verbose=True,
+    )]
+    # Autosave on wall-clock time, independent of the validation cadence. A
+    # single file, overwritten, named last-autosave.ckpt so the evaluation
+    # scripts skip it (last*.ckpt); scripts/train_ssm_loop.sh resumes from it.
+    autosave_min = float(cfg.checkpoint.get("autosave_minutes", 60))
+    if autosave_min > 0:
+        from datetime import timedelta
+        callbacks.append(ModelCheckpoint(
+            dirpath=checkpoint_dir, filename="last-autosave", save_top_k=1, monitor=None,
+            train_time_interval=timedelta(minutes=autosave_min), save_on_train_epoch_end=False,
+            enable_version_counter=False, verbose=False,
+        ))
+    if cfg.early_stopping.enabled:
+        callbacks.append(EarlyStopping(
+            monitor=cfg.early_stopping.monitor, patience=cfg.early_stopping.patience,
+            mode=cfg.early_stopping.mode, min_delta=cfg.early_stopping.min_delta,
+            verbose=True))
+    callbacks.append(LearningRateMonitor(logging_interval="step"))
+
+    wandb_logger = WandbLogger(
+        project=cfg.wandb.project, entity=cfg.wandb.entity,
+        name=cfg.wandb.run_name or cfg.model.name, tags=cfg.wandb.tags,
+        config=OmegaConf.to_container(cfg, resolve=True), log_model=cfg.wandb.log_model,
+    )
+    trainer_kwargs = dict(
+        accelerator=cfg.trainer.accelerator, logger=wandb_logger,
+        devices=cfg.trainer.devices, precision=cfg.trainer.precision,
+        max_epochs=cfg.trainer.max_epochs,
+        gradient_clip_val=cfg.trainer.gradient_clip_val,
+        accumulate_grad_batches=cfg.trainer.accumulate_grad_batches,
+        val_check_interval=cfg.trainer.val_check_interval,
+        log_every_n_steps=cfg.trainer.log_every_n_steps,
+        callbacks=callbacks, default_root_dir=cfg.data.output_dir,
+        deterministic=cfg.trainer.deterministic, strategy=build_strategy(cfg),
+        use_distributed_sampler=cfg.trainer.use_distributed_sampler,
+    )
+    for key in ("limit_train_batches", "limit_val_batches"):
+        if cfg.trainer.get(key) is not None:
+            trainer_kwargs[key] = cfg.trainer.get(key)
+    apply_schedule_fraction(trainer_kwargs, cfg)
+    trainer = pl.Trainer(**trainer_kwargs)
+
+    logger.info("STARTING TRAINING")
+    # The checkpoints carry OmegaConf containers in their hyperparameters,
+    # which torch >= 2.6 refuses under weights_only=True.
+    trainer.fit(pl_module, datamodule=datamodule,
+                ckpt_path=cfg.training.get("resume_ckpt", None), weights_only=False)
+    logger.info("TRAINING COMPLETE")
+    logger.info(f"Best checkpoint: {trainer.checkpoint_callback.best_model_path}")
+
+
+if __name__ == "__main__":
+    main()
