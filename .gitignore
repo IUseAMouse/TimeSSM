@@ -80,3 +80,4 @@ outputs/
 # Hugging Face export directories (scripts/export_hf.py)
 export/
 docs/EXPERIMENTAL_LOG.md
+submissions/
