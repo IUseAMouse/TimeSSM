@@ -108,22 +108,30 @@ one pass serves every rate, is what I am working on now.
 
 ## How to use
 
+```bash
+pip install git+https://github.com/IUseAMouse/TimeSSM.git
+```
+
 ```python
+import numpy as np
 import torch
 from timessm import from_pretrained, delta_scale
 
 model = from_pretrained("IUseAMouse/timessm-2.5m")   # or a local directory; device="cuda" to run there
 
-context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)   # [1, length], raw values
-w = delta_scale(24, *model.delta_range)   # hourly data with a daily cycle
+series = np.sin(np.arange(1024) * 2 * np.pi / 24)   # your history: raw values, any scale
+context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)   # [1, length]
+w = delta_scale(24, *model.delta_range)   # season length in steps: 24 for hourly data with a daily cycle
 with torch.no_grad():
     out = model.forecast(context, 48, w=w)
 quantiles = out["quantiles_denorm"][0]   # [48, 9], levels 0.1 to 0.9; column 4 is the median
 ```
 
-`w` is 24 divided by the season length of the declared frequency: 96 for
-15-minute data, 24 for hourly, 7 for daily data with a weekly cycle, 12 for
-monthly. Normalization lives inside the model: feed raw values, read raw
+The first argument of `delta_scale` is the season length of the declared
+frequency, in steps: 96 for 15-minute data, 24 for hourly, 7 for daily data
+with a weekly cycle, 12 for monthly. The function divides 24 by it and clamps
+the result to the trained range, so `w` is 0.25 for 15-minute data and 1 for
+hourly data. Normalization lives inside the model: feed raw values, read raw
 values back. The test-time resampling layer runs through the evaluation
 harness (`scripts/eval_ssm.sh`, below).
 
