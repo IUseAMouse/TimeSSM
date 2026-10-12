@@ -33,7 +33,7 @@ dependencies = [
 # and the diagnostics import timejepa. Local checkout next to this repo
 # through [tool.uv.sources]; the git URL otherwise.
 train = [
-    "timejepa @ git+https://github.com/IUseAMouse/TimeJEPA.git@sota-roadmap",
+    "timejepa @ git+https://github.com/IUseAMouse/TimeJEPA.git@master",
     "pytorch-lightning>=2.5.0",
     "wandb>=0.22.0",
 ]

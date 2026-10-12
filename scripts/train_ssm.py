@@ -154,7 +154,7 @@ def _frequency_kwargs(cfg: DictConfig) -> dict:
         import timejepa.data.frequency  # noqa: F401
     except ImportError as e:
         raise RuntimeError("data.frequency_table needs timejepa.data.frequency: "
-                           "pull the TimeJEPA checkout (sota-roadmap)") from e
+                           "pull the TimeJEPA checkout") from e
     return {"frequency_table": str(table)}
 
 
