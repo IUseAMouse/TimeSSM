@@ -31,7 +31,8 @@ from pytorch_lightning.loggers import WandbLogger
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from timejepa.data.datamodule import MultiDatasetMonashDataModule  # noqa: E402
-from timessm.model import build_from_config  # noqa: E402
+from timessm.model import build_from_config
+from timejepa.evaluation.loading import create_model_from_config  # noqa: E402
 from timessm.training import SSMFinetuneModule  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -101,47 +102,13 @@ def check_schedule(cfg: DictConfig) -> None:
 
 
 def build_datamodule(cfg: DictConfig) -> MultiDatasetMonashDataModule:
-    """TimeJEPA/scripts/train.py datamodule block, finetune branch."""
-    aug_root = cfg.get("augmentations") or {}
-    aug_cfg = aug_root.get("finetune") if aug_root else None
-    if aug_cfg is not None:
-        aug_cfg = OmegaConf.to_container(aug_cfg, resolve=True)
-        if not aug_cfg.get("enabled", True):
-            aug_cfg = None
-    logger.info("Augmentations (finetune): " + ("enabled" if aug_cfg else "disabled"))
-    return MultiDatasetMonashDataModule(
-        data_dir=cfg.data.data_dir,
-        context_length=cfg.model.seq_length,
-        prediction_length=cfg.model.prediction_length,
-        datasets=cfg.data.get("datasets_finetune"),
-        dataset_pattern=cfg.data.get("dataset_pattern", "*.npy"),
-        combine_mode=cfg.data.get("combine_mode", "concatenate"),
-        balanced_sampling=cfg.data.balanced_sampling,
-        sampling_temperature=cfg.data.sampling_temperature,
-        max_oversample_ratio=cfg.data.max_oversample_ratio,
-        ration_oversample=bool(cfg.data.get("ration_oversample", False)),
-        max_batch_size=cfg.data.get("max_batch_size"),
-        fractional_batch=bool(cfg.data.get("fractional_batch", False)),
-        batch_size=cfg.data.batch_size,
-        stride=cfg.data.stride,
-        normalize_mode=cfg.data.normalize_mode,
-        normalizer_type=cfg.data.normalizer_type,
-        clip_outliers=cfg.data.clip_outliers,
-        clip_sigma=cfg.data.clip_sigma,
-        train_val_test_split=cfg.data.train_val_test_split,
-        augmentation_config=aug_cfg,
-        multi_resolution_factors=list(cfg.data.get("multi_resolution_factors_finetune") or [1]),
-        p_multi_resolution=float(cfg.data.get("p_multi_resolution_finetune", 0.0)),
-        cross_resolution=bool(cfg.model.get("cross_resolution", False)),
-        short_series_windows=bool(cfg.data.get("short_series_windows", False)),
-        short_min_context=int(cfg.data.get("short_min_context", 16)),
-        short_min_target=int(cfg.data.get("short_min_target", 4)),
-        **_frequency_kwargs(cfg),
-        seed=cfg.data.seed,
-        num_workers=int(cfg.data.get("num_workers", 4)),
-        persistent_workers=bool(cfg.data.get("persistent_workers", False)),
-        use_mmap=bool(cfg.data.get("use_mmap", False)),
-    )
+    """The finetune datamodule of the config: one mapping, kept in
+    timejepa.data.datamodule.build_finetune_datamodule (the RateIN curve
+    trainer reads the same corpus the same way). `_frequency_kwargs` below
+    is what that mapping does with data.frequency_table, kept for its test."""
+    _frequency_kwargs(cfg)                       # the import guard, before the datamodule reads the table
+    from timejepa.data.datamodule import build_finetune_datamodule
+    return build_finetune_datamodule(cfg)
 
 
 def _frequency_kwargs(cfg: DictConfig) -> dict:
@@ -211,7 +178,10 @@ def main(cfg: DictConfig):
     datamodule = build_datamodule(cfg)
     datamodule.prepare_data()
 
-    model = build_from_config(cfg)
+    # model.builder names the constructor (every config sets it; the SSM's
+    # own builder is the default). A wrapper such as the RateIN layer around
+    # a frozen SSM is built the same way the harness builds it.
+    model = create_model_from_config(cfg) if cfg.model.get("builder") else build_from_config(cfg)
     parts = model.get_num_params()
     logger.info(f"SSMForecaster {cfg.model.name}: {parts['total']:,} parameters "
                 f"(blocks {parts['blocks']:,}, decoder {parts['decoder']:,})")

@@ -1,0 +1,15 @@
+# @package _global_
+# Eval twin of ratein_layer_e2e: the wrapper rebuilt from the config, every
+# weight (inner and layer) read from the Lightning checkpoint by
+# load_checkpoint. Evaluate with +freq_delta=true (the harness passes
+# w = 24 / season, the layer multiplies by its k); +ratein must stay off.
+defaults:
+  - ratein_layer_e2e
+  - _self_
+
+model:
+  ratein_layer:
+    inner_checkpoint: null
+
+wandb:
+  tags: ["timessm", "ratein-layer", "e2e", "eval", "v3"]

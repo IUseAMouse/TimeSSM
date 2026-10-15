@@ -1,41 +1,98 @@
 # @package _global_
 # RateIN as a layer, trained end to end around the frozen frequency-tied
-# 2.5M checkpoint (TimeJEPA scripts/train_ratein_layer.py). The `model` block
-# is the eval twin's, so the checkpoint builds and loads exactly as in the
-# GIFT harness; only the selector of the layer is trained.
+# 2.5M checkpoint. The `model` block is the eval twin's (same inner, built
+# and loaded as in the GIFT harness); `model.builder` names the wrapper
+# (timejepa.models.ratein_forecaster), whose only trainable parameters are
+# the layer's selector. Everything else is the ordinary TimeSSM stack:
+# datamodule + frequency table, SSMFinetuneModule (w from the season via
+# _tie_delta), WandbLogger, autosave, train_ssm_loop.sh.
 #
-#   scripts/train_ratein_layer.sh checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt
-#   scripts/train_ratein_layer.sh <ckpt> ratein_layer.steps=500 ratein_layer.wandb=false   # overrides
-#   # then: EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true +tta_flip=true \
-#   #           +ratein=layer +ratein_layer=checkpoints/ratein_layer/e2e_timessm_2.5m.pt
+#   python scripts/train_ssm.py --config-name ratein_layer_e2e \
+#       model.ratein_layer.inner_checkpoint=checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt
+#   # smoke: ... trainer.limit_train_batches=5 trainer.limit_val_batches=2 data.batch_size=4
+#   # eval: EVAL_CONFIG=ratein_layer_e2e_eval scripts/eval_ssm.sh checkpoints/timessm_mini_v3_freq_ratein/pretrain_False/<ckpt> \
+#   #           +freq_delta=true +tta_flip=true
+#
+# Geometry: the datamodule needs seq_length + prediction_length points per
+# chunk; 3840 + 256 = 4096 keeps the 18 families prepared at 4096 (one window
+# per chunk) and skips the 5 daily/weekly ones prepared at 1536 (to be
+# re-prepared with --pad-to 4096 later). The inner itself is built at
+# model_len (1024): the layer resamples the native context to that length.
 defaults:
   - ssm_mini_v3_freq_eval
   - _self_
 
-ratein_layer:
-  mode: e2e                         # e2e (gradient through the frozen forecaster) | curve (grid losses, any model)
-  corpus_dir: "../TimeJEPA/data/processed/lotsa_ratein"
-  frequency_table: "../TimeJEPA/configs/corpus_v3_frequencies.yaml"
-  k_prior_table: null               # yaml frequency -> prior k; null = 1 everywhere
-  horizons: [256]                   # the forecaster's training horizon; one drawn per batch
-  min_context: 256                  # native context length drawn in [min_context, chunk - h]
-  windows: 12000
-  val_fraction: 0.03
-  batch: 16
-  steps: 3000
-  lr: 1.0e-3
-  shrink: 1.0e-3                    # penalty on g^2, the residual in log k
-  sigma: 0.25                       # curve mode: kernel bandwidth in log k
-  n_modes: 48
-  hidden: 32
-  model_len: 1024
-  min_blocks: 32
-  grid_cache: null                  # curve mode: npz of the per-rate losses
-  eval_every: 500
-  seed: 0
-  device: cpu
-  out: "checkpoints/ratein_layer/e2e_timessm_2.5m.pt"
-  wandb: true
+model:
+  name: "timessm_mini_v3_freq_ratein"
+  builder: "timejepa.models.ratein_forecaster:build_from_config"
+  seq_length: 3840
+  prediction_length: 256
+  ratein_layer:
+    inner_builder: "timessm.model:build_from_config"
+    inner_checkpoint: null          # training: pass on the command line; eval: null (the Lightning checkpoint carries the inner)
+    model_len: 1024
+    n_modes: 48
+    hidden: 32
+    min_period: 2.0
+    max_period: 2048.0
+    q: 4.0
+    min_blocks: 32
+    k_min: 0.25
+    k_max: 48.0
+    k_prior: 1.0
+    k_quant_octave: 8
+
+training:
+  pretrained_encoder_path: null     # never for the wrapper: it loads unprefixed keys into self.model
+  finetune_mode: "full_finetune"    # the wrapper's unfreeze_* are no-ops: only the selector trains
+  context_lengths: [256, 384, 512, 768, 1024, 1536, 2048, 3072, 3840]
+  p_random_context_finetune: 0.9
+  delta_scales: []
+  p_delta_scale: 0.0                # w comes from the frequency table (unknown season -> 1)
+  horizon_lengths: []
+  p_random_horizon: 0.0
+  decimation_factors: []
+  p_decimation: 0.0                 # must stay off: the layer owns the rate
+  optimizer:
+    learning_rate: 1.0e-3
+    weight_decay: 0.0
+    betas: [0.9, 0.999]
+    encoder_lr_multiplier: 1.0      # the selector's parameters fall in the "encoder" group
+  lr_scheduler:
+    type: "cosine"
+    warmup_epochs: 0.05
+    min_lr: 1.0e-5
+  max_epochs: 1
+  schedule_fraction: 1.0
+  gradient_clip_val: 1.0
+  log_every_n_steps: 20
+
+data:
+  data_dir: "../TimeJEPA/data/processed/lotsa_ratein"
+  batch_size: 8                     # the 7 GB CPU machine; 16 on a GPU
+  train_val_test_split: [0.9, 0.05, 0.05]
+  num_workers: 2
+
+augmentations:
+  finetune:
+    enabled: false                  # the inner is frozen; scale / jitter only add noise to the selector's target
+
+checkpoint:
+  monitor: "val_wql"
+  mode: "min"
+  save_top_k: 2
+  save_last: true
+  filename: "epoch{epoch:02d}_valwql{val_wql:.4f}"
+  autosave_minutes: 30
+
+trainer:
+  accelerator: "auto"
+  devices: 1
+  precision: 32
+  strategy: "auto"
+  accumulate_grad_batches: 1
+  val_check_interval: 0.25
+  limit_val_batches: 20
 
 wandb:
   run_name: "ratein-layer-e2e-timessm-2.5m"
