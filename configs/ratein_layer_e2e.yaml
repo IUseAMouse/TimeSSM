@@ -1,0 +1,42 @@
+# @package _global_
+# RateIN as a layer, trained end to end around the frozen frequency-tied
+# 2.5M checkpoint (TimeJEPA scripts/train_ratein_layer.py). The `model` block
+# is the eval twin's, so the checkpoint builds and loads exactly as in the
+# GIFT harness; only the selector of the layer is trained.
+#
+#   scripts/train_ratein_layer.sh checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt
+#   scripts/train_ratein_layer.sh <ckpt> ratein_layer.steps=500 ratein_layer.wandb=false   # overrides
+#   # then: EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true +tta_flip=true \
+#   #           +ratein=layer +ratein_layer=checkpoints/ratein_layer/e2e_timessm_2.5m.pt
+defaults:
+  - ssm_mini_v3_freq_eval
+  - _self_
+
+ratein_layer:
+  mode: e2e                         # e2e (gradient through the frozen forecaster) | curve (grid losses, any model)
+  corpus_dir: "../TimeJEPA/data/processed/lotsa_ratein"
+  frequency_table: "../TimeJEPA/configs/corpus_v3_frequencies.yaml"
+  k_prior_table: null               # yaml frequency -> prior k; null = 1 everywhere
+  horizons: [256]                   # the forecaster's training horizon; one drawn per batch
+  min_context: 256                  # native context length drawn in [min_context, chunk - h]
+  windows: 12000
+  val_fraction: 0.03
+  batch: 16
+  steps: 3000
+  lr: 1.0e-3
+  shrink: 1.0e-3                    # penalty on g^2, the residual in log k
+  sigma: 0.25                       # curve mode: kernel bandwidth in log k
+  n_modes: 48
+  hidden: 32
+  model_len: 1024
+  min_blocks: 32
+  grid_cache: null                  # curve mode: npz of the per-rate losses
+  eval_every: 500
+  seed: 0
+  device: cpu
+  out: "checkpoints/ratein_layer/e2e_timessm_2.5m.pt"
+  wandb: true
+
+wandb:
+  run_name: "ratein-layer-e2e-timessm-2.5m"
+  tags: ["timessm", "ratein-layer", "e2e", "frequency-tied-delta", "frozen", "v3"]
