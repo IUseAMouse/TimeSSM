@@ -40,7 +40,8 @@ model:
     k_min: 0.25
     k_max: 48.0
     k_prior: 1.0
-    k_quant_octave: 8
+    rate_grad: exact              # exact: autograd through the resampling and the kernel; fd: finite differences at +-fd_delta in log k (two no_grad forwards)
+    fd_delta: 0.35
 
 training:
   pretrained_encoder_path: null     # never for the wrapper: it loads unprefixed keys into self.model

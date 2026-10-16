@@ -179,6 +179,7 @@ class SSMFinetuneModule(FinetuneModule):
         if w is None:
             w = self._draw_delta_scale(context.shape[0], context.device)
         self._last_delta_scale = float(w.float().mean()) if w is not None else 1.0
+        raw_target = target
         results = self.model.forecast(context, n=target.shape[1], w=w,
                                       return_representations=False)
         if getattr(self.model, "robust_scaler", None) is not None:
@@ -187,6 +188,7 @@ class SSMFinetuneModule(FinetuneModule):
             target = (target - self.model.revin.mean) / self.model.revin.std
         head = self.model.decoder.decoder
         loss = head.loss(results["quantiles"], target, mask=target_mask)
+        loss = self._add_rate_fd(loss, context, raw_target, w)
         self._last_anchor = None
         self._last_joint = None
         self._last_sigreg = None

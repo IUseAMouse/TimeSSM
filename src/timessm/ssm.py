@@ -101,6 +101,11 @@ class S4DLayer(nn.Module):
             return s, None
         if s.numel() != batch:
             raise ValueError(f"delta_scale has {s.numel()} entries for a batch of {batch}")
+        if s.requires_grad:
+            # A scale that carries a gradient (the RateIN layer's w * k) gets
+            # its own kernel: torch.unique has no derivative, and a shared
+            # kernel would sum the gradients of the items sharing it.
+            return s, torch.arange(batch, device=s.device)
         uniq, inv = torch.unique(s, return_inverse=True)
         if uniq.numel() == 1:
             # One scale for the whole batch: one kernel and one FFT of it.
@@ -131,12 +136,14 @@ class S4DLayer(nn.Module):
 
     def _kernels(self, length: int, scales: torch.Tensor) -> torch.Tensor:
         """K [U, H, L] for the unique scales of a batch. With several scales
-        each kernel is computed one at a time and checkpointed under autograd,
-        so the [H, N, L] powers are recomputed in backward instead of kept
-        (otherwise memory grows by about 0.7 GiB per extra scale at batch 128)."""
+        each kernel is computed one at a time and checkpointed under autograd
+        (parameters or scales needing a gradient), so the [H, N, L] powers
+        are recomputed in backward instead of kept (otherwise memory grows
+        by about 0.7 GiB per extra scale at batch 128, 0.8 GiB per layer for
+        8 per-item scales of the 2.5M model)."""
         if scales.numel() == 1:
             return self.kernel(length, scales)
-        keep_graph = torch.is_grad_enabled() and self.log_dt.requires_grad
+        keep_graph = torch.is_grad_enabled() and (self.log_dt.requires_grad or scales.requires_grad)
         rows = []
         for s in scales:
             one = s.reshape(1)

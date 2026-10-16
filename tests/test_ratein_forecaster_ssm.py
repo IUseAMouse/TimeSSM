@@ -5,8 +5,11 @@ RateINForecaster around a frozen SSMForecaster, through the TimeSSM stack.
    inner's bit for bit, with and without w.
 2. SSMFinetuneModule with the frequency-tied Delta trains the wrapper: one
    training_step gives a finite loss, gradients on the selector only, the
-   inner's w equals the tied w (spied), freq/* and rate/* are logged.
-3. The e2e config composes with Hydra; create_model_from_config returns the
+   inner's w equals the tied w times k with its gradient (spied), freq/* and
+   rate/* are logged.
+3. The fd mode: one training_step of the SSM module gives finite selector
+   gradients, the fd slope is logged.
+4. The e2e config composes with Hydra; create_model_from_config returns the
    wrapper; a Lightning-format checkpoint of it round-trips through
    load_checkpoint and a changed inner geometry is refused; build_module and
    build_strategy accept the config.
@@ -90,10 +93,32 @@ def test_module_trains_the_selector_with_the_tied_delta():
     assert all(p.grad is None for p in w.inner.parameters())
     assert not w.inner.training and w.training
     tied = mod._tie_delta(batch)["w"]
-    kq = torch.exp(torch.round(torch.log(w.last_k) * 8 / math.log(2)) * math.log(2) / 8)
-    expect = (tied * kq).clamp(*w.delta_range)
+    expect = (tied * w.last_k).clamp(*w.delta_range)
     torch.testing.assert_close(seen[-1], expect)
+    assert seen[-1].requires_grad                                              # the kernel path to k is open
     assert "freq/labelled_frac" in logged and "rate/k_median" in logged and "rate/n_unique_w" in logged
+
+
+def test_fd_mode_trains_the_selector_without_a_graph_through_the_inner():
+    inner = _small()
+    layer = RL.RateINLayer(RL.RateSelector(8, 4), model_len=128, min_blocks=8)
+    w = RateINForecaster(inner, layer, rate_grad="fd", fd_delta=0.3, name="ratein_fd")
+    with torch.no_grad():
+        w.layer.selector.mlp[-1].weight.fill_(0.05)
+    mod = SSMFinetuneModule(w, delta_from_frequency=True, finetune_mode="full_finetune",
+                            loss_type="huber", learning_rate=1e-3, lr_scheduler="constant",
+                            context_lengths=[128], p_random_context_finetune=0.0)
+    logged = {}
+    mod.log = lambda name, value, *a, **k: logged.__setitem__(name, float(torch.as_tensor(value).detach()))
+    mod.train()
+    batch = {"context": _series(), "target": _series(L=32, seed=2),
+             "season": torch.tensor([96.0, 24.0, 0.0, 7.0])}
+    loss = mod.training_step(batch, 0)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert all(p.grad is not None and torch.isfinite(p.grad).all() for p in w.layer.selector.parameters())
+    assert "rate/fd_slope_mean" in logged and "rate/k_median" in logged
+    assert w.last_fd_slope.shape == (4,)
 
 
 # ---------------------------------------------------- 3. config round trip
