@@ -40,10 +40,16 @@ Mémoire : batch 128 par carte avec accumulation 3 ; en cas de dépassement,
 
 ```bash
 CK=checkpoints/timessm_mini_v3_freq_zs/pretrain_False/epoch00_valloss1.2814.ckpt
-EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh $CK                                   # le chiffre publié
-EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true               # nu, fréquence donnée
+EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh $CK                                   # le chiffre publié : MASE 0.7544, CRPS 0.5128
+EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true               # nu, fréquence donnée : MASE 0.7985, CRPS 0.5451
+EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true +tta_flip=true # nu + retournement : MASE 0.7886, CRPS 0.5318
+EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +tta_flip=true +ratein=mix +ratein_pool=true \
+    +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4 +freq_delta=true          # backtest RateIN sans γ (article) : MASE 0.7544, CRPS 0.5139
 EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh $CK +freq_delta=true +tta_flip=true +ratein=oracle   # plafond, diagnostic
 ```
+
+Le chiffre publié (CRPS 0.5128) est la ligne backtest de l'article (0.5139) plus la
+calibration γ du fan ; la MASE ne bouge pas, γ laisse la médiane intacte.
 
 `configs/timessm_2.5m_gift.yaml` porte tous les réglages du chiffre publié : retournement
 de signe, resampling par backtest (`+ratein=mix +ratein_pool=true +ratein_k_up=2x3x4
@@ -60,8 +66,10 @@ scripts/calibrate_ssm.sh $CK --flip --config-name ssm_mini_v3_freq --frequency-t
 ```
 
 Avant toute modification du modèle, du harnais ou des données,
-`scripts/check_regression_ssm.sh` réévalue le checkpoint publié sur cinq configurations
-et exige l'égalité avec les résultats en cache.
+`scripts/check_regression_ssm.sh` réévalue le checkpoint publié (`epoch00_valloss1.2814`
+de `timessm_mini_v3_freq_zs`) sur cinq configurations, nu (`ssm_mini_v3_freq_eval
++freq_delta=true`) et avec la pile publiée (`timessm_2.5m_gift`), et exige l'égalité
+avec les résultats en cache (`CKPT=` pour un autre chemin du checkpoint).
 
 ## Diagnostics
 

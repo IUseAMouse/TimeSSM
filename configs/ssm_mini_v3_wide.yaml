@@ -2,8 +2,8 @@
 # Wide-range Delta continuation: resume a ssm_mini_v3 checkpoint (weights
 # only, fresh optimizer and short cosine) and train the knob on the whole
 # range the eval asks for (delta_scales from 1/48 to 4, mirroring the RateIN
-# candidates). Everything else is the parent's recipe. This config produced
-# the published 2.5M checkpoint.
+# candidates). Everything else is the parent's recipe. The published 2.5M
+# checkpoint continues from this run's checkpoint through ssm_mini_v3_freq.
 #
 #   python scripts/train_ssm.py --config-name ssm_mini_v3_wide \
 #       '+training.pretrained_encoder_path="checkpoints/timessm_mini_v3_zs/pretrain_False/<best>.ckpt"' \

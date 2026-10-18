@@ -5,12 +5,15 @@
 # on top of scripts/eval_ssm.sh.
 #
 #   scripts/eval_checkpoints_ssm.sh <checkpoint_dir> [extra hydra flags...]
-#   scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mini_v3_zs/pretrain_False
+#   EVAL_CONFIG=ssm_mini_v3_freq_eval STACK="+freq_delta=true" scripts/eval_checkpoints_ssm.sh \
+#       checkpoints/timessm_mini_v3_freq_zs/pretrain_False                        # bare, frequency given
+#   EVAL_CONFIG=ssm_mini_v3_eval scripts/eval_checkpoints_ssm.sh checkpoints/timessm_mini_v3_zs/pretrain_False
 #   STACK="+ratein=delta +ratein_pool=true" scripts/eval_checkpoints_ssm.sh <dir>   # the knob
 #   STACK="+ratein=backtest +ratein_pool=true" scripts/eval_checkpoints_ssm.sh <dir>
 #   scripts/eval_checkpoints_ssm.sh <dir> +gift_batch_size=8                       # while a run holds the GPUs
 #   ONLY="epoch00_valloss3.0745" scripts/eval_checkpoints_ssm.sh <dir>            # one checkpoint (stem glob)
 #
+# EVAL_CONFIG is passed to eval_ssm.sh (default ssm_mini_v3_freq_eval).
 # Checkpoints are taken in creation order (oldest first), last.ckpt excluded.
 # evaluate_gift caches per checkpoint stem and per flag set, so re-running
 # only evaluates what is new. Digest: logs/eval_<run>[_<tag>].log, full logs
@@ -76,6 +79,5 @@ done
     FLAG=""; [ "$5" != "97" ] && FLAG="*"
     printf "%-36s %8s %8s %8s %5s%s\n" "$1" "$2" "$3" "$4" "$5" "$FLAG"
   done
-  echo "reference TimeJEPA head8 champion stack: 0.7842 0.5340 0.756 (5%: 0.5585, scratch S4-c 5%: 0.5506)"
   echo "* fewer than 97 configs: NOT comparable to the reference nor across rows (compare_subset.py)"
 } | tee -a "$DIGEST"

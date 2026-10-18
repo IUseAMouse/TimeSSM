@@ -5,7 +5,7 @@
 # inheritance).
 #
 #   python scripts/train_ssm.py --config-name ssm_mini_v3 wandb.run_name=ssm-mini-v3
-#   # eval: scripts/eval_ssm.sh checkpoints/timessm_mini_v3_zs/pretrain_False/<ckpt> [flags]
+#   # eval: EVAL_CONFIG=ssm_mini_v3_eval scripts/eval_ssm.sh checkpoints/timessm_mini_v3_zs/pretrain_False/<ckpt> [flags]
 #
 # From the TimeJEPA recipe: corpus lotsa_v3, rationing, balanced sampling
 # T 0.5 / cap 3, stride 8, context 1024 / horizon 256, context-length
