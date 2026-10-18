@@ -7,8 +7,8 @@ deterministic batch indices. No data is read: only the size arithmetic of
 TemperatureSampler.__iter__ is replayed (it does not depend on the random
 generator).
 
-    python scripts/audit_batch_sizes.py --config-name ssm_mid_v3 --world-size 3 --batches 250000
-    python scripts/audit_batch_sizes.py --config-name ssm_mid_v3 --world-size 3 --cap 64
+    python scripts/audit_batch_sizes.py --config-name ssm_mini_v3 --world-size 3 --batches 250000
+    python scripts/audit_batch_sizes.py --config-name ssm_mini_v3 --world-size 3 --cap 64
 """
 
 import argparse
@@ -54,7 +54,7 @@ def replay(sizes, samples_per_dataset, max_ratio, num_batches, n, cap=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config-name", default="ssm_mid_v3")
+    ap.add_argument("--config-name", default="ssm_mini_v3")
     ap.add_argument("--world-size", type=int, default=3)
     ap.add_argument("--batches", type=int, default=250000)
     ap.add_argument("--cap", type=int, default=None, help="simulate a cap on the realized batch")

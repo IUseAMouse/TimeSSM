@@ -5,7 +5,7 @@ for it.
     python scripts/profile_step.py                      # default config, batch 128
     python scripts/profile_step.py --batch 64 --expand 1
     python scripts/profile_step.py --no-profile         # timing only
-    python scripts/profile_step.py --config ssm_mid_v3 --batch 96 --no-profile \
+    python scripts/profile_step.py --config ssm_mini_v3_freq --batch 96 --no-profile \
         --set model.ssm.activation_checkpointing=true    # any config key
 """
 

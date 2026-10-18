@@ -241,13 +241,14 @@ def test_check_schedule_refuses_a_warmup_longer_than_the_run():
     import os
     cfg_dir = os.path.abspath(str(_P(__file__).resolve().parents[1] / "configs"))
     with initialize_config_dir(version_base=None, config_dir=cfg_dir):
-        for name in ("ssm_mini_v3", "ssm_mini_v3_wide"):
+        for name in ("ssm_mini_v3", "ssm_mini_v3_wide", "ssm_mini_v3_freq"):
             check_schedule(compose(config_name=name))          # every shipped config is sane
         with pytest.raises(ValueError, match="audit_batch_sizes"):   # fraction left missing
-            check_schedule(compose(config_name="ssm_mid_v3"))
-        check_schedule(compose(config_name="ssm_mid_v3", overrides=["training.schedule_fraction=0.05"]))
-        bad = compose(config_name="ssm_mid_v3", overrides=["training.lr_scheduler.warmup_epochs=0.1",
-                                                            "training.schedule_fraction=0.06667"])
+            check_schedule(compose(config_name="ssm_mini_v3", overrides=["training.schedule_fraction=null"]))
+        check_schedule(compose(config_name="ssm_mini_v3", overrides=["training.schedule_fraction=0.05",
+                                                                     "training.lr_scheduler.warmup_epochs=0.005"]))
+        bad = compose(config_name="ssm_mini_v3", overrides=["training.lr_scheduler.warmup_epochs=0.1",
+                                                             "training.schedule_fraction=0.06667"])
     with pytest.raises(ValueError, match="warmup_epochs"):
         check_schedule(bad)
     check_schedule(OmegaConf.create({"training": {"lr_scheduler": {"type": "constant"}}}))

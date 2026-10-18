@@ -168,7 +168,7 @@ def _compose(name):
 
 
 def test_configs_only_the_freq_arm_asks_for_the_mode():
-    for name in ("ssm_mini_v3", "ssm_mini_v3_wide", "ssm_mini_v3_wide_eval", "ssm_mid_v3"):
+    for name in ("ssm_mini_v3", "ssm_mini_v3_eval", "ssm_mini_v3_wide", "ssm_mini_v3_wide_eval"):
         cfg = _compose(name)
         assert not cfg.model.ssm.get("delta_from_frequency", False)
         assert cfg.data.get("frequency_table") is None
@@ -177,11 +177,6 @@ def test_configs_only_the_freq_arm_asks_for_the_mode():
         model = build_from_config(cfg)
         assert model.expects_frequency and model.delta_range == (0.015625, 8.0)
         assert cfg.data.frequency_table.endswith("corpus_v3_frequencies.yaml")
-    for name in ("ssm_mini_v3_freq_syn", "ssm_mini_v3_freq_syn_eval"):
-        cfg = _compose(name)
-        assert build_from_config(cfg).expects_frequency
-        assert cfg.data.frequency_table.endswith("corpus_v3_frequencies_syn.yaml")
-        assert cfg.model.name == "timessm_mini_v3_freq_syn_zs"
     wide, freq = _compose("ssm_mini_v3_wide"), _compose("ssm_mini_v3_freq")
     for key in ("schedule_fraction", "p_delta_scale", "delta_scales"):
         assert wide.training[key] == freq.training[key]
@@ -212,6 +207,6 @@ def test_release_config_carries_the_card_settings_and_the_others_carry_none():
     gamma = json.loads((HERE / cfg.quantile_gamma).read_text())
     assert len(gamma["gamma"]) == len(gamma["levels"]) == 9 and gamma["gamma"][4] == 1.0   # the median is untouched
     keys = ("tta_flip", "ratein", "ratein_pool", "ratein_k_up", "freq_delta", "quantile_gamma")
-    for name in ("ssm_mini_v3_eval", "ssm_mini_v3_wide_eval", "ssm_mini_v3_freq_eval", "ssm_mid_v3_eval"):
+    for name in ("ssm_mini_v3_eval", "ssm_mini_v3_wide_eval", "ssm_mini_v3_freq_eval"):
         other = _compose(name)
         assert all(other.get(k) is None for k in keys), name

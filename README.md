@@ -11,8 +11,7 @@ time-invariant state space model (S4D) whose sampling interval is an
 inference-time parameter: one checkpoint runs a series at any rate. Trained
 from scratch on 15.85 billion observations of public time series, on three
 RTX 3090s, by one person. Branch `timessm`. The March 2025 Mamba code this
-repository started from is kept under [legacy/](legacy/) with its own
-`pyproject`, untouched.
+repository started from is preserved by the git tag `mamba-2025`.
 
 ## Results
 

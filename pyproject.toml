@@ -37,8 +37,7 @@ train = [
     "pytorch-lightning>=2.5.0",
     "wandb>=0.22.0",
 ]
-# The March 2025 Mamba code lives under legacy/ with its own pyproject and
-# lock (git tag mamba-2025 for the layout it had at the root).
+# The March 2025 Mamba code this repository started from: git tag mamba-2025.
 dev = [
     "pytest>=8.0.0",
     "black",

@@ -7,8 +7,8 @@
 # seen since the autosave (the loop state, optimizer and scheduler come from
 # the checkpoint). Every attempt is logged in logs/<run>.attempts.
 #
-#   scripts/train_ssm_loop.sh ssm_mid_v3 ssm-mid-v3 [extra hydra overrides...]
-#   MAX_RETRIES=20 scripts/train_ssm_loop.sh ssm_mid_v3 ssm-mid-v3
+#   scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq [extra hydra overrides...]
+#   MAX_RETRIES=20 scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq
 set -uo pipefail
 cd "$(dirname "$0")/.."
 CONFIG=${1:?config name}; RUN=${2:?wandb run name}; shift 2

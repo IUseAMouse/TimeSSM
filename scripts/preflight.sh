@@ -2,17 +2,17 @@
 # Everything that must be green before a multi-GPU run; about 10-15 minutes.
 # Stops at the first failure.
 #
-#   scripts/preflight.sh                       # config ssm_mid_v3, 8 GPUs if present
-#   CONFIG=ssm_mini_v3 scripts/preflight.sh    # another config
+#   scripts/preflight.sh                         # config ssm_mini_v3, every visible GPU
+#   CONFIG=ssm_mini_v3_freq scripts/preflight.sh # another config
 #   DEVICES=2 scripts/preflight.sh             # fewer GPUs for the smoke
 set -euo pipefail
 cd "$(dirname "$0")/.."
-CONFIG=${CONFIG:-ssm_mid_v3}
+CONFIG=${CONFIG:-ssm_mini_v3}
 NGPU=$(python -c "import torch; print(torch.cuda.device_count())")
 DEVICES=${DEVICES:-$NGPU}
 echo "== preflight: config $CONFIG, $NGPU GPU visible, smoke on $DEVICES"
 
-echo "== 1. tests (TimeMamba + TimeJEPA corpus/harness)"
+echo "== 1. tests (TimeSSM + TimeJEPA corpus/harness)"
 python -m pytest -q tests/test_ssm_layer.py tests/test_ssm_model.py -x
 (cd ../TimeJEPA && python -m pytest -q tests/test_ratein_delta.py tests/test_schedule_fraction.py -x)
 
