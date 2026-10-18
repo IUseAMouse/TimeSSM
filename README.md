@@ -32,9 +32,9 @@ weights are on Hugging Face at
 with the model card and the 97 per-configuration numbers (a copy of the card
 is in [docs/model_card_timessm_2.5m.md](docs/model_card_timessm_2.5m.md)).
 
-Among the models of the GIFT-Eval leaderboard under 10M parameters, sorted by
-CRPS (leaderboard numbers and parameter counts from its metadata; the two
-TimeSSM rows and the Chronos-Bolt rows from this harness):
+Among the models of the GIFT-Eval leaderboard under 10M parameters (snapshot
+2026-09-06), sorted by CRPS (leaderboard numbers and parameter counts from
+its metadata; the two TimeSSM rows and the Chronos-Bolt rows from this harness):
 
 | Model | Parameters | CRPS ratio |
 |---|---|---|
@@ -65,7 +65,7 @@ than any change to the model did. Two things followed. The model became a
 state space model, because a continuous-time linear time-invariant system
 discretized with a zero-order hold is equivariant to the sampling rate:
 running a series decimated by k at step Delta is the same computation as
-running the full series at Delta / k. FlowState ([Graf et al., 2025](https://arxiv.org/abs/2508.05287))
+running the full series at Delta / k. FlowState ([Graf et al., ICML 2026](https://arxiv.org/abs/2508.05287))
 built a forecaster on this property and ties the step to the declared
 sampling frequency; TimeSSM does the same, and its layer is S4D rather than
 Mamba because an input-dependent step breaks the equivariance. And the
@@ -102,8 +102,8 @@ sign-flipped forecast, which the oracle includes.
 
 The cost is the limit: RateIN runs 20 to 40 forecasts per series instead of
 one, 3 to 12 hours for a full GIFT-Eval run on a single GPU against 15 to 35
-minutes bare. Moving the whole selection onto the model's rate knob, so that
-one pass serves every rate, is what I am working on now.
+minutes bare. A learned rate layer that picks the rate in a single pass was
+tried and did worse than the backtest.
 
 ## How to use
 
@@ -165,7 +165,7 @@ present through `[tool.uv.sources]`, the GitHub URL otherwise):
 
 ```bash
 uv sync --extra train --extra dev
-uv run pytest -q           # about 5 minutes on CPU
+uv run pytest -q           # 59 tests, under a minute on CPU
 ```
 
 ## Train and evaluate
@@ -219,10 +219,13 @@ to the address in the citation.
 The sampling-rate equivariance and the frequency rule follow FlowState:
 
 ```bibtex
-@article{graf2025flowstate,
-  title   = {FlowState: Sampling Rate Invariant Time Series Forecasting},
-  author  = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
-  journal = {arXiv preprint arXiv:2508.05287},
-  year    = {2025}
+@inproceedings{graf2026flowstate,
+  title     = {FlowState: Sampling-Rate-Equivariant Time-Series Forecasting},
+  author    = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  series    = {PMLR},
+  volume    = {306},
+  year      = {2026},
+  note      = {arXiv:2508.05287}
 }
 ```

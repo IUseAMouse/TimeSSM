@@ -10,7 +10,7 @@ avec le runbook de TimeJEPA.
 ```bash
 export UV_PROJECT_ENVIRONMENT=~/venvs/timessm   # un venv hors de tout dossier synchronisé
 uv sync --extra train --extra dev                # timejepa : checkout voisin ../TimeJEPA, sinon l'URL git
-uv run pytest -q                                 # 73 tests, moins d'une minute sur CPU
+uv run pytest -q                                 # 59 tests, moins d'une minute sur CPU
 ```
 
 L'inférence seule n'a besoin que du paquet : `pip install git+https://github.com/IUseAMouse/TimeSSM.git`.
@@ -90,11 +90,3 @@ hf upload IUseAMouse/timessm-2.5m export/timessm-2.5m . --repo-type model
 L'export écrit `config.json` et `model.safetensors` (lus par `timessm.from_pretrained`),
 les facteurs γ, la table des fréquences, le checkpoint d'origine et la carte avec son
 en-tête Hugging Face, et vérifie l'aller-retour au bit près.
-
-## Règles de travail
-
-Une variable par expérience. Les prédictions sont écrites dans
-un journal d'expériences tenu hors du dépôt, avant le lancement, avec leurs seuils, et le verdict après.
-Rien n'est réglé sur le test GIFT-Eval ; l'oracle est un diagnostic. Aucun fichier n'est
-supprimé, il est déplacé. Code et commentaires en anglais, documents en français, carte
-de modèle en anglais.

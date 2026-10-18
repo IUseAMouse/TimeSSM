@@ -46,9 +46,9 @@ One forward pass per series, no averaging, no resampling, no calibration.
 
 ### Where it stands
 
-Among the models of the GIFT-Eval leaderboard under 10M parameters, sorted by
-CRPS (leaderboard numbers and parameter counts from its metadata; the two
-TimeSSM rows and the Chronos-Bolt rows from this harness):
+Among the models of the GIFT-Eval leaderboard under 10M parameters (snapshot
+2026-09-06), sorted by CRPS (leaderboard numbers and parameter counts from
+its metadata; the two TimeSSM rows and the Chronos-Bolt rows from this harness):
 
 | Model | Parameters | CRPS ratio |
 |---|---|---|
@@ -213,8 +213,7 @@ files (LOTSA subsets at a pinned revision, four Chronos datasets, synthetic fami
   (measured on eight GIFT-Eval series: the q80-q90 gap is 0.0 % of the fan width, the
   other seven gaps 9 to 29 %). The fan has eight distinct quantiles, the nominal 80 %
   interval [q10, q90] behaves like a 70 % interval, and the calibration factor, which
-  scales the fan, cannot restore the missing quantile. Reported by the Hugging Face
-  demo authors on 2026-10-13. To be fixed in the next training run.
+  scales the fan, cannot restore the missing quantile.
 
 ## Inference
 

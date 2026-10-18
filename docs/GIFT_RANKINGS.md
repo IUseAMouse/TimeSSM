@@ -1,4 +1,4 @@
-# Classements GIFT-Eval — fondations seules (snapshot 2026-09-06)
+# Classements GIFT-Eval : fondations seules (snapshot 2026-09-06)
 
 Source : `docs/assets/gift_leaderboard/2026-09-06/` (leaderboard.csv + models_meta.csv, 127 entrées, agrégats recalculés avec la formule officielle : moyenne géométrique des ratios par config contre la Seasonal Naive officielle).
 
@@ -66,4 +66,4 @@ Sur 127 entrées, 63 sont des fondations au sens ci-dessus. Exclus en plus par l
 | 9 | Metamorph1.0-4.5M | 4.5 | 0.5549 | 0.7761 | pretrained |
 | 10 | YingLong_6m | 7.3 | 0.6090 | 0.8802 | zero-shot |
 
-Notes : TempoPFN n'a pas de compte de paramètres dans les métadonnées ; son article (arXiv 2510.25502) indique 34.69M, il n'est donc pas dans la table sub-10M. FlowState apparaît trois fois (FlowState-9.1M, FlowState-r1.1 et Granite-FlowState-r1.1 : une lignée, deux versions) — un seul modèle au sens du classement. TTM-R3-FT est exclu (type fine-tuned), TTM-R3-PT est la référence pretrained. Le type est auto-déclaré par les auteurs : le filtre est le meilleur possible depuis les métadonnées, pas une vérité absolue.
+Notes : TempoPFN n'a pas de compte de paramètres dans les métadonnées ; son article (arXiv 2510.25502) indique 34.69M, il n'est donc pas dans la table sub-10M. FlowState apparaît trois fois (FlowState-9.1M, FlowState-r1.1 et Granite-FlowState-r1.1 : une lignée, deux versions), soit un seul modèle au sens du classement. TTM-R3-FT est exclu (type fine-tuned), TTM-R3-PT est la référence pretrained. Le type est auto-déclaré par les auteurs : le filtre est le meilleur possible depuis les métadonnées, pas une vérité absolue.
