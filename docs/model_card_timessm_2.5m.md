@@ -183,7 +183,7 @@ bare.
 ## How to read the numbers
 
 - The model receives the declared sampling frequency of the series and sets its sampling
-  interval to 24 / season, the convention of FlowState ([Graf et al., 2025](https://arxiv.org/abs/2508.05287)). It was trained this way. Evaluated
+  interval to 24 / season, the convention of FlowState ([Graf et al., ICML 2026](https://arxiv.org/abs/2508.05287)). It was trained this way. Evaluated
   without the frequency it is not the model of this card.
 - Zero-shot: the training corpus excludes the GIFT-Eval sources by construction.
 - The harness recomputes the leaderboard metrics from the raw data with the official
@@ -208,6 +208,13 @@ files (LOTSA subsets at a pinned revision, four Chronos datasets, synthetic fami
   (m4_hourly), low-frequency economic series (m4 weekly and yearly).
 - The resampling layer multiplies inference cost by 20 to 40.
 - Univariate. The frequency must be declared; there is no detector.
+- The top of the fan is collapsed: on the released weights the width parameter of the
+  last quantile is saturated near zero, so q90 equals q80 on practically every input
+  (measured on eight GIFT-Eval series: the q80-q90 gap is 0.0 % of the fan width, the
+  other seven gaps 9 to 29 %). The fan has eight distinct quantiles, the nominal 80 %
+  interval [q10, q90] behaves like a 70 % interval, and the calibration factor, which
+  scales the fan, cannot restore the missing quantile. Reported by the Hugging Face
+  demo authors on 2026-10-13. To be fixed in the next training run.
 
 ## Inference
 
@@ -282,10 +289,13 @@ configurations.
 The frequency rule follows FlowState:
 
 ```bibtex
-@article{graf2025flowstate,
-  title   = {FlowState: Sampling Rate Invariant Time Series Forecasting},
-  author  = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
-  journal = {arXiv preprint arXiv:2508.05287},
-  year    = {2025}
+@inproceedings{graf2026flowstate,
+  title     = {FlowState: Sampling-Rate-Equivariant Time-Series Forecasting},
+  author    = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  series    = {PMLR},
+  volume    = {306},
+  year      = {2026},
+  note      = {arXiv:2508.05287}
 }
 ```
