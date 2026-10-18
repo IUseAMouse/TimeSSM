@@ -103,9 +103,8 @@ class S4DLayer(nn.Module):
             raise ValueError(f"delta_scale has {s.numel()} entries for a batch of {batch}")
         uniq, inv = torch.unique(s, return_inverse=True)
         if uniq.numel() == 1:
-            # One scale for the whole batch: one kernel and one FFT of it.
-            # Gathering B copies of the kernel instead slowed training to
-            # 2.7 it/s.
+            # One scale for the whole batch: one kernel and one FFT of it,
+            # rather than B gathered copies of the same kernel (much slower).
             return uniq, None
         return uniq, inv
 

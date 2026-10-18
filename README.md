@@ -178,7 +178,7 @@ EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh epoch00_valloss1.2814.ckpt
 EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true
 # training, three stages: from scratch, wide-range rate augmentation, frequency-tied rate
 python scripts/train_ssm.py --config-name ssm_mini_v3 wandb.run_name=ssm-mini-v3
-scripts/train_ssm_loop.sh ssm_mini_v3_wide ssm-mini-v3-wide '+training.pretrained_encoder_path=<spike ckpt>'
+scripts/train_ssm_loop.sh ssm_mini_v3_wide ssm-mini-v3-wide '+training.pretrained_encoder_path=<ssm_mini_v3 ckpt>'
 scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq '+training.pretrained_encoder_path=<wide ckpt>'
 ```
 

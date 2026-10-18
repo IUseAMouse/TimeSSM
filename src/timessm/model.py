@@ -180,7 +180,7 @@ class SSMForecaster(nn.Module):
         n: Optional[int] = None,
         return_representations: bool = False,
         skip_revin: bool = False,
-        sample_paths: bool = True,
+        sample_paths: bool = True,   # unused, kept for the harness's forecast signature
         w: Optional[Scale] = None,
     ) -> Dict[str, torch.Tensor]:
         """Forecast n steps (any n, no rolling). `w` = delta_scale, float or [B]."""
@@ -193,8 +193,8 @@ class SSMForecaster(nn.Module):
 
     def forward_pretrain(self, *args, **kwargs):
         raise NotImplementedError(
-            "SSMForecaster has no JEPA pretrain path (the spike trains from "
-            "scratch on the pinball); lambda_anchor / lambda_joint must be 0.")
+            "SSMForecaster has no JEPA pretrain path (it trains from scratch "
+            "on the pinball); lambda_anchor / lambda_joint must be 0.")
 
     # ------------------------------------------------------------ hooks
     def set_pretrain_mode(self, mode: bool = True):

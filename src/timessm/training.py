@@ -266,8 +266,8 @@ class SSMFinetuneModule(FinetuneModule):
         self.log("aug/delta_neq1_frac", float(self._last_delta_scale != 1.0),
                  on_step=True, on_epoch=True, logger=True)
         # Memory log: peak since the last reading, so a slow climb and a
-        # single-batch jump look different. Uses the module's own device
-        # (a CPU module on a GPU machine made reset_peak_memory_stats raise).
+        # single-batch jump look different. Uses the module's own device, so
+        # a CPU module on a GPU machine skips it.
         if self.device.type == "cuda" and batch_idx % 200 == 0:
             dev = self.device
             self.log("mem/peak_allocated_gib", torch.cuda.max_memory_allocated(dev) / 2**30,

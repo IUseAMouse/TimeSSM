@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 # Randomized context lengths and per-item FFT sizes fragment the caching
-# allocator (a run died with 4.6 GiB reserved but unallocated). Expandable
+# allocator (memory reserved but unallocated grows until an OOM). Expandable
 # segments let the allocator grow blocks in place. Set before torch is
 # imported; the DDP worker processes inherit it.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")

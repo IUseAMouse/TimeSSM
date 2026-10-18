@@ -9,8 +9,8 @@
 #
 # From the TimeJEPA recipe: corpus lotsa_v3, rationing, balanced sampling
 # T 0.5 / cap 3, stride 8, context 1024 / horizon 256, context-length
-# randomization p 0.5, huber name (unused: the quantile head's pinball is the
-# loss), AdamW 3e-4 wd 0.02 betas (0.9, 0.95), cosine warmup 0.1, 1 epoch,
+# randomization p 0.5, the quantile head's pinball as the loss
+# (loss.finetune_type is ignored with that head), AdamW 3e-4 wd 0.02 betas (0.9, 0.95), cosine warmup 0.1, 1 epoch,
 # schedule_fraction 0.3, val every 5%, 300 val batches, save every
 # checkpoint, finetune augmentations (scale, jitter).
 #
