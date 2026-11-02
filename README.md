@@ -220,10 +220,13 @@ to the address in the citation.
 The sampling-rate equivariance and the frequency rule follow FlowState:
 
 ```bibtex
-@article{graf2025flowstate,
-  title   = {FlowState: Sampling Rate Invariant Time Series Forecasting},
-  author  = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
-  journal = {arXiv preprint arXiv:2508.05287},
-  year    = {2025}
+@inproceedings{graf2026flowstate,
+  title     = {FlowState: Sampling-Rate-Equivariant Time-Series Forecasting},
+  author    = {Graf, Lars and Ortner, Thomas and Wo{\'z}niak, Stanis{\l}aw and Pantazi, Angeliki},
+  booktitle = {Proceedings of the 43rd International Conference on Machine Learning},
+  series    = {PMLR},
+  volume    = {306},
+  year      = {2026},
+  note      = {arXiv:2508.05287}
 }
 ```

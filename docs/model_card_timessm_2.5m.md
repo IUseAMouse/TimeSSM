@@ -30,7 +30,7 @@ on 97 of 97 configurations.
 |---|---|---|
 | **TimeSSM-2.5M + backtest resampling** | **0.7544** | **0.5128** |
 
-The context is resampled at several rates (decimation by 2 to 48, upsampling by 2 to 4)
+The method is RateIN ([paper](https://doi.org/10.5281/zenodo.23868904)). The context is resampled at several rates (decimation by 2 to 48, upsampling by 2 to 4)
 and forecast at each; a causal backtest on the series' own past weights the candidates and
 the forecasts are mixed per quantile level, with sign-flip averaging. The quantile fan is
 widened by nine per-level factors calibrated on the training corpus. Nothing is fitted on
@@ -283,6 +283,20 @@ configurations.
   title  = {TimeSSM: a state space forecaster with a rate knob},
   year   = {2026},
   url    = {https://github.com/IUseAMouse/TimeSSM}
+}
+```
+
+The backtest resampling is RateIN:
+
+```bibtex
+@misc{vincent_2026_23868904,
+  author    = {Vincent, Yvann},
+  title     = {RateIN: Time Series Foundation Models Have a Sampling Problem},
+  month     = nov,
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.23868904},
+  url       = {https://doi.org/10.5281/zenodo.23868904}
 }
 ```
 
