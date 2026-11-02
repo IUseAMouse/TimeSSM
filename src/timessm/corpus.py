@@ -7,6 +7,10 @@ that a low-frequency series is not drowned by billions of 5-minute points.
 Series shorter than the window are left padded with NaN and read through the
 mask. With probability `p_decimate` a window is decimated by block means at a
 random factor and its Delta scale follows.
+
+A batch holds `groups` draws of a subset and a decimation factor, each giving
+batch / groups windows. The S4D layers compute one kernel per distinct Delta
+scale in a batch, so the number of groups bounds that cost.
 """
 
 import json
@@ -89,12 +93,12 @@ def block_mean(x: np.ndarray, k: int) -> np.ndarray:
 class WindowBatches(IterableDataset):
     def __init__(self, root, batch_size: int, context: int, max_horizon: int = 720,
                  patch: int = 16, p_decimate: float = 0.5, p_flip: float = 0.5, seed: int = 0,
-                 temperature: float = 0.3, p_synth: float = 0.4,
+                 temperature: float = 0.3, p_synth: float = 0.5, groups: int = 12,
                  names: Sequence[str] = None):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
-        self.temperature, self.p_synth = temperature, p_synth
+        self.temperature, self.p_synth, self.n_groups = temperature, p_synth, groups
         self.names = list(names) if names is not None else train_subsets(root)
 
     def _setup(self):
@@ -119,19 +123,25 @@ class WindowBatches(IterableDataset):
         group = self.groups[key][rng.choice(len(self.groups[key]), p=self.group_p[key])]
         return group[rng.integers(len(group))]
 
-    def _window(self, rng, horizon: int):
+    def _draw(self, rng):
+        """A subset and a decimation factor."""
         for _ in range(100):
             s = self._subset(rng)
-            i = rng.choice(len(s.lengths), p=self.series_p[s.name]) if len(s.lengths) > 1 else 0
-            n = int(s.lengths[i])
-            if n >= 2 * self.patch:
+            if s.lengths.max() >= 2 * self.patch:
                 break
-        scale = s.scale
         k = 1
         if rng.random() < self.p_decimate:
             k = int(rng.choice(DECIMATION))
-            if n // k < 2 * self.patch or scale * k > 8:
+            if s.lengths.max() // k < 2 * self.patch or s.scale * k > 8:
                 k = 1
+        return s, k
+
+    def _window(self, rng, s: Subset, k: int, horizon: int):
+        for _ in range(100):
+            i = rng.choice(len(s.lengths), p=self.series_p[s.name]) if len(s.lengths) > 1 else 0
+            n = int(s.lengths[i])
+            if n // k >= 2 * self.patch:
+                break
         steps = n // k
         h = min(horizon, max(1, steps // 4)) if steps < 2 * horizon else horizon
         ctx_min = min(steps - h, self.patch)
@@ -142,7 +152,7 @@ class WindowBatches(IterableDataset):
         hi = n - (steps - origin - h) * k
         raw = np.asarray(s.series(i)[lo:hi], dtype=np.float32)
         y = raw if k == 1 else block_mean(raw, k)
-        return y[:-h], y[-h:], scale * k
+        return y[:-h], y[-h:], s.scale * k
 
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
@@ -155,8 +165,11 @@ class WindowBatches(IterableDataset):
             x = np.full((self.batch_size, L), np.nan, dtype=np.float32)
             y = np.full((self.batch_size, H), np.nan, dtype=np.float32)
             w = np.ones(self.batch_size, dtype=np.float32)
+            s, k = None, 1
             for b in range(self.batch_size):
-                c, t, w[b] = self._window(rng, H)
+                if b % max(1, self.batch_size // self.n_groups) == 0:
+                    s, k = self._draw(rng)
+                c, t, w[b] = self._window(rng, s, k, H)
                 sign = -1.0 if rng.random() < self.p_flip else 1.0
                 c = c[-L:]
                 x[b, L - len(c):] = sign * c

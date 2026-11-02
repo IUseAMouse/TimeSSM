@@ -53,7 +53,7 @@ class S4DLayer(nn.Module):
         super().__init__()
         H, N = d_model, d_state
         self.d_model, self.d_state, self.real = H, N, real
-        self.batched_kernels = False   # set when L is small enough to keep all kernels in memory
+        self.batched_kernels = False   # convolve all items at once, kernels gathered per item
         n = torch.arange(N, dtype=torch.float32)
         if real or init == "s4d-real":
             self.real = True
@@ -142,7 +142,7 @@ class S4DLayer(nn.Module):
         are recomputed in backward instead of kept (otherwise memory grows
         by about 0.7 GiB per extra scale at batch 128, 0.8 GiB per layer for
         8 per-item scales of the 2.5M model)."""
-        if scales.numel() == 1 or self.batched_kernels:
+        if scales.numel() == 1:
             return self.kernel(length, scales)
         keep_graph = torch.is_grad_enabled() and (self.log_dt.requires_grad or scales.requires_grad)
         rows = []

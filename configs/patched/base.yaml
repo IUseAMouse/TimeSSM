@@ -42,4 +42,5 @@ data:
   p_flip: 0.5
   p_synth: 0.5
   temperature: 0.3
+  groups: 12           # distinct subsets per batch, bounds the S4D kernels per step
   include_dev: false

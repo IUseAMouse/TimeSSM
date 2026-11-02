@@ -96,7 +96,8 @@ def main():
     data = WindowBatches(cfg.data.root, t.batch, cfg.model.seq_length, max_horizon=t.max_horizon,
                          patch=cfg.model.patch, p_decimate=cfg.data.p_decimate,
                          p_flip=cfg.data.p_flip, p_synth=cfg.data.p_synth,
-                         temperature=cfg.data.temperature, seed=cfg.run.seed + start, names=names)
+                         temperature=cfg.data.temperature, groups=cfg.data.groups,
+                         seed=cfg.run.seed + start, names=names)
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.quantile_levels, device=device)

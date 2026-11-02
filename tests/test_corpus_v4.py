@@ -81,3 +81,9 @@ def test_synthetic_grid_covers_every_rate_class():
         for s, n, _ in mod.specs(freq):
             assert n > 0 and 2.0 <= s.period_range[0] < s.period_range[1]
             assert s.period_range[1] <= s.chunk_length
+
+
+def test_batch_has_at_most_one_scale_per_group(root):
+    data = WindowBatches(root, 16, 256, max_horizon=64, patch=16, groups=4)
+    x, y, w = next(iter(data))
+    assert len(set(w.tolist())) <= 4
