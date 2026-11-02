@@ -66,3 +66,18 @@ def test_synthetic_share_is_respected(root):
     picks = [data._subset(rng) for _ in range(200)]
     assert sum(p.name.startswith("synth") for p in picks) > 50
     assert all(p.rate in ("H", "M") for p in picks)
+
+
+def test_synthetic_grid_covers_every_rate_class():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).parents[1] / "scripts" / "build_synthetic_v4.py"
+    spec = importlib.util.spec_from_file_location("build_synthetic_v4", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    from timessm.corpus import RATE_WEIGHT, rate_class
+    assert {rate_class(f) for f in mod.GRID} == set(RATE_WEIGHT)
+    for freq in mod.GRID:
+        for s, n, _ in mod.specs(freq):
+            assert n > 0 and 2.0 <= s.period_range[0] < s.period_range[1]
+            assert s.period_range[1] <= s.chunk_length

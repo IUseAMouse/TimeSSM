@@ -37,6 +37,6 @@ data:
   workers: 24
   p_decimate: 0.5
   p_flip: 0.5
-  p_synth: 0.4
+  p_synth: 0.5
   temperature: 0.3
   include_dev: false
