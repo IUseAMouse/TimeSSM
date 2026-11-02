@@ -1,11 +1,12 @@
 """
 Batches from corpus v4 (scripts/build_corpus_v4.py).
 
-Each batch is drawn in a worker: family, then subset, then series weighted by
-length, then the forecast origin. Series shorter than the window are left
-padded with NaN and read through the mask, which is how the short M-competition
-series enter training. With probability `p_decimate` a window is decimated by
-block means at a random factor and its Delta scale follows.
+Each batch is drawn in a worker: rate class, real or synthetic, family, subset,
+series weighted by length, forecast origin. Rate classes are drawn evenly enough
+that a low-frequency series is not drowned by billions of 5-minute points.
+Series shorter than the window are left padded with NaN and read through the
+mask. With probability `p_decimate` a window is decimated by block means at a
+random factor and its Delta scale follows.
 """
 
 import json
@@ -18,21 +19,31 @@ import numpy as np
 import torch
 from torch.utils.data import IterableDataset
 
-from timejepa.data.frequency import BASE_SEASON, season_length
+from timejepa.data.frequency import BASE_SEASON, parse_frequency, season_length
 
 # Daily subsets with a human weekly rhythm (FlowState's rule).
 WEEKLY = ("favorita", "m5", "nn5", "uber", "rideshare", "vehicle_trips", "covid_mobility",
-          "pedestrian", "taxi", "bitcoin")
+          "pedestrian", "taxi", "bitcoin", "synth")
 # Whole subsets kept out of training: model selection reads them, never GIFT-Eval.
 DEV_SUBSETS = ("favorita_sales", "favorita_transactions", "fred_md", "gfc12_load", "gfc14_load",
                "gfc17_load", "kdd2022", "m5", "tourism_monthly", "tourism_quarterly",
                "tourism_yearly", "cif_2016_12", "alibaba_cluster_trace_2018", "LOS_LOOP")
 DECIMATION = (2, 3, 4, 6, 8, 12)
+# Draw weight of each rate class.
+RATE_WEIGHT = {"S": 2.5, "5T": 3.5, "15T": 4.5, "H": 5.5, "D": 3.9, "W": 2.8, "M": 2.2,
+               "Q": 1.0, "A": 1.0}
 
 
 def family(subset: str) -> str:
     name = re.sub(r"_(18|19|20)\d{2}$", "", subset)
     return re.sub(r"(_s\d+|_dec\d+)$", "", name)
+
+
+def rate_class(freq) -> str:
+    unit, n = parse_frequency(freq)
+    if unit == "T":
+        return "5T" if n <= 5 else "15T"
+    return unit
 
 
 def subset_scale(name: str, freq) -> float:
@@ -44,6 +55,8 @@ def subset_scale(name: str, freq) -> float:
 class Subset:
     def __init__(self, root: Path, name: str, freq):
         self.name, self.scale = name, subset_scale(name, freq)
+        self.rate = rate_class(freq)
+        self.synthetic = name.startswith("synth")
         self.values = np.load(root / f"{name}.values.npy", mmap_mode="r")
         self.offsets = np.load(root / f"{name}.offsets.npy")
         self.lengths = np.diff(self.offsets)
@@ -76,32 +89,44 @@ def block_mean(x: np.ndarray, k: int) -> np.ndarray:
 class WindowBatches(IterableDataset):
     def __init__(self, root, batch_size: int, context: int, max_horizon: int = 720,
                  patch: int = 16, p_decimate: float = 0.5, p_flip: float = 0.5, seed: int = 0,
-                 temperature: float = 0.3, names: Sequence[str] = None):
+                 temperature: float = 0.3, p_synth: float = 0.4,
+                 names: Sequence[str] = None):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
-        self.temperature = temperature
+        self.temperature, self.p_synth = temperature, p_synth
         self.names = list(names) if names is not None else train_subsets(root)
 
     def _setup(self):
         self.subsets = load_subsets(self.root, self.names)
-        groups: Dict[str, List[Subset]] = {}
+        self.pools = {}
         for s in self.subsets.values():
-            groups.setdefault(family(s.name), []).append(s)
-        self.groups = list(groups.values())
-        obs = np.array([sum(int(s.lengths.sum()) for s in g) for g in self.groups], float)
-        self.group_p = obs ** self.temperature / (obs ** self.temperature).sum()
+            self.pools.setdefault((s.rate, s.synthetic), {}).setdefault(family(s.name), []).append(s)
+        self.rates = sorted({rate for rate, _ in self.pools})
+        weight = np.array([RATE_WEIGHT[r] for r in self.rates])
+        self.rate_p = weight / weight.sum()
+        self.groups, self.group_p = {}, {}
+        for key, groups in self.pools.items():
+            self.groups[key] = list(groups.values())
+            obs = np.array([sum(int(s.lengths.sum()) for s in g) for g in groups.values()], float)
+            self.group_p[key] = obs ** self.temperature / (obs ** self.temperature).sum()
         self.series_p = {s.name: s.lengths / s.lengths.sum() for s in self.subsets.values()}
+
+    def _subset(self, rng) -> Subset:
+        rate = self.rates[rng.choice(len(self.rates), p=self.rate_p)]
+        synthetic = rng.random() < self.p_synth
+        key = (rate, synthetic) if (rate, synthetic) in self.pools else (rate, not synthetic)
+        group = self.groups[key][rng.choice(len(self.groups[key]), p=self.group_p[key])]
+        return group[rng.integers(len(group))]
 
     def _window(self, rng, horizon: int):
         for _ in range(100):
-            group = self.groups[rng.choice(len(self.groups), p=self.group_p)]
-            s = group[rng.integers(len(group))]
+            s = self._subset(rng)
             i = rng.choice(len(s.lengths), p=self.series_p[s.name]) if len(s.lengths) > 1 else 0
             n = int(s.lengths[i])
             if n >= 2 * self.patch:
                 break
-        scale = s.scale if s.scale > 0 else math.exp(rng.uniform(math.log(1 / 64), math.log(8)))
+        scale = s.scale
         k = 1
         if rng.random() < self.p_decimate:
             k = int(rng.choice(DECIMATION))

@@ -94,6 +94,8 @@ class PatchedSSM(nn.Module):
             GatedSSMBlock(d_model, d_state=d_state, expand=expand, dropout=dropout,
                           dt_min=1e-3 * patch, dt_max=1e-1 * patch)
             for _ in range(n_layers)])
+        for block in self.ssm:
+            block.ssm.batched_kernels = True
         self.att = nn.ModuleList([
             AttentionBlock(d_model, n_heads, dropout=dropout) if attention else nn.Identity()
             for _ in range(n_layers)])
