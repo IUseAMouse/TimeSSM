@@ -62,6 +62,7 @@ class AttentionBlock(nn.Module):
 class PatchedSSM(nn.Module):
     rate_knob = "delta"
     handles_nan = True
+    core_prefixes = ("ssm.", "att.", "embed", "head.", "future_token", "final_norm.")
 
     def __init__(
         self,
@@ -86,6 +87,8 @@ class PatchedSSM(nn.Module):
         self.delta_range = tuple(float(x) for x in delta_range)
         self.expects_frequency = True
         self.predictor = SimpleNamespace(w_film=None)
+        # The harness sees raw steps: the model pads to whole patches itself.
+        self.patching = SimpleNamespace(patch_size=1, stride=1)
         self.quantile_levels = tuple(quantile_levels)
         self.embed = nn.Linear(2 * patch, d_model)
         self.embed_mix = nn.Sequential(nn.GELU(), nn.Linear(d_model, d_model))
@@ -163,3 +166,13 @@ class PatchedSSM(nn.Module):
 
     def forward(self, context: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
         return self.forecast(context, **kwargs)
+
+
+def build_from_config(cfg) -> PatchedSSM:
+    """Config -> model; read by scripts/train_patched.py and, through `model.builder`,
+    by the evaluation harness."""
+    m = cfg.model
+    return PatchedSSM(input_length=m.seq_length, prediction_length=m.prediction_length,
+                      patch=m.patch, d_model=m.d_model, n_layers=m.n_layers, d_state=m.d_state,
+                      expand=m.expand, n_heads=m.n_heads, attention=m.attention,
+                      dropout=m.dropout, name=m.name)

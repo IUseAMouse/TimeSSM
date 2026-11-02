@@ -1,0 +1,42 @@
+# @package _global_
+# PatchedSSM on corpus v5. Training and evaluation read this same file:
+#
+#   python scripts/train_patched.py --config configs/patched/base.yaml run.name=<name> [key=value...]
+#   EVAL_CONFIG=patched/base scripts/eval_ssm.sh <run>/last.ckpt +freq_delta=true +tta_flip=true
+model:
+  name: "timessm_patched"
+  builder: "timessm.patched:build_from_config"
+  seq_length: 4096
+  prediction_length: 256
+  patch: 16
+  d_model: 320
+  n_layers: 4
+  d_state: 32
+  expand: 2
+  n_heads: 8
+  attention: true
+  dropout: 0.0
+
+run:
+  name: null
+  out: "/workspace/runs"
+  seed: 0
+  resume: null
+  eval_every: 10000
+
+training:
+  steps: 100000
+  batch: 512
+  lr: 5.0e-4
+  weight_decay: 0.02
+  warmup: 2000
+  max_horizon: 720
+
+data:
+  root: "/workspace/data/v5"
+  workers: 24
+  p_decimate: 0.5
+  p_flip: 0.5
+  p_synth: 0.4
+  temperature: 0.3
+  include_dev: false
