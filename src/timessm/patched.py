@@ -78,12 +78,14 @@ class PatchedSSM(nn.Module):
         dropout: float = 0.0,
         quantile_levels: Sequence[float] = QUANTILES,
         delta_range: Sequence[float] = (1.0 / 64.0, 8.0),
+        robust_norm: bool = False,
         name: str = "timessm_patched",
     ):
         super().__init__()
         self.name = name
         self.input_length, self.prediction_length = int(input_length), int(prediction_length)
         self.patch = int(patch)
+        self.robust_norm = bool(robust_norm)
         self.delta_range = tuple(float(x) for x in delta_range)
         self.expects_frequency = True
         self.predictor = SimpleNamespace(w_film=None)
@@ -136,15 +138,20 @@ class PatchedSSM(nn.Module):
         raw = self.head(self.final_norm(h[:, n_past:]))
         return self._fan(raw.reshape(B, n_future * p, -1)[:, :n])
 
-    @staticmethod
-    def normalize(x: torch.Tensor, mask: torch.Tensor):
-        """x [B, L] with NaN, mask [B, L] -> (asinh frame, mean [B, 1], std [B, 1])."""
+    def normalize(self, x: torch.Tensor, mask: torch.Tensor):
+        """x [B, L] with NaN, mask [B, L] -> (asinh frame, center [B, 1], scale [B, 1])."""
         x0 = torch.where(mask, x, torch.zeros_like(x)).double()
         count = mask.sum(1, keepdim=True).clamp_min(1)
         mean = x0.sum(1, keepdim=True) / count
         var = (mask * (x0 - mean) ** 2).sum(1, keepdim=True) / count
-        std = var.sqrt() + 1e-5 + 1e-6 * mean.abs()
-        return (torch.asinh((x0 - mean) / std) * mask).float(), mean, std
+        center, scale = mean, var.sqrt()
+        if self.robust_norm:
+            nan = torch.where(mask, x, torch.full_like(x, float("nan"))).double()
+            center = nan.nanquantile(0.5, dim=1, keepdim=True).nan_to_num()
+            mad = (nan - center).abs().nanquantile(0.5, dim=1, keepdim=True).nan_to_num()
+            scale = torch.where(mad > 0, 1.4826 * mad, scale)
+        scale = scale + 1e-5 + 1e-6 * center.abs()
+        return (torch.asinh((x0 - center) / scale) * mask).float(), center, scale
 
     def _pad(self, x: torch.Tensor) -> torch.Tensor:
         x = x[:, -self.input_length:]
@@ -175,4 +182,4 @@ def build_from_config(cfg) -> PatchedSSM:
     return PatchedSSM(input_length=m.seq_length, prediction_length=m.prediction_length,
                       patch=m.patch, d_model=m.d_model, n_layers=m.n_layers, d_state=m.d_state,
                       expand=m.expand, n_heads=m.n_heads, attention=m.attention,
-                      dropout=m.dropout, name=m.name)
+                      dropout=m.dropout, robust_norm=m.get("robust_norm", False), name=m.name)

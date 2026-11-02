@@ -136,3 +136,30 @@ def test_scale_follows_the_rule():
 
 def test_family_groups_slices():
     assert family("era5_1999") == family("era5_2000") == "era5"
+
+
+def test_robust_norm_ignores_a_spike():
+    m = small(robust_norm=True)
+    x = torch.randn(1, 160)
+    spiky = x.clone()
+    spiky[0, 80] = 1e6
+    mask = torch.isfinite(x)
+    _, _, a = m.normalize(x, mask)
+    _, _, b = m.normalize(spiky, mask)
+    assert b.item() < 2 * a.item()
+
+
+def test_robust_norm_falls_back_on_std_when_mostly_zero():
+    m = small(robust_norm=True)
+    x = torch.zeros(1, 160)
+    x[0, ::40] = 5.0
+    _, _, scale = m.normalize(x, torch.isfinite(x))
+    assert scale.item() > 0.1
+
+
+def test_robust_norm_equivariance():
+    m = small(robust_norm=True)
+    x = torch.randn(1, 160)
+    a = m.forecast(x, 16)["quantiles_denorm"]
+    b = m.forecast(3 * x + 5, 16)["quantiles_denorm"]
+    assert torch.allclose(b, 3 * a + 5, atol=2e-2, rtol=2e-2)

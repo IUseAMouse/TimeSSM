@@ -15,6 +15,7 @@ from pathlib import Path
 
 import torch
 from omegaconf import OmegaConf
+from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
 from torch.utils.data import DataLoader
 
 from timessm.corpus import DEV_SUBSETS, WindowBatches, train_subsets
@@ -27,6 +28,33 @@ def pinball(q: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, levels: torch.
     e = (y[..., None] - q) * mask[..., None]
     return (torch.maximum(levels * e, (levels - 1) * e).sum() / mask.sum().clamp_min(1)
             / len(levels))
+
+
+def naive_loss(x: torch.Tensor, y: torch.Tensor, ymask: torch.Tensor, w: torch.Tensor,
+               levels: torch.Tensor):
+    """Pinball of the seasonal naive per item, raw units, its forecast copied at every level."""
+    L, H = x.shape[1], y.shape[1]
+    season = (24.0 / w).round().clamp(1, L).long()
+    idx = L - season[:, None] + (torch.arange(H, device=x.device)[None] % season[:, None])
+    last = torch.gather(torch.nan_to_num(x), 1, idx).double()
+    e = (y.double().nan_to_num() - last) * ymask
+    per = torch.maximum(e, 0 * e) * levels.mean() + torch.maximum(-e, 0 * e) * (1 - levels.mean())
+    return per.sum(1) / ymask.sum(1).clamp_min(1)
+
+
+def score_loss(q, center, scale, y, ymask, x, w, levels, kind):
+    """Pinball in raw units per item, over the mean level (`ratio`) or as the log of its ratio
+    to the seasonal naive (`logratio`), which targets a geometric mean of ratios."""
+    raw = torch.sinh(q.double().clamp(-15, 15)) * scale[:, None] + center[:, None]
+    e = (y.double().nan_to_num()[..., None] - raw) * ymask[..., None]
+    per = torch.maximum(levels * e, (levels - 1) * e).mean(-1).sum(1)
+    per = per / ymask.sum(1).clamp_min(1)
+    if kind == "ratio":
+        size = (y.double().nan_to_num().abs() * ymask).sum(1) / ymask.sum(1).clamp_min(1)
+        return (per / (size + scale[:, 0] * 1e-3)).mean().float()
+    base = naive_loss(x, y, ymask, w, levels)
+    floor = 1e-3 * scale[:, 0]
+    return torch.log((per + floor) / (base + floor)).mean().float()
 
 
 def schedule(step: int, warmup: int, total: int) -> float:
@@ -60,7 +88,7 @@ def main():
     start = 0
     if cfg.run.resume:
         state = torch.load(cfg.run.resume, map_location=device, weights_only=False)
-        model.load_state_dict({k[len("model."):]: v for k, v in state["state_dict"].items()})
+        model.load_state_dict(state["live"])
         opt.load_state_dict(state["opt"])
         sched.load_state_dict(state["sched"])
         start = state["step"]
@@ -72,6 +100,9 @@ def main():
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.quantile_levels, device=device)
+    ema = None
+    if t.ema > 0:
+        ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(t.ema))
     log = (run / "log.jsonl").open("a")
     t0, running, seen = time.time(), 0.0, 0
     model.train()
@@ -86,12 +117,17 @@ def main():
         target = target.float().nan_to_num()
         with torch.autocast("cuda", dtype=torch.bfloat16):
             q = model.forward_normalized(z, mask, y.shape[1], w)
+        if t.loss == "asinh":
             loss = pinball(q.float(), target, ymask, levels)
+        else:
+            loss = score_loss(q, mean, std, y, ymask, x, w, levels, t.loss)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         grad = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         opt.step()
         sched.step()
+        if ema is not None:
+            ema.update_parameters(model)
         running += loss.item()
         seen += 1
         if (step + 1) % 200 == 0:
@@ -102,13 +138,18 @@ def main():
             log.flush()
             t0, running, seen = time.time(), 0.0, 0
         if (step + 1) % cfg.run.eval_every == 0 or step + 1 == t.steps:
-            torch.save({"state_dict": {f"model.{k}": v for k, v in model.state_dict().items()},
-                        "opt": opt.state_dict(), "sched": sched.state_dict(), "step": step + 1},
+            final = ema.module if ema is not None else model
+            torch.save({"state_dict": {f"model.{k}": v for k, v in final.state_dict().items()},
+                        "live": model.state_dict(), "opt": opt.state_dict(),
+                        "sched": sched.state_dict(), "step": step + 1},
                        run / f"{cfg.run.name}.ckpt")
             model.eval()
-            score = dev_score(model, cfg.data.root)
-            model.train()
+            final.eval()
+            score = dev_score(final, cfg.data.root)
             row = {"step": step + 1, "dev": score["all"], "per_subset": score}
+            if ema is not None:
+                row["dev_live"] = dev_score(model, cfg.data.root)["all"]
+            model.train()
             print(json.dumps(row), flush=True)
             log.write(json.dumps(row) + "\n")
             log.flush()

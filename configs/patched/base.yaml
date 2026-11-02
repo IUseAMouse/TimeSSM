@@ -16,6 +16,7 @@ model:
   n_heads: 8
   attention: true
   dropout: 0.0
+  robust_norm: false
 
 run:
   name: null
@@ -31,6 +32,8 @@ training:
   weight_decay: 0.02
   warmup: 2000
   max_horizon: 720
+  loss: "asinh"        # asinh, ratio or logratio
+  ema: 0.999           # 0 = off
 
 data:
   root: "/workspace/data/v5"
