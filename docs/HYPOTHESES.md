@@ -205,6 +205,8 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | statistiques du contexte, graine 1 | 0.6356 | −0.001 sur la base de même graine ; moyenne 0.6308 contre 0.6235 : rejeté |
 | historique complet `p_full` 0.5, graine 0 | 0.6108 | sous les trois bases ; gains sur gfc, LOS_LOOP, fred_md, perte sur tourism_yearly (1.38) |
 | historique complet `p_full` 0.5, graine 1 | 0.6195 | −0.017 sur la base de même graine ; moyenne 0.6152 contre 0.6261 (−1.7 %) : retenu |
+| perte de contexte (10), poids 1, `p_full` 0.5, graine 0 | 0.5678 | avec l'attention causale et le repère cumulé qu'elle exige ; −0.043 sur `p_full` de même graine |
+| perte de contexte (10), poids 1, `p_full` 0.5, graine 1 | 0.5731 | −0.046 ; moyenne 0.5704 contre 0.6152 (−7.3 %), écart dès 5k pas : retenu |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
@@ -228,6 +230,21 @@ précision. Le patch 8 gagne exactement là (−5 % sur les deux premiers tiers,
 bruité) : la résolution et le rappel exact d'un cycle passé sont le levier. D'où le mélangeur à
 règle delta (mémoire adressée par le contenu, Yang et al. 2024 [10]), en file contre `p_full`
 sur v6. Le tiers moyen est sous-couvert (0.71-0.74 pour 0.80).
+
+### Perte de contexte : par tiers de l'horizon
+
+`scripts/dev_horizon.py` découpe l'horizon de chaque sous-ensemble en trois tranches, même score que
+le dev sur chacune. Moyenne des deux graines :
+
+| Run | premier tiers | deuxième | troisième |
+|---|---|---|---|
+| `p_full` 0.5 | 0.537 | 0.625 | 0.661 |
+| perte de contexte | 0.469 (−12.6 %) | 0.589 (−5.7 %) | 0.626 (−5.4 %) |
+
+Le gain est plus fort au début de l'horizon, comme attendu d'une perte qui ne vise que le patch
+suivant, mais il tient jusqu'au bout : pas de perte sur l'horizon long. Trois ablations en file,
+deux graines chacune : attention causale et repère cumulé sans la perte (sépare le masque de la
+densité du signal), SSM seul avec et sans la perte (la densité suffit-elle sans attention).
 
 ## Écartés pour l'instant
 
