@@ -203,7 +203,8 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | base, graine 2 | 0.6185 | trois graines : moyenne 0.6235, écart-type 0.011 |
 | statistiques du contexte, graine 0 | 0.6259 | +0.010 sur la base de même graine |
 | statistiques du contexte, graine 1 | 0.6356 | −0.001 sur la base de même graine ; moyenne 0.6308 contre 0.6235 : rejeté |
-| historique complet `p_full` 0.5, graine 0 | 0.6108 | sous les trois bases ; gains sur gfc, LOS_LOOP, fred_md, perte sur tourism_yearly (1.38) ; deuxième graine en cours |
+| historique complet `p_full` 0.5, graine 0 | 0.6108 | sous les trois bases ; gains sur gfc, LOS_LOOP, fred_md, perte sur tourism_yearly (1.38) |
+| historique complet `p_full` 0.5, graine 1 | 0.6195 | −0.017 sur la base de même graine ; moyenne 0.6152 contre 0.6261 (−1.7 %) : retenu |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
