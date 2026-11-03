@@ -163,3 +163,37 @@ def test_robust_norm_equivariance():
     a = m.forecast(x, 16)["quantiles_denorm"]
     b = m.forecast(3 * x + 5, 16)["quantiles_denorm"]
     assert torch.allclose(b, 3 * a + 5, atol=2e-2, rtol=2e-2)
+
+
+def test_stats_model_starts_as_the_plain_one():
+    torch.manual_seed(0)
+    plain = small()
+    with_stats = small(stats=True)
+    missing = with_stats.load_state_dict(plain.state_dict(), strict=False)
+    assert all(k.startswith("stats.") for k in missing.missing_keys)
+    x = torch.randn(2, 200)
+    torch.testing.assert_close(plain.forecast(x, 16)["quantiles"],
+                               with_stats.forecast(x, 16)["quantiles"])
+
+
+def test_context_stats_values():
+    m = small(stats=True)
+    x = torch.full((1, 160), float("nan"))
+    x[0, 80:] = torch.tensor([0.0, 2.0] * 40)
+    mask = torch.isfinite(x)
+    z, c, s = m.normalize(x, mask)
+    st = m.context_stats(x, mask, c, s, z)[0]
+    assert st[0].item() == pytest.approx(0.5)
+    assert st[1].item() == pytest.approx(0.5)
+    assert st[4].item() == pytest.approx(math.log(80) / math.log(256))
+
+
+def test_stats_keep_scale_equivariance():
+    torch.manual_seed(0)
+    m = small(stats=True)
+    torch.nn.init.normal_(m.stats[-1].weight, std=0.5)
+    x = torch.randn(2, 160).abs()
+    x[:, ::7] = 0.0
+    a = m.forecast(x, 16)["quantiles_denorm"]
+    b = m.forecast(3.0 * x, 16)["quantiles_denorm"]
+    torch.testing.assert_close(3.0 * a, b, rtol=1e-3, atol=1e-3)

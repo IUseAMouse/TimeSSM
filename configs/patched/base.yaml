@@ -17,6 +17,7 @@ model:
   attention: true
   dropout: 0.0
   robust_norm: false
+  stats: false         # scale-free context statistics added to every token
 
 run:
   name: null

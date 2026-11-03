@@ -23,6 +23,7 @@ from .block import GatedSSMBlock
 
 Scale = Union[float, torch.Tensor]
 QUANTILES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+N_STATS = 5
 
 
 def rotate(x: torch.Tensor, pos: torch.Tensor, inv_freq: torch.Tensor) -> torch.Tensor:
@@ -79,6 +80,7 @@ class PatchedSSM(nn.Module):
         quantile_levels: Sequence[float] = QUANTILES,
         delta_range: Sequence[float] = (1.0 / 64.0, 8.0),
         robust_norm: bool = False,
+        stats: bool = False,
         name: str = "timessm_patched",
     ):
         super().__init__()
@@ -107,6 +109,15 @@ class PatchedSSM(nn.Module):
         self.final_norm = nn.LayerNorm(d_model)
         self.head = nn.Sequential(nn.Linear(d_model, 2 * d_model), nn.GELU(),
                                   nn.Linear(2 * d_model, patch * len(quantile_levels)))
+        self.stats = None
+        if stats:
+            # Added to every token; the last layer starts at zero, so the model starts as
+            # the one without statistics.
+            self.stats = nn.Sequential(nn.Linear(N_STATS, d_model), nn.GELU(),
+                                       nn.Linear(d_model, d_model))
+            nn.init.zeros_(self.stats[-1].weight)
+            nn.init.zeros_(self.stats[-1].bias)
+            self.core_prefixes = self.core_prefixes + ("stats.",)
 
     def _fan(self, raw: torch.Tensor) -> torch.Tensor:
         """Sorted quantiles: the median plus cumulated positive widths on each side."""
@@ -116,9 +127,23 @@ class PatchedSSM(nn.Module):
         upper = median + F.softplus(raw[..., mid + 1:]).cumsum(-1)
         return torch.cat([lower, median, upper], dim=-1)
 
+    def context_stats(self, x: torch.Tensor, mask: torch.Tensor, center: torch.Tensor,
+                      scale: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        """What the normalization removes, unchanged by a change of units: share of exact
+        zeros and of missing points, asinh(center / scale), last normalized value, log of
+        the observed length. [B, N_STATS]."""
+        count = mask.sum(1, keepdim=True).clamp_min(1)
+        zeros = ((x == 0) & mask).sum(1, keepdim=True) / count
+        missing = 1 - mask.float().mean(1, keepdim=True)
+        level = torch.asinh(center / scale)
+        last = z[:, -1:]
+        length = torch.log(count.float()) / math.log(self.input_length)
+        return torch.cat([zeros.float(), missing, level.float(), last.float(), length], dim=1)
+
     def forward_normalized(self, x: torch.Tensor, mask: torch.Tensor, n: int,
-                           w: Scale = 1.0) -> torch.Tensor:
-        """x, mask [B, L], L a multiple of the patch -> quantiles [B, n, Q], asinh frame."""
+                           w: Scale = 1.0, stats: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """x, mask [B, L], L a multiple of the patch -> quantiles [B, n, Q], asinh frame.
+        `stats` [B, N_STATS] from context_stats, required when the model was built with them."""
         B, L = x.shape
         p = self.patch
         n_past, n_future = L // p, -(-n // p)
@@ -127,6 +152,8 @@ class PatchedSSM(nn.Module):
         h = self.embed(torch.cat([values, observed], dim=-1))
         h = h + self.embed_mix(h)
         h = torch.cat([h, self.future_token.expand(B, n_future, -1)], dim=1)
+        if self.stats is not None:
+            h = h + self.stats(stats.to(h.dtype))[:, None]
         N = n_past + n_future
         valid = torch.cat([observed.any(-1), torch.ones(B, n_future, dtype=torch.bool,
                                                         device=x.device)], dim=1)
@@ -165,7 +192,8 @@ class PatchedSSM(nn.Module):
         x = self._pad(context.squeeze(-1) if context.dim() == 3 else context)
         mask = torch.isfinite(x)
         z, mean, std = self.normalize(x, mask)
-        q = self.forward_normalized(z, mask, n, 1.0 if w is None else w)
+        stats = self.context_stats(x, mask, mean, std, z) if self.stats is not None else None
+        q = self.forward_normalized(z, mask, n, 1.0 if w is None else w, stats)
         raw = (torch.sinh(q.clamp(-15.0, 15.0).double()) * std[:, None] + mean[:, None]).float()
         mid = len(self.quantile_levels) // 2
         return {"quantiles": q, "quantiles_denorm": raw, "quantile_levels": self.quantile_levels,
@@ -182,4 +210,5 @@ def build_from_config(cfg) -> PatchedSSM:
     return PatchedSSM(input_length=m.seq_length, prediction_length=m.prediction_length,
                       patch=m.patch, d_model=m.d_model, n_layers=m.n_layers, d_state=m.d_state,
                       expand=m.expand, n_heads=m.n_heads, attention=m.attention,
-                      dropout=m.dropout, robust_norm=m.get("robust_norm", False), name=m.name)
+                      dropout=m.dropout, robust_norm=m.get("robust_norm", False),
+                      stats=m.get("stats", False), name=m.name)

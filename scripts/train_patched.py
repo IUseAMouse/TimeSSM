@@ -116,8 +116,9 @@ def main():
         z, mean, std = model.normalize(x, mask)
         target = torch.asinh((torch.where(ymask, y, torch.zeros_like(y)).double() - mean) / std)
         target = target.float().nan_to_num()
+        stats = model.context_stats(x, mask, mean, std, z) if model.stats is not None else None
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            q = model.forward_normalized(z, mask, y.shape[1], w)
+            q = model.forward_normalized(z, mask, y.shape[1], w, stats)
         if t.loss == "asinh":
             loss = pinball(q.float(), target, ymask, levels)
         else:
