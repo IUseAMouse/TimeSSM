@@ -200,6 +200,9 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | normalisation médiane/MAD (2a) | 0.6582 | pire, tourism_yearly 1.42 ; rejeté |
 | patch 8 (4a) | 0.5932 | −5 % sur la moyenne des bases, surtout tourism_yearly, fred_md, cif ; deuxième graine en file |
 | sans attention, 6 blocs SSM | 0.6178 | au niveau de la base |
+| base, graine 2 | 0.6185 | trois graines : moyenne 0.6235, écart-type 0.011 |
+| statistiques du contexte, graine 0 | 0.6259 | au niveau de la base ; deuxième graine en cours |
+| historique complet `p_full` 0.5, graine 0 | 0.6108 | sous les trois bases ; gains sur gfc, LOS_LOOP, fred_md, perte sur tourism_yearly (1.38) ; deuxième graine en cours |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
