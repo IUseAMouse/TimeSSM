@@ -21,6 +21,8 @@ def main():
     ap.add_argument("runs", nargs="+", type=Path)
     ap.add_argument("--origins", nargs="+", type=int, default=[4])
     ap.add_argument("--root", help="corpus, default the one of the run")
+    ap.add_argument("--cycle", nargs="+", type=float, default=[0.0],
+                    help="steps per season of the fixed-rate rule, 0 = native")
     a = ap.parse_args()
     for run in a.runs:
         cfg = OmegaConf.load(run / "config.yaml")
@@ -28,9 +30,11 @@ def main():
         state = torch.load(run / f"{cfg.run.name}.ckpt", map_location="cuda", weights_only=False)
         model.load_state_dict({k[len("model."):]: v for k, v in state["state_dict"].items()})
         for o in a.origins:
-            score = dev_score(model, a.root or cfg.data.root, origins=o)
-            print(json.dumps({"run": run.name, "step": state["step"], "origins": o,
-                              "dev": score["all"], "per_subset": score}), flush=True)
+            for c in a.cycle:
+                score = dev_score(model, a.root or cfg.data.root, origins=o, cycle=c)
+                print(json.dumps({"run": run.name, "step": state["step"], "origins": o,
+                                  "cycle": c, "dev": score["all"], "per_subset": score}),
+                      flush=True)
 
 
 if __name__ == "__main__":

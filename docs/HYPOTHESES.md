@@ -186,6 +186,22 @@ dernier, sauf pour des niveaux extrêmes hors benchmark.
 
 **Test.** Un run. **Arrêt.** Critère commun. **Coût.** ~10k paramètres.
 
+## Résultats
+
+Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corpus v5.
+
+| Run | dev | Remarque |
+|---|---|---|
+| base, graine 0 | 0.6155 | |
+| base, graine 1 | 0.6366 | écart de graine 0.021, soit σ ≈ 0.015 par run |
+| perte log-ratio (1b) | 0.6279 | entre les deux graines de base : non concluant |
+| base 0, règle fixe 24 points par cycle (6a) | 0.6377 | pire sur alibaba (0.38 → 0.55), kdd2022, LOS_LOOP ; rejeté |
+| base 1, règle fixe 24 points par cycle (6a) | 0.6616 | idem |
+
+Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
+commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
+sépare que des effets d'environ 5 % ; les hypothèses suivantes tournent avec deux graines.
+
 ## Écartés pour l'instant
 
 - **SAM** [16] : deux passes par pas, trop cher tant que le reste n'est pas exploré.

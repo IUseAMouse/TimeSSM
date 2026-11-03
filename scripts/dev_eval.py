@@ -17,7 +17,7 @@ import numpy as np
 import torch
 
 from timejepa.data.frequency import parse_frequency
-from timessm.corpus import DEV_SUBSETS, load_subsets
+from timessm.corpus import DEV_SUBSETS, block_mean, load_subsets
 
 HORIZON = {"S": 360, "T": 288, "H": 48, "D": 30, "W": 8, "M": 18, "Q": 8, "A": 4}
 SEASON = {"S": 360, "T": 288, "H": 24, "D": 7, "W": 52, "M": 12, "Q": 4, "A": 1}
@@ -31,8 +31,19 @@ def wql(q: np.ndarray, y: np.ndarray, levels: np.ndarray) -> float:
         / max(np.nansum(np.abs(y)), 1e-9)
 
 
+def rate_factor(scale: float, cycle: float) -> int:
+    """Block size bringing a series of `24 / scale` steps per cycle near `cycle` steps per cycle,
+    1 when it is already slower. The fixed rule of RateIN."""
+    if not cycle or scale <= 0:
+        return 1
+    return max(1, int(round(24.0 / scale / cycle)))
+
+
 @torch.no_grad()
-def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS) -> Dict[str, float]:
+def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS,
+              cycle: float = 0.0) -> Dict[str, float]:
+    """`cycle` > 0 forecasts from block means of the context, at about `cycle` steps per
+    season, each coarse quantile held over its k native steps."""
     device = next(model.parameters()).device
     levels = np.array(model.quantile_levels)
     scores = {}
@@ -46,6 +57,9 @@ def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS) -> Dic
         keep = rng.choice(keep, min(MAX_SERIES, len(keep)), replace=False)
         cuts = [(j, o) for j in keep for o in range(origins)
                 if s.lengths[j] >= (o + 1) * h + max(m + 1, 8)]
+        w = s.scale if s.scale > 0 else 1.0
+        k = rate_factor(s.scale, cycle)
+        hk = -(-h // k)
         ours, naive, targets = [], [], []
         for i in range(0, len(cuts), batch):
             ctx, tgt, nai = [], [], []
@@ -53,15 +67,15 @@ def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS) -> Dic
                 x = np.asarray(s.series(j), dtype=np.float32)
                 x = x[:len(x) - o * h]
                 c, t = x[:-h], x[-h:]
-                ctx.append(c[-model.input_length:])
+                ctx.append((block_mean(c, k) if k > 1 else c)[-model.input_length:])
                 tgt.append(t)
                 nai.append(np.resize(c[-m:], h))
             L = max(map(len, ctx))
             pad = np.stack([np.pad(c, (L - len(c), 0), constant_values=np.nan) for c in ctx])
-            w = s.scale if s.scale > 0 else 1.0
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                out = model.forecast(torch.from_numpy(pad).to(device), h, w)
-            ours.append(out["quantiles_denorm"].float().cpu().numpy())
+                out = model.forecast(torch.from_numpy(pad).to(device), hk, w * k)
+            fan = out["quantiles_denorm"].float().cpu().numpy()
+            ours.append(np.repeat(fan, k, axis=1)[:, :h])
             naive.append(np.stack(nai))
             targets.append(np.stack(tgt))
         q, y, sn = map(np.concatenate, (ours, targets, naive))
