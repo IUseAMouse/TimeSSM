@@ -303,3 +303,15 @@ def test_causal_model_without_context_loss_still_forecasts():
     x[0, :450] = float("nan")
     out = m.forecast(x, 40)["quantiles_denorm"]
     assert out.shape == (3, 40, 9) and torch.isfinite(out).all()
+
+
+def test_loops_share_weights_and_deepen():
+    torch.manual_seed(0)
+    one, two = small(), small(loops=2)
+    two.load_state_dict(one.state_dict())
+    assert sum(p.numel() for p in one.parameters()) == sum(p.numel() for p in two.parameters())
+    x = torch.randn(2, 256)
+    a, b = one.forecast(x, 32)["quantiles"], two.forecast(x, 32)["quantiles"]
+    assert not torch.allclose(a, b)
+    b.sum().backward()
+    assert all(p.grad is not None for p in two.ssm.parameters() if p.requires_grad)

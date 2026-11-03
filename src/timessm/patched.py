@@ -85,10 +85,13 @@ class PatchedSSM(nn.Module):
         stats: bool = False,
         patches: Optional[Sequence[int]] = None,
         causal: bool = False,
+        loops: int = 1,
         name: str = "timessm_patched",
     ):
         super().__init__()
         self.name = name
+        # The block stack is run `loops` times with the same weights: depth without parameters.
+        self.loops = int(loops)
         self.input_length, self.prediction_length = int(input_length), int(prediction_length)
         self.patch = int(patch)
         # Patch sizes the model can read, `patch` among them. A context is cut to
@@ -208,9 +211,10 @@ class PatchedSSM(nn.Module):
             w = w * (p / self.patch)
         scale = torch.as_tensor(w, dtype=h.dtype, device=h.device).reshape(-1, 1)
         pos = torch.arange(N, device=h.device, dtype=h.dtype)[None] * scale
-        for ssm, att in zip(self.ssm, self.att):
-            h = ssm(h, delta_scale=w)
-            h = att(h, pos, valid, allowed) if isinstance(att, AttentionBlock) else h
+        for _ in range(self.loops):
+            for ssm, att in zip(self.ssm, self.att):
+                h = ssm(h, delta_scale=w)
+                h = att(h, pos, valid, allowed) if isinstance(att, AttentionBlock) else h
         h = self.final_norm(h if return_context else h[:, n_past:])
         if p == self.patch:
             raw = self.head(h)
@@ -316,4 +320,4 @@ def build_from_config(cfg) -> PatchedSSM:
                       expand=m.expand, n_heads=m.n_heads, attention=m.attention,
                       dropout=m.dropout, robust_norm=m.get("robust_norm", False),
                       stats=m.get("stats", False), patches=m.get("patches", None),
-                      causal=m.get("causal", False), name=m.name)
+                      causal=m.get("causal", False), loops=m.get("loops", 1), name=m.name)
