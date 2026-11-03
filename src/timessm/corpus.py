@@ -94,11 +94,14 @@ class WindowBatches(IterableDataset):
     def __init__(self, root, batch_size: int, context: int, max_horizon: int = 720,
                  patch: int = 16, p_decimate: float = 0.5, p_flip: float = 0.5, seed: int = 0,
                  temperature: float = 0.3, p_synth: float = 0.5, groups: int = 12,
-                 names: Sequence[str] = None):
+                 names: Sequence[str] = None, p_full: float = 0.0):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
         self.temperature, self.p_synth, self.n_groups = temperature, p_synth, groups
+        # Share of windows with all the history the series has (up to `context`); the
+        # others draw their length log-uniformly, so long contexts are seen as at test time.
+        self.p_full = p_full
         self.names = list(names) if names is not None else train_subsets(root)
 
     def _setup(self):
@@ -145,9 +148,14 @@ class WindowBatches(IterableDataset):
         steps = n // k
         h = min(horizon, max(1, steps // 4)) if steps < 2 * horizon else horizon
         ctx_min = min(steps - h, self.patch)
-        ctx = int(math.exp(rng.uniform(math.log(ctx_min), math.log(max(self.context, ctx_min + 1)))))
-        ctx = min(ctx, steps - h)
-        origin = int(rng.integers(ctx, steps - h + 1))
+        if self.p_full > 0 and rng.random() < self.p_full:
+            ctx = min(self.context, steps - h)
+            origin = int(rng.integers(ctx, steps - h + 1))
+        else:
+            ctx = int(math.exp(rng.uniform(math.log(ctx_min),
+                                           math.log(max(self.context, ctx_min + 1)))))
+            ctx = min(ctx, steps - h)
+            origin = int(rng.integers(ctx, steps - h + 1))
         lo = max(0, n - (steps - origin + ctx) * k)
         hi = n - (steps - origin - h) * k
         raw = np.asarray(s.series(i)[lo:hi], dtype=np.float32)

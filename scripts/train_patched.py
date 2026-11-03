@@ -100,7 +100,8 @@ def main():
                          patch=model.patches[0], p_decimate=cfg.data.p_decimate,
                          p_flip=cfg.data.p_flip, p_synth=cfg.data.p_synth,
                          temperature=cfg.data.temperature, groups=cfg.data.groups,
-                         seed=cfg.run.seed + start, names=names)
+                         seed=cfg.run.seed + start, names=names,
+                         p_full=cfg.data.get("p_full", 0.0))
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.quantile_levels, device=device)

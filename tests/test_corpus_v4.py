@@ -87,3 +87,13 @@ def test_batch_has_at_most_one_scale_per_group(root):
     data = WindowBatches(root, 16, 256, max_horizon=64, patch=16, groups=4)
     x, y, w = next(iter(data))
     assert len(set(w.tolist())) <= 4
+
+
+def test_full_history_windows_reach_the_context(root):
+    def spans(p_full):
+        data = WindowBatches(root, 64, 256, max_horizon=32, patch=16, p_decimate=0.0, p_full=p_full)
+        x, _, _ = next(iter(data))
+        return np.isfinite(x.numpy()).sum(1)
+    short, full = spans(0.0), spans(1.0)
+    assert (full == 256).mean() > (short == 256).mean()
+    assert (full == 256).mean() > 0.5
