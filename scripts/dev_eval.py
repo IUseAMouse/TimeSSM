@@ -40,10 +40,13 @@ def rate_factor(scale: float, cycle: float) -> int:
 
 
 @torch.no_grad()
-def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cycle: float = 0.0):
+def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cycle: float = 0.0,
+                  flip: bool = False, clip: bool = False):
     """Per dev subset: (name, quantiles [n, h, Q], targets [n, h], seasonal naive [n, h]).
     `cycle` > 0 forecasts from block means of the context, at about `cycle` steps per
-    season, each coarse quantile held over its k native steps."""
+    season, each coarse quantile held over its k native steps. `flip` averages the forecast
+    with the mirrored forecast of the negated context; `clip` sets the quantiles of a series
+    whose context is non-negative at 0 at least (after the flip average)."""
     device = next(model.parameters()).device
     manifest = json.loads((Path(root) / "manifest.json").read_text())
     for name, s in load_subsets(root, DEV_SUBSETS).items():
@@ -70,9 +73,16 @@ def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cy
                 nai.append(np.resize(c[-m:], h))
             L = max(map(len, ctx))
             pad = np.stack([np.pad(c, (L - len(c), 0), constant_values=np.nan) for c in ctx])
+            x = torch.from_numpy(pad).to(device)
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                out = model.forecast(torch.from_numpy(pad).to(device), hk, w * k)
-            fan = out["quantiles_denorm"].float().cpu().numpy()
+                fan = model.forecast(x, hk, w * k)["quantiles_denorm"].float()
+                if flip:
+                    fan = (fan - model.forecast(-x, hk, w * k)["quantiles_denorm"].float()
+                           .flip(-1)) / 2
+            fan = fan.cpu().numpy()
+            if clip:
+                nonneg = ~(np.nan_to_num(pad, nan=0.0) < 0).any(1)
+                fan = np.where(nonneg[:, None, None], np.maximum(fan, 0), fan)
             ours.append(np.repeat(fan, k, axis=1)[:, :h])
             naive.append(np.stack(nai))
             targets.append(np.stack(tgt))
@@ -80,10 +90,10 @@ def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cy
 
 
 def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS,
-              cycle: float = 0.0) -> Dict[str, float]:
+              cycle: float = 0.0, flip: bool = False, clip: bool = False) -> Dict[str, float]:
     levels = np.array(model.quantile_levels)
     scores = {}
-    for name, q, y, sn in dev_forecasts(model, root, batch, origins, cycle):
+    for name, q, y, sn in dev_forecasts(model, root, batch, origins, cycle, flip, clip):
         base = wql(sn[..., None].repeat(len(levels), -1), y, levels)
         scores[name] = float(wql(q, y, levels) / max(base, 1e-9))
     scores["all"] = math.exp(np.mean([math.log(max(v, 1e-6)) for v in scores.values()]))
