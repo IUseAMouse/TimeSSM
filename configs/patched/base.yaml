@@ -18,6 +18,7 @@ model:
   dropout: 0.0
   robust_norm: false
   stats: false         # scale-free context statistics added to every token
+  patches: null        # extra patch sizes, e.g. [8, 32]; one drawn per step, chosen per series at inference
 
 run:
   name: null

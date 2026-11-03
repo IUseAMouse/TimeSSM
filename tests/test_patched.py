@@ -197,3 +197,53 @@ def test_stats_keep_scale_equivariance():
     a = m.forecast(x, 16)["quantiles_denorm"]
     b = m.forecast(3.0 * x, 16)["quantiles_denorm"]
     torch.testing.assert_close(3.0 * a, b, rtol=1e-3, atol=1e-3)
+
+
+def test_single_size_model_is_unchanged():
+    torch.manual_seed(0)
+    plain = small()
+    torch.manual_seed(0)
+    same = small(patches=[16])
+    assert plain.patches == same.patches == (16,) and same.input_length == 256
+    x = torch.randn(2, 200)
+    torch.testing.assert_close(plain.forecast(x, 20)["quantiles"], same.forecast(x, 20)["quantiles"])
+
+
+def test_multi_size_reads_the_same_number_of_tokens():
+    m = small(patches=[8, 32])
+    assert m.patches == (8, 16, 32) and m.max_tokens == 16 and m.input_length == 512
+    mask = torch.ones(4, 512, dtype=torch.bool)
+    mask[0, :512 - 100] = False      # 100 steps: 8 x 16 tokens cover them
+    mask[1, :512 - 200] = False      # 200 steps: 16 x 16
+    mask[2, :512 - 300] = False      # 300 steps: 32 x 16
+    mask[3] = False                  # nothing observed: nothing to cover
+    assert m.choose_patch(mask).tolist() == [8, 16, 32, 8]
+
+
+def test_mixed_sizes_in_a_batch_match_one_item_at_a_time():
+    torch.manual_seed(0)
+    m = small(patches=[8, 32])
+    x = torch.randn(3, 512)
+    x[0, :400] = float("nan")
+    x[1, :300] = float("nan")
+    out = m.forecast(x, 24)["quantiles_denorm"]
+    for i in range(3):
+        torch.testing.assert_close(out[i:i + 1], m.forecast(x[i:i + 1], 24)["quantiles_denorm"],
+                                   rtol=1e-4, atol=1e-4)
+    assert torch.isfinite(out).all() and out.shape == (3, 24, 9)
+
+
+def test_every_size_keeps_scale_equivariance_and_its_gradients():
+    torch.manual_seed(0)
+    m = small(patches=[8, 32])
+    x = torch.randn(2, 512).abs() + 1
+    for p in m.patches:
+        a = m.forecast(x, 16, patch=p)["quantiles_denorm"]
+        b = m.forecast(5.0 * x, 16, patch=p)["quantiles_denorm"]
+        torch.testing.assert_close(5.0 * a, b, rtol=1e-3, atol=1e-3)
+    m.train()
+    xp = m._pad(x, 8)
+    mask = torch.isfinite(xp)
+    z, _, _ = m.normalize(xp, mask)
+    m.forward_normalized(z, mask, 16, 1.0, None, 8).sum().backward()
+    assert m.embed_size["8"].weight.grad is not None and m.embed.weight.grad is None

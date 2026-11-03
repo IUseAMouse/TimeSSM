@@ -13,6 +13,7 @@ import math
 import time
 from pathlib import Path
 
+import numpy as np
 import torch
 from omegaconf import OmegaConf
 from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
@@ -93,8 +94,10 @@ def main():
         sched.load_state_dict(state["sched"])
         start = state["step"]
     names = train_subsets(cfg.data.root) + (list(DEV_SUBSETS) if cfg.data.include_dev else [])
-    data = WindowBatches(cfg.data.root, t.batch, cfg.model.seq_length, max_horizon=t.max_horizon,
-                         patch=cfg.model.patch, p_decimate=cfg.data.p_decimate,
+    # Windows at the longest context the model reads; each step cuts them to the
+    # `max_tokens` tokens of the patch size drawn for it.
+    data = WindowBatches(cfg.data.root, t.batch, model.input_length, max_horizon=t.max_horizon,
+                         patch=model.patches[0], p_decimate=cfg.data.p_decimate,
                          p_flip=cfg.data.p_flip, p_synth=cfg.data.p_synth,
                          temperature=cfg.data.temperature, groups=cfg.data.groups,
                          seed=cfg.run.seed + start, names=names)
@@ -106,19 +109,21 @@ def main():
         ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(t.ema))
     log = (run / "log.jsonl").open("a")
     t0, running, seen = time.time(), 0.0, 0
+    draw = np.random.default_rng(cfg.run.seed + 7919 * start)
     model.train()
     for step, (x, y, w) in enumerate(loader, start):
         if step >= t.steps:
             break
         x, y, w = (v.to(device, non_blocking=True) for v in (x, y, w))
-        x = model._pad(x)
+        patch = model.patches[draw.integers(len(model.patches))]
+        x = model._pad(x, patch)
         mask, ymask = torch.isfinite(x), torch.isfinite(y)
         z, mean, std = model.normalize(x, mask)
         target = torch.asinh((torch.where(ymask, y, torch.zeros_like(y)).double() - mean) / std)
         target = target.float().nan_to_num()
         stats = model.context_stats(x, mask, mean, std, z) if model.stats is not None else None
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            q = model.forward_normalized(z, mask, y.shape[1], w, stats)
+            q = model.forward_normalized(z, mask, y.shape[1], w, stats, patch)
         if t.loss == "asinh":
             loss = pinball(q.float(), target, ymask, levels)
         else:
