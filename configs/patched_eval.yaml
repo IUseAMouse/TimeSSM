@@ -1,0 +1,28 @@
+# @package _global_
+# GIFT-Eval of a PatchedSSM run through the TimeJEPA harness. The model keys
+# are those of configs/patched/base.yaml; override them with the run's config.
+#
+#   EVAL_CONFIG=patched_eval scripts/eval_ssm.sh /workspace/runs/base0/base0.ckpt \
+#       model.name=patched_base0 +freq_delta=true
+defaults:
+  - ssm_mini_v3
+  - _self_
+
+model:
+  name: "timessm_patched"
+  builder: "timessm.patched:build_from_config"
+  seq_length: 4096
+  prediction_length: 256
+  patch: 16
+  d_model: 320
+  n_layers: 4
+  d_state: 32
+  expand: 2
+  n_heads: 8
+  attention: true
+  dropout: 0.0
+  robust_norm: false
+  stats: false
+
+wandb:
+  tags: ["timessm", "patched", "eval"]
