@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .block import GatedSSMBlock
+from .delta import DeltaBlock
 
 Scale = Union[float, torch.Tensor]
 QUANTILES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -86,6 +87,7 @@ class PatchedSSM(nn.Module):
         patches: Optional[Sequence[int]] = None,
         causal: bool = False,
         loops: int = 1,
+        mixers: Optional[Sequence[str]] = None,
         name: str = "timessm_patched",
     ):
         super().__init__()
@@ -114,12 +116,18 @@ class PatchedSSM(nn.Module):
         self.embed = nn.Linear(2 * patch, d_model)
         self.embed_mix = nn.Sequential(nn.GELU(), nn.Linear(d_model, d_model))
         self.future_token = nn.Parameter(torch.randn(d_model) * 0.02)
+        # Token mixer of each layer before its attention: "ssm" (S4D) or "delta" (delta rule).
+        self.mixers = tuple(mixers or ("ssm",) * n_layers)
+        if len(self.mixers) != n_layers or set(self.mixers) - {"ssm", "delta"}:
+            raise ValueError(f"mixers must list 'ssm' or 'delta' for each of {n_layers} layers")
         self.ssm = nn.ModuleList([
             GatedSSMBlock(d_model, d_state=d_state, expand=expand, dropout=dropout,
-                          dt_min=1e-3 * patch, dt_max=1e-1 * patch)
-            for _ in range(n_layers)])
+                          dt_min=1e-3 * patch, dt_max=1e-1 * patch) if kind == "ssm"
+            else DeltaBlock(d_model, n_heads=max(1, n_heads // 2), dropout=dropout)
+            for kind in self.mixers])
         for block in self.ssm:
-            block.ssm.batched_kernels = True
+            if isinstance(block, GatedSSMBlock):
+                block.ssm.batched_kernels = True
         self.att = nn.ModuleList([
             AttentionBlock(d_model, n_heads, dropout=dropout) if attention else nn.Identity()
             for _ in range(n_layers)])
@@ -320,4 +328,5 @@ def build_from_config(cfg) -> PatchedSSM:
                       expand=m.expand, n_heads=m.n_heads, attention=m.attention,
                       dropout=m.dropout, robust_norm=m.get("robust_norm", False),
                       stats=m.get("stats", False), patches=m.get("patches", None),
-                      causal=m.get("causal", False), loops=m.get("loops", 1), name=m.name)
+                      causal=m.get("causal", False), loops=m.get("loops", 1),
+                      mixers=m.get("mixers", None), name=m.name)

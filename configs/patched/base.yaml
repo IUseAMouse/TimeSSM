@@ -20,6 +20,7 @@ model:
   stats: false         # scale-free context statistics added to every token
   causal: false        # causal attention and frame, every context token forecasts its next patch
   loops: 1             # passes through the block stack, weights shared
+  mixers: null         # per layer "ssm" or "delta", null = all ssm
   patches: null        # extra patch sizes, e.g. [8, 32]; one drawn per step, chosen per series at inference
 
 run:

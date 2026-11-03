@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pytest
 import torch
+import torch.nn.functional as F
 
 from timessm.corpus import block_mean, family, rate_class, subset_scale
 from timessm.patched import PatchedSSM, rotate
@@ -315,3 +316,29 @@ def test_loops_share_weights_and_deepen():
     assert not torch.allclose(a, b)
     b.sum().backward()
     assert all(p.grad is not None for p in two.ssm.parameters() if p.requires_grad)
+
+
+def test_delta_rule_chunks_match_the_recurrence():
+    from timessm.delta import delta_rule
+    torch.manual_seed(0)
+    B, H, L, dk, dv = 2, 3, 37, 8, 5
+    q, k = torch.randn(B, H, L, dk), F.normalize(torch.randn(B, H, L, dk), dim=-1)
+    v, beta = torch.randn(B, H, L, dv), torch.rand(B, H, L)
+    s, ref = torch.zeros(B, H, dk, dv), []
+    for t in range(L):
+        kt, vt = k[:, :, t], v[:, :, t]
+        old = (s * kt[..., None]).sum(-2)
+        s = s + beta[:, :, t, None, None] * kt[..., None] * (vt - old)[..., None, :]
+        ref.append((s * q[:, :, t, :, None]).sum(-2))
+    torch.testing.assert_close(delta_rule(q, k, v, beta, chunk=8), torch.stack(ref, 2),
+                               atol=1e-5, rtol=1e-4)
+
+
+def test_delta_mixers_forecast_and_stay_equivariant():
+    m = small(mixers=["delta", "ssm"])
+    x = torch.randn(3, 200)
+    a = m.forecast(x, 40)["quantiles_denorm"]
+    b = m.forecast(5 * x + 2, 40)["quantiles_denorm"]
+    torch.testing.assert_close(b, 5 * a + 2, atol=1e-3, rtol=1e-3)
+    with pytest.raises(ValueError):
+        small(mixers=["delta"])
