@@ -210,6 +210,25 @@ Une seule fenêtre par série, en fin d'historique, donnait un écart de graine 
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
 sépare que des effets d'environ 5 % ; les hypothèses suivantes tournent avec deux graines.
 
+### Où se perd la perte : régularité des séries
+
+`scripts/dev_sharpness.py` trie les coupes du dev par l'erreur du seasonal naive rapportée au
+niveau de la cible, en trois tiers. Perte sur celle du naive (moyenne géométrique par coupe),
+couverture de l'intervalle 10-90 %, largeur de l'intervalle sur l'erreur absolue de la médiane :
+
+| Run | tiers régulier | tiers moyen | tiers bruité | couverture (régulier / moyen / bruité) |
+|---|---|---|---|---|
+| base 0 | 0.731 | 0.661 | 0.553 | 0.81 / 0.73 / 0.78 |
+| `p_full` 0.5, graine 0 | 0.746 | 0.682 | 0.553 | 0.79 / 0.71 / 0.78 |
+| patch 8 | 0.693 | 0.622 | 0.555 | 0.82 / 0.74 / 0.79 |
+
+Sur les séries régulières, le modèle ne bat le naive que de 27 %, contre 45 % sur les bruitées.
+La couverture y est nominale : l'intervalle n'est pas trop large, c'est la médiane qui manque de
+précision. Le patch 8 gagne exactement là (−5 % sur les deux premiers tiers, rien sur le
+bruité) : la résolution et le rappel exact d'un cycle passé sont le levier. D'où le mélangeur à
+règle delta (mémoire adressée par le contenu, Yang et al. 2024 [10]), en file contre `p_full`
+sur v6. Le tiers moyen est sous-couvert (0.71-0.74 pour 0.80).
+
 ## Écartés pour l'instant
 
 - **SAM** [16] : deux passes par pas, trop cher tant que le reste n'est pas exploré.
