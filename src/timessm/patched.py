@@ -48,14 +48,16 @@ class AttentionBlock(nn.Module):
         inv_freq = 1000.0 ** (-torch.arange(0, self.d_head // 2).float() / (self.d_head // 2))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-    def forward(self, x: torch.Tensor, pos: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, pos: torch.Tensor, valid: torch.Tensor,
+                allowed: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """`allowed` [B, N, N] (query, key) replaces the key mask `valid` [B, N] when given."""
         B, N, D = x.shape
         q, k, v = self.qkv(self.norm(x)).reshape(B, N, 3, self.n_heads, self.d_head) \
             .permute(2, 0, 3, 1, 4).unbind(0)
         q, k = rotate(q, pos, self.inv_freq), rotate(k, pos, self.inv_freq)
         drop = self.dropout if self.training else 0.0
-        o = F.scaled_dot_product_attention(q, k, v, attn_mask=valid[:, None, None, :],
-                                           dropout_p=drop)
+        mask = valid[:, None, None, :] if allowed is None else allowed[:, None]
+        o = F.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=drop)
         x = x + self.out(o.transpose(1, 2).reshape(B, N, D))
         return x + self.ff(self.ff_norm(x))
 
@@ -82,6 +84,7 @@ class PatchedSSM(nn.Module):
         robust_norm: bool = False,
         stats: bool = False,
         patches: Optional[Sequence[int]] = None,
+        causal: bool = False,
         name: str = "timessm_patched",
     ):
         super().__init__()
@@ -94,6 +97,11 @@ class PatchedSSM(nn.Module):
         self.max_tokens = self.input_length // self.patch
         self.input_length = self.max_tokens * self.patches[-1]
         self.robust_norm = bool(robust_norm)
+        # Causal: a context token sees only the tokens up to itself, in a frame normalized
+        # by the statistics of the steps up to its end, and forecasts the next patch.
+        self.causal = bool(causal)
+        if self.causal and self.robust_norm:
+            raise ValueError("the causal frame uses running mean and std, not median and MAD")
         self.delta_range = tuple(float(x) for x in delta_range)
         self.expects_frequency = True
         self.predictor = SimpleNamespace(w_film=None)
@@ -165,11 +173,13 @@ class PatchedSSM(nn.Module):
 
     def forward_normalized(self, x: torch.Tensor, mask: torch.Tensor, n: int,
                            w: Scale = 1.0, stats: Optional[torch.Tensor] = None,
-                           patch: Optional[int] = None) -> torch.Tensor:
+                           patch: Optional[int] = None, return_context: bool = False):
         """x, mask [B, L], L a multiple of the patch -> quantiles [B, n, Q], asinh frame.
         `stats` [B, N_STATS] from context_stats, required when the model was built with them.
         A token spans `patch` steps: Delta and the rotary positions scale with patch / self.patch,
-        the same knob as w."""
+        the same knob as w. `return_context` (causal models) also returns the next-patch
+        quantiles of every context token, [B, n_past, patch, Q], token j forecasting patch j + 1
+        in the frame of token j."""
         B, L = x.shape
         p = int(patch or self.patch)
         n_past, n_future = L // p, -(-n // p)
@@ -180,22 +190,35 @@ class PatchedSSM(nn.Module):
         h = h + self.embed_mix(h)
         h = torch.cat([h, self.future_token.expand(B, n_future, -1)], dim=1)
         if self.stats is not None:
-            h = h + self.stats(stats.to(h.dtype))[:, None]
+            # Computed over the whole context: in a causal model only the future tokens get it.
+            add = self.stats(stats.to(h.dtype))[:, None]
+            if self.causal:
+                add = add * (torch.arange(h.shape[1], device=h.device) >= n_past)[None, :, None]
+            h = h + add
         N = n_past + n_future
         valid = torch.cat([observed.any(-1), torch.ones(B, n_future, dtype=torch.bool,
                                                         device=x.device)], dim=1)
+        allowed = None
+        if self.causal:
+            i = torch.arange(N, device=x.device)
+            sees = (i[None, :] <= i[:, None]) | (i[:, None] >= n_past)   # (query, key)
+            allowed = (sees[None] & valid[:, None, :]) | torch.eye(N, dtype=torch.bool,
+                                                                   device=x.device)[None]
         if p != self.patch:
             w = w * (p / self.patch)
         scale = torch.as_tensor(w, dtype=h.dtype, device=h.device).reshape(-1, 1)
         pos = torch.arange(N, device=h.device, dtype=h.dtype)[None] * scale
         for ssm, att in zip(self.ssm, self.att):
             h = ssm(h, delta_scale=w)
-            h = att(h, pos, valid) if isinstance(att, AttentionBlock) else h
-        h = self.final_norm(h[:, n_past:])
+            h = att(h, pos, valid, allowed) if isinstance(att, AttentionBlock) else h
+        h = self.final_norm(h if return_context else h[:, n_past:])
         if p == self.patch:
             raw = self.head(h)
         else:
             raw = self.head_size[str(p)](self.head[:-1](h))
+        if return_context:
+            future = self._fan(raw[:, n_past:].reshape(B, n_future * p, -1)[:, :n])
+            return future, self._fan(raw[:, :n_past].reshape(B, n_past, p, -1))
         return self._fan(raw.reshape(B, n_future * p, -1)[:, :n])
 
     def normalize(self, x: torch.Tensor, mask: torch.Tensor):
@@ -212,6 +235,25 @@ class PatchedSSM(nn.Module):
             scale = torch.where(mad > 0, 1.4826 * mad, scale)
         scale = scale + 1e-5 + 1e-6 * center.abs()
         return (torch.asinh((x0 - center) / scale) * mask).float(), center, scale
+
+    def normalize_causal(self, x: torch.Tensor, mask: torch.Tensor, patch: int):
+        """x, mask [B, L], L a multiple of `patch` -> (asinh frame [B, L], center and scale
+        per token [B, n_tokens]). Token j and its steps use the mean and std of the observed
+        steps up to the end of token j; at the last token they are those of `normalize`."""
+        B, L = x.shape
+        x0 = torch.where(mask, x, torch.zeros_like(x)).double().reshape(B, L // patch, patch)
+        m = mask.double().reshape(B, L // patch, patch)
+        count = m.sum(-1).cumsum(1).clamp_min(1)
+        mean = x0.sum(-1).cumsum(1) / count
+        # Sum of squared deviations, accumulated with the shift of each token: E[x^2] - mean^2
+        # loses everything to cancellation when the level dwarfs the spread.
+        shift = mean[:, -1:]
+        sq = ((x0 - shift[..., None]) ** 2 * m).sum(-1).cumsum(1) / count
+        var = (sq - (mean - shift) ** 2).clamp_min(0)
+        center, scale = mean, var.sqrt()
+        scale = scale + 1e-5 + 1e-6 * center.abs()
+        z = torch.asinh((x0 - center[..., None]) / scale[..., None]) * m
+        return z.reshape(B, L).float(), center, scale
 
     def _pad(self, x: torch.Tensor, patch: Optional[int] = None) -> torch.Tensor:
         p = int(patch or self.patch)
@@ -249,7 +291,11 @@ class PatchedSSM(nn.Module):
             patch = int(sizes[0])
         x = self._pad(context, patch)
         mask = torch.isfinite(x)
-        z, mean, std = self.normalize(x, mask)
+        if self.causal:
+            z, center, scale = self.normalize_causal(x, mask, int(patch or self.patch))
+            mean, std = center[:, -1:], scale[:, -1:]
+        else:
+            z, mean, std = self.normalize(x, mask)
         stats = self.context_stats(x, mask, mean, std, z) if self.stats is not None else None
         q = self.forward_normalized(z, mask, n, w, stats, patch)
         raw = (torch.sinh(q.clamp(-15.0, 15.0).double()) * std[:, None] + mean[:, None]).float()
@@ -269,4 +315,5 @@ def build_from_config(cfg) -> PatchedSSM:
                       patch=m.patch, d_model=m.d_model, n_layers=m.n_layers, d_state=m.d_state,
                       expand=m.expand, n_heads=m.n_heads, attention=m.attention,
                       dropout=m.dropout, robust_norm=m.get("robust_norm", False),
-                      stats=m.get("stats", False), patches=m.get("patches", None), name=m.name)
+                      stats=m.get("stats", False), patches=m.get("patches", None),
+                      causal=m.get("causal", False), name=m.name)

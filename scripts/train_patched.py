@@ -31,6 +31,20 @@ def pinball(q: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, levels: torch.
             / len(levels))
 
 
+def next_patch_targets(x, mask, center, scale, patch: int, skip: int):
+    """Patch j + 1 in the frame of token j, for j < n - 1: targets and mask [B, (n-1) * patch].
+    Tokens before `skip`, or with nothing observed up to them, are not scored."""
+    B, L = x.shape
+    n = L // patch
+    nxt = torch.where(mask, x, torch.zeros_like(x)).double().reshape(B, n, patch)[:, 1:]
+    c, s = center[:, :-1, None], scale[:, :-1, None]
+    target = torch.asinh((nxt - c) / s).float()
+    seen = mask.reshape(B, n, patch).any(-1).cumsum(1)[:, :-1] > 0
+    keep = seen & (torch.arange(n - 1, device=x.device) >= skip)[None]
+    m = mask.reshape(B, n, patch)[:, 1:] & keep[..., None]
+    return target.nan_to_num().flatten(1), m.flatten(1)
+
+
 def naive_loss(x: torch.Tensor, y: torch.Tensor, ymask: torch.Tensor, w: torch.Tensor,
                levels: torch.Tensor):
     """Pinball of the seasonal naive per item, raw units, its forecast copied at every level."""
@@ -79,6 +93,9 @@ def main():
     OmegaConf.save(cfg, run / "config.yaml")
     device = torch.device("cuda")
     model = build_from_config(cfg).to(device)
+    if cfg.training.get("context_loss", 0.0) > 0 and not model.causal:
+        raise SystemExit("training.context_loss needs model.causal: the global frame and the "
+                         "attention would show each context token its own target")
     print(f"{cfg.run.name}: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M", flush=True)
     decay = [p for p in model.parameters() if p.dim() >= 2]
     other = [p for p in model.parameters() if p.dim() < 2]
@@ -119,16 +136,26 @@ def main():
         patch = model.patches[draw.integers(len(model.patches))]
         x = model._pad(x, patch)
         mask, ymask = torch.isfinite(x), torch.isfinite(y)
-        z, mean, std = model.normalize(x, mask)
+        if model.causal:
+            z, center, scale = model.normalize_causal(x, mask, patch)
+            mean, std = center[:, -1:], scale[:, -1:]
+        else:
+            z, mean, std = model.normalize(x, mask)
         target = torch.asinh((torch.where(ymask, y, torch.zeros_like(y)).double() - mean) / std)
         target = target.float().nan_to_num()
         stats = model.context_stats(x, mask, mean, std, z) if model.stats is not None else None
+        lam = t.get("context_loss", 0.0)
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            q = model.forward_normalized(z, mask, y.shape[1], w, stats, patch)
+            out = model.forward_normalized(z, mask, y.shape[1], w, stats, patch,
+                                           return_context=lam > 0)
+        q, qc = out if lam > 0 else (out, None)
         if t.loss == "asinh":
             loss = pinball(q.float(), target, ymask, levels)
         else:
             loss = score_loss(q, mean, std, y, ymask, x, w, levels, t.loss)
+        if qc is not None:
+            ct, cm = next_patch_targets(x, mask, center, scale, patch, t.get("context_skip", 2))
+            loss = loss + lam * pinball(qc[:, :-1].float().flatten(1, 2), ct, cm, levels)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         grad = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)

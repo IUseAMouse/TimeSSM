@@ -18,6 +18,7 @@ model:
   dropout: 0.0
   robust_norm: false
   stats: false         # scale-free context statistics added to every token
+  causal: false        # causal attention and frame, every context token forecasts its next patch
   patches: null        # extra patch sizes, e.g. [8, 32]; one drawn per step, chosen per series at inference
 
 run:
@@ -36,6 +37,8 @@ training:
   max_horizon: 720
   loss: "asinh"        # asinh, ratio or logratio
   ema: 0.999           # 0 = off
+  context_loss: 0.0    # weight of the next-patch loss of the context tokens (causal models)
+  context_skip: 2      # first tokens not scored, their running statistics are too noisy
 
 data:
   root: "/workspace/data/v5"

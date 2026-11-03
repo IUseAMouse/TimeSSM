@@ -247,3 +247,59 @@ def test_every_size_keeps_scale_equivariance_and_its_gradients():
     z, _, _ = m.normalize(xp, mask)
     m.forward_normalized(z, mask, 16, 1.0, None, 8).sum().backward()
     assert m.embed_size["8"].weight.grad is not None and m.embed.weight.grad is None
+
+
+def test_causal_frame_ends_on_the_global_frame():
+    m = small(causal=True)
+    x = torch.randn(3, 160) * 5 + 100
+    x[0, :50] = float("nan")
+    mask = torch.isfinite(x)
+    z, c, s = m.normalize_causal(x, mask, 16)
+    zg, cg, sg = PatchedSSM.normalize(small(), x, mask)
+    torch.testing.assert_close(c[:, -1:], cg)
+    torch.testing.assert_close(s[:, -1:], sg)
+    torch.testing.assert_close(z[:, -16:], zg[:, -16:], rtol=1e-5, atol=1e-5)
+
+
+def test_causal_context_outputs_ignore_the_future():
+    torch.manual_seed(0)
+    m = small(causal=True, stats=True)
+    torch.nn.init.normal_(m.stats[-1].weight, std=0.5)
+    x = torch.randn(2, 256)
+    x[1, :40] = float("nan")
+    cut = 7 * 16                      # tokens 0..6 must not see the steps from here on
+    y = x.clone()
+    y[:, cut:] = torch.randn(2, 256 - cut) * 50 + 30
+    outs = []
+    for v in (x, y):
+        mask = torch.isfinite(v)
+        z, c, s = m.normalize_causal(v, mask, 16)
+        st = m.context_stats(v, mask, c[:, -1:], s[:, -1:], z)
+        _, ctx = m.forward_normalized(z, mask, 16, 1.0, st, return_context=True)
+        outs.append((z[:, :cut], c[:, :7], ctx[:, :7]))
+    for a, b in zip(*outs):
+        torch.testing.assert_close(a, b)
+
+
+def test_next_patch_targets_use_the_frame_of_the_previous_token():
+    sys_path = __import__("sys").path
+    from pathlib import Path
+    sys_path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from train_patched import next_patch_targets
+    m = small(causal=True)
+    x = torch.randn(2, 64) * 3 + 10
+    mask = torch.isfinite(x)
+    _, c, s = m.normalize_causal(x, mask, 16)
+    t, keep = next_patch_targets(x, mask, c, s, 16, skip=1)
+    assert t.shape == keep.shape == (2, 48)
+    assert not keep[:, :16].any() and keep[:, 16:].all()      # token 0 skipped
+    expect = torch.asinh((x[:, 32:48].double() - c[:, 1:2]) / s[:, 1:2]).float()
+    torch.testing.assert_close(t[:, 16:32], expect)
+
+
+def test_causal_model_without_context_loss_still_forecasts():
+    m = small(causal=True, patches=[8, 32])
+    x = torch.randn(3, 512)
+    x[0, :450] = float("nan")
+    out = m.forecast(x, 40)["quantiles_denorm"]
+    assert out.shape == (3, 40, 9) and torch.isfinite(out).all()
