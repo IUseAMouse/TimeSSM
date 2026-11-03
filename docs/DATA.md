@@ -50,4 +50,7 @@ series, the whole `weather` subset, and `wdi_A`, which duplicates
         --drop overlap_verified_5.json <roots> --drop-subset weather wdi_A
 
 The first pass scans at most 20 000 series per subset, so a subset larger than
-that is cleared on a sample.
+that is cleared on a sample. v6 itself was then audited without that cap
+(`--max-series 100000000`, all 196 subsets): 101 subsets share some hashed
+windows with GIFT-Eval, and the verify pass finds no series with 20 aligned
+windows in any of them.
