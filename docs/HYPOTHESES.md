@@ -207,6 +207,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | historique complet `p_full` 0.5, graine 1 | 0.6195 | −0.017 sur la base de même graine ; moyenne 0.6152 contre 0.6261 (−1.7 %) : retenu |
 | perte de contexte (10), poids 1, `p_full` 0.5, graine 0 | 0.5678 | avec l'attention causale et le repère cumulé qu'elle exige ; −0.043 sur `p_full` de même graine |
 | perte de contexte (10), poids 1, `p_full` 0.5, graine 1 | 0.5731 | −0.046 ; moyenne 0.5704 contre 0.6152 (−7.3 %), écart dès 5k pas : retenu |
+| corpus v6, `p_full` 0.5, graine 0 | 0.6222 | +0.011 sur v5 de même graine, dans le bruit ; graine 1 en file |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
