@@ -197,6 +197,9 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | perte log-ratio (1b) | 0.6279 | entre les deux graines de base : non concluant |
 | base 0, règle fixe 24 points par cycle (6a) | 0.6377 | pire sur alibaba (0.38 → 0.55), kdd2022, LOS_LOOP ; rejeté |
 | base 1, règle fixe 24 points par cycle (6a) | 0.6616 | idem |
+| normalisation médiane/MAD (2a) | 0.6582 | pire, tourism_yearly 1.42 ; rejeté |
+| patch 8 (4a) | 0.5932 | −5 % sur la moyenne des bases, surtout tourism_yearly, fred_md, cif ; deuxième graine en file |
+| sans attention, 6 blocs SSM | 0.6178 | au niveau de la base |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
