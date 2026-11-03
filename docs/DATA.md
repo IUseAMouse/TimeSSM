@@ -29,6 +29,25 @@ Adapted from Statistics Canada, tables 16-10-0047-01, 20-10-0008-01 and
 this product. Source: Eurostat; modified data, Eurostat is not responsible for
 this re-use.
 
-The M4 competition data behind GIFT-Eval are anonymized, so an overlap with
-macroeconomic statistics such as Eurostat or the WDI cannot be ruled out series
-by series.
+## Overlap with GIFT-Eval, checked by value
+
+The M4 data behind GIFT-Eval are anonymized, so names cannot rule out a shared
+series. `scripts/audit_overlap.py` hashes every window of 8 consecutive growth
+ratios, rounded to 1e-3, which a change of units leaves intact. A first pass
+flags corpus series sharing 3 windows with a GIFT-Eval dataset; the `--verify`
+pass keeps those whose shared windows sit at one offset between the two series,
+which a shared stretch of history produces and chance does not.
+
+At 20 aligned windows every hit is plausible: the EIA series (2 870 annual,
+1 030 monthly, 235 quarterly, 4 weekly) found in M4, FRED-MD, Eurostat, the WDI,
+M1, M3 and tourism series found in M4, and the `weather` stations found in
+`temperature_rain_with_missing`. At 5 a few coincidences appear (CMIP6 or PVDAQ
+against M4). Corpus v6 leaves out every series flagged at 5, about 5 000
+series, the whole `weather` subset, and `wdi_A`, which duplicates
+`worldbank_wdi_a`:
+
+    python scripts/merge_corpus.py --out /workspace/data/v6 \
+        --drop overlap_verified_5.json <roots> --drop-subset weather wdi_A
+
+The first pass scans at most 20 000 series per subset, so a subset larger than
+that is cleared on a sample.
