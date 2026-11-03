@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 
 from timessm.corpus import block_mean, family, rate_class, subset_scale
-from timessm.patched import PatchedSSM, rotate
+from timessm.patched import QUANTILES, QUANTILES_21, PatchedSSM, rotate
 from timessm.ssm import S4DLayer
 
 
@@ -342,3 +342,18 @@ def test_delta_mixers_forecast_and_stay_equivariant():
     torch.testing.assert_close(b, 5 * a + 2, atol=1e-3, rtol=1e-3)
     with pytest.raises(ValueError):
         small(mixers=["delta"])
+
+
+def test_head_of_21_levels_returns_the_9():
+    assert len(QUANTILES_21) == 21 and set(QUANTILES) <= set(QUANTILES_21)
+    m = small(head_levels=QUANTILES_21, causal=True).eval()
+    x = torch.randn(2, 160)
+    out = m.forecast(x, 16)
+    assert out["quantiles_denorm"].shape[-1] == 9 and out["quantile_levels"] == QUANTILES
+    assert (out["quantiles_denorm"].diff(dim=-1) >= 0).all()
+    z, c, s = m.normalize_causal(x, torch.isfinite(x), m.patch)
+    full = m.forward_normalized(z, torch.isfinite(x), 16)
+    assert full.shape[-1] == 21
+    assert torch.allclose(full[..., m.out_index], out["quantiles"])
+    with pytest.raises(ValueError):
+        small(head_levels=(0.1, 0.5, 0.9))

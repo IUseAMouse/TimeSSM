@@ -122,7 +122,7 @@ def main():
                          p_mix=cfg.data.get("p_mix", 0.0))
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
-    levels = torch.tensor(model.quantile_levels, device=device)
+    levels = torch.tensor(model.levels, device=device)
     ema = None
     if t.ema > 0:
         ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(t.ema))

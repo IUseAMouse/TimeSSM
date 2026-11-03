@@ -21,6 +21,7 @@ model:
   causal: false        # causal attention and frame, every context token forecasts its next patch
   loops: 1             # passes through the block stack, weights shared
   mixers: null         # per layer "ssm" or "delta", null = all ssm
+  head_quantiles: 9    # levels the head learns, 9 or 21; forecast always returns the 9
   patches: null        # extra patch sizes, e.g. [8, 32]; one drawn per step, chosen per series at inference
 
 run:

@@ -24,6 +24,8 @@ from .delta import DeltaBlock
 
 Scale = Union[float, torch.Tensor]
 QUANTILES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+# 21 levels: the 9 above, the midpoints between them and 0.01, 0.05, 0.95, 0.99.
+QUANTILES_21 = (0.01, 0.05) + tuple(round(0.05 * i, 2) for i in range(2, 19)) + (0.95, 0.99)
 N_STATS = 5
 
 
@@ -81,6 +83,7 @@ class PatchedSSM(nn.Module):
         attention: bool = True,
         dropout: float = 0.0,
         quantile_levels: Sequence[float] = QUANTILES,
+        head_levels: Optional[Sequence[float]] = None,
         delta_range: Sequence[float] = (1.0 / 64.0, 8.0),
         robust_norm: bool = False,
         stats: bool = False,
@@ -112,7 +115,15 @@ class PatchedSSM(nn.Module):
         self.predictor = SimpleNamespace(w_film=None)
         # The harness sees raw steps: the model pads to whole patches itself.
         self.patching = SimpleNamespace(patch_size=1, stride=1)
+        # The head learns `head_levels`; forecast returns `quantile_levels`, a subset of them.
         self.quantile_levels = tuple(quantile_levels)
+        self.levels = tuple(head_levels or quantile_levels)
+        missing = [q for q in self.quantile_levels if q not in self.levels]
+        if missing or list(self.levels) != sorted(self.levels) \
+                or self.levels[len(self.levels) // 2] != 0.5:
+            raise ValueError("head_levels: sorted, median in the middle, holding "
+                             f"quantile_levels (missing {missing})")
+        self.out_index = [self.levels.index(q) for q in self.quantile_levels]
         self.embed = nn.Linear(2 * patch, d_model)
         self.embed_mix = nn.Sequential(nn.GELU(), nn.Linear(d_model, d_model))
         self.future_token = nn.Parameter(torch.randn(d_model) * 0.02)
@@ -133,7 +144,7 @@ class PatchedSSM(nn.Module):
             for _ in range(n_layers)])
         self.final_norm = nn.LayerNorm(d_model)
         self.head = nn.Sequential(nn.Linear(d_model, 2 * d_model), nn.GELU(),
-                                  nn.Linear(2 * d_model, patch * len(quantile_levels)))
+                                  nn.Linear(2 * d_model, patch * len(self.levels)))
         self.stats = None
         if stats:
             # Added to every token; the last layer starts at zero, so the model starts as
@@ -146,14 +157,14 @@ class PatchedSSM(nn.Module):
         # One embedding and one last head layer per extra size; `patch` keeps embed/head.
         extra = [q for q in self.patches if q != self.patch]
         self.embed_size = nn.ModuleDict({str(q): nn.Linear(2 * q, d_model) for q in extra})
-        self.head_size = nn.ModuleDict({str(q): nn.Linear(2 * d_model, q * len(quantile_levels))
+        self.head_size = nn.ModuleDict({str(q): nn.Linear(2 * d_model, q * len(self.levels))
                                         for q in extra})
         if extra:
             self.core_prefixes = self.core_prefixes + ("embed_size.", "head_size.")
 
     def _fan(self, raw: torch.Tensor) -> torch.Tensor:
         """Sorted quantiles: the median plus cumulated positive widths on each side."""
-        mid = len(self.quantile_levels) // 2
+        mid = len(self.levels) // 2
         median = raw[..., mid:mid + 1]
         lower = median - F.softplus(raw[..., :mid]).flip(-1).cumsum(-1).flip(-1)
         upper = median + F.softplus(raw[..., mid + 1:]).cumsum(-1)
@@ -310,6 +321,8 @@ class PatchedSSM(nn.Module):
             z, mean, std = self.normalize(x, mask)
         stats = self.context_stats(x, mask, mean, std, z) if self.stats is not None else None
         q = self.forward_normalized(z, mask, n, w, stats, patch)
+        if len(self.levels) != len(self.quantile_levels):
+            q = q[..., self.out_index]
         raw = (torch.sinh(q.clamp(-15.0, 15.0).double()) * std[:, None] + mean[:, None]).float()
         mid = len(self.quantile_levels) // 2
         return {"quantiles": q, "quantiles_denorm": raw, "quantile_levels": self.quantile_levels,
@@ -329,4 +342,6 @@ def build_from_config(cfg) -> PatchedSSM:
                       dropout=m.dropout, robust_norm=m.get("robust_norm", False),
                       stats=m.get("stats", False), patches=m.get("patches", None),
                       causal=m.get("causal", False), loops=m.get("loops", 1),
-                      mixers=m.get("mixers", None), name=m.name)
+                      mixers=m.get("mixers", None),
+                      head_levels=QUANTILES_21 if m.get("head_quantiles", 9) == 21 else None,
+                      name=m.name)
