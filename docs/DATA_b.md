@@ -24,3 +24,6 @@ datasets.
 | `cdc_nndss_W` | W | US CDC, NNDSS | Public domain | https://data.cdc.gov/d/x9gk-5huc | Cases by area and disease |
 | `wikipedia_projects_H` | H | Wikimedia Foundation | CC0-1.0 | https://wikitech.wikimedia.org/wiki/Analytics/AQS/Pageviews | Project totals, 2016 to 2025-09 |
 | `wikipedia_articles_W` | W | Wikimedia Foundation | CC0-1.0 | https://wikitech.wikimedia.org/wiki/Analytics/AQS/Pageviews | Daily article views summed by week; articles drawn from monthly top lists |
+| `eia930_H` | H | US Energy Information Administration | Public domain | https://www.eia.gov/electricity/gridmonitor/ | EIA-930 bulk file EBA: demand, forecast, generation by fuel and interchange of every balancing authority, UTC series |
+| `google_power_5T` | 5T | Google | CC-BY-4.0 | https://github.com/google/cluster-data/blob/master/PowerData2019.md | Measured power utilization of the 57 power domains; points flagged as bad measurements removed |
+| `azure_functions_2021` | 1T | Microsoft Azure | CC-BY-4.0 | https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md | Invocations per minute of each function, counted by end minute; functions with fewer than 200 invocations left out |

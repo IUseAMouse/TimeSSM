@@ -521,8 +521,83 @@ def bosch():
          "https://github.com/boschresearch/CNC_Machining")
 
 
+def eia930():
+    """EIA-930 hourly grid monitor: demand, forecast, generation by fuel and interchange of
+    every balancing authority, UTC series only."""
+    if done("eia930_H"):
+        return
+    z = zipfile.ZipFile(cached("https://www.eia.gov/opendata/bulk/EBA.zip"))
+    rows = []
+    with z.open(z.namelist()[0]) as f:
+        for line in f:
+            item = json.loads(line)
+            data = item.get("data")
+            if item.get("f") != "H" or not data:
+                continue
+            # Times read "20150701T05Z" in older files, "20150701T05" in newer ones, UTC both.
+            stamps = [str(d).rstrip("Z") for d, _ in data]
+            hours = pd.to_datetime(stamps, format="%Y%m%dT%H").asi8 // 3_600_000_000_000
+            x = np.full(hours.max() - hours.min() + 1, np.nan, dtype=np.float32)
+            # Values come as strings in the current files, numbers in older ones.
+            values = pd.to_numeric(pd.Series([v for _, v in data]), errors="coerce")
+            values = values.to_numpy(np.float32)
+            x[hours - hours.min()] = values
+            rows.append(x)
+    emit("eia930_H", rows, "H", "energy", "Public domain (US EIA)",
+         "https://www.eia.gov/electricity/gridmonitor/")
+
+
+def google_power():
+    """Measured power of the 57 power domains of Google's 2019 cluster trace, 5 minutes,
+    points flagged as bad measurements removed."""
+    if done("google_power_5T"):
+        return
+    base = "https://storage.googleapis.com/powerdata_2019/"
+    listing = json.loads(get("https://storage.googleapis.com/storage/v1/b/powerdata_2019/o"))
+    rows = []
+    for item in listing["items"]:
+        name = item["name"]
+        if not name.startswith("cell"):
+            continue
+        df = pd.read_csv(cached(base + name, f"powerdata_2019/{name}"))
+        df = df[~df.bad_measurement_data.astype(str).str.lower().eq("true")]
+        step = (df.time.to_numpy(np.int64) - df.time.min()) // 300_000_000
+        x = np.full(step.max() + 1, np.nan, dtype=np.float32)
+        x[step] = df.measured_power_util.to_numpy(np.float32)
+        rows.append(x)
+    emit("google_power_5T", rows, "5T", "energy", "CC-BY-4.0",
+         "https://github.com/google/cluster-data/blob/master/PowerData2019.md")
+
+
+def azure_functions_2021():
+    """Invocations per minute of each function of the 2021 trace, counted by end minute,
+    functions with fewer than 200 invocations in the two weeks left out."""
+    if done("azure_functions_2021"):
+        return
+    import subprocess
+
+    archive = cached("https://github.com/Azure/AzurePublicDataset/raw/master/data/"
+                     "AzureFunctionsInvocationTraceForTwoWeeksJan2021.rar")
+    folder = RAW / "azure_functions_2021"
+    if not any(p.stat().st_size for p in folder.rglob("*.txt")):
+        # RAR5 with a large dictionary: needs unrar (libarchive and the free 7-Zip refuse it).
+        folder.mkdir(exist_ok=True)
+        subprocess.run(["unrar", "x", "-o+", str(archive), f"{folder}/"], check=True,
+                       stdout=subprocess.DEVNULL)
+    df = pd.concat(pd.read_csv(p) for p in folder.rglob("*.txt") if p.stat().st_size)
+    minute = (df.end_timestamp // 60).astype(np.int64)
+    span = int(minute.max()) + 1
+    rows = []
+    for _, m in minute.groupby([df.app, df.func]):
+        if len(m) >= 200:
+            rows.append(np.bincount(m.to_numpy(), minlength=span).astype(np.float32))
+    emit("azure_functions_2021", rows, "T", "Web/CloudOps", "CC-BY-4.0",
+         "https://github.com/Azure/AzurePublicDataset/blob/master/AzureFunctionsInvocationTrace2021.md")
+
+
 FETCHERS = {f.__name__: f for f in (epa, wind, pvdaq, eia, wdi, cdc, wikipedia, webtris, cesnet,
-                                    darck, rae, n2o, nsw, bosch)}
+                                    darck, rae, n2o, nsw, bosch, eia930, google_power,
+                                    azure_functions_2021)}
 
 
 def main():
