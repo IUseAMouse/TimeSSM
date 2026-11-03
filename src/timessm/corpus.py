@@ -94,7 +94,7 @@ class WindowBatches(IterableDataset):
     def __init__(self, root, batch_size: int, context: int, max_horizon: int = 720,
                  patch: int = 16, p_decimate: float = 0.5, p_flip: float = 0.5, seed: int = 0,
                  temperature: float = 0.3, p_synth: float = 0.5, groups: int = 12,
-                 names: Sequence[str] = None, p_full: float = 0.0):
+                 names: Sequence[str] = None, p_full: float = 0.0, p_mix: float = 0.0):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
@@ -102,6 +102,9 @@ class WindowBatches(IterableDataset):
         # Share of windows with all the history the series has (up to `context`); the
         # others draw their length log-uniformly, so long contexts are seen as at test time.
         self.p_full = p_full
+        # Share of windows replaced by a convex mix of 2-3 windows of the same rate, each
+        # divided by its mean absolute context value: new series from the real ones.
+        self.p_mix = p_mix
         self.names = list(names) if names is not None else train_subsets(root)
 
     def _setup(self):
@@ -162,6 +165,29 @@ class WindowBatches(IterableDataset):
         y = raw if k == 1 else block_mean(raw, k)
         return y[:-h], y[-h:], s.scale * k
 
+    def _mix(self, rng, s: Subset, k: int, horizon: int, c, t):
+        """c, t mixed with 1-2 windows of subsets of the same rate, pool and scale, aligned on
+        the forecast origin; lengths cut to the shortest. Dirichlet(1.5) weights."""
+        key = (s.rate, s.synthetic)
+        parts = [(c, t)]
+        for _ in range(int(rng.integers(1, 3))):
+            g = self.groups[key][rng.choice(len(self.groups[key]), p=self.group_p[key])]
+            other = g[rng.integers(len(g))]
+            if other.scale != s.scale or other.lengths.max() // k < 2 * self.patch:
+                continue
+            parts.append(self._window(rng, other, k, horizon)[:2])
+        if len(parts) == 1:
+            return c, t
+        nc, nt = min(len(p[0]) for p in parts), min(len(p[1]) for p in parts)
+        a = rng.dirichlet(np.full(len(parts), 1.5))
+        mc, mt = np.zeros(nc, np.float32), np.zeros(nt, np.float32)
+        for weight, (pc, pt) in zip(a, parts):
+            scale = np.nanmean(np.abs(pc[-nc:])) if np.isfinite(pc[-nc:]).any() else 0.0
+            scale = scale if np.isfinite(scale) and scale > 0 else 1.0
+            mc += np.float32(weight / scale) * pc[-nc:]
+            mt += np.float32(weight / scale) * pt[:nt]
+        return mc, mt
+
     def __iter__(self):
         info = torch.utils.data.get_worker_info()
         rng = np.random.default_rng([self.seed, info.id if info else 0])
@@ -178,6 +204,8 @@ class WindowBatches(IterableDataset):
                 if b % max(1, self.batch_size // self.n_groups) == 0:
                     s, k = self._draw(rng)
                 c, t, w[b] = self._window(rng, s, k, H)
+                if self.p_mix > 0 and rng.random() < self.p_mix:
+                    c, t = self._mix(rng, s, k, H, c, t)
                 sign = -1.0 if rng.random() < self.p_flip else 1.0
                 c = c[-L:]
                 x[b, L - len(c):] = sign * c

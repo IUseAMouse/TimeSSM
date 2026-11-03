@@ -2,6 +2,7 @@ import json
 
 import numpy as np
 import pytest
+import torch
 
 from timessm.corpus import WindowBatches, train_subsets, DEV_SUBSETS
 
@@ -97,3 +98,15 @@ def test_full_history_windows_reach_the_context(root):
     short, full = spans(0.0), spans(1.0)
     assert (full == 256).mean() > (short == 256).mean()
     assert (full == 256).mean() > 0.5
+
+
+def test_mixed_windows_stay_aligned_on_the_origin(root):
+    # Every fixture series is a ramp, so any mix of windows ending at their forecast origin
+    # is a ramp too: context and target continue one line.
+    data = WindowBatches(root, 64, 256, max_horizon=32, patch=16, p_decimate=0.0, p_flip=0.0,
+                         p_mix=1.0)
+    x, y, _ = next(iter(data))
+    for c, t in zip(x.numpy(), y.numpy()):
+        line = np.concatenate([c[np.isfinite(c)], t[np.isfinite(t)]])
+        assert len(line) > 2
+        np.testing.assert_allclose(np.diff(line, 2), 0.0, atol=1e-3 * np.abs(line).max())
