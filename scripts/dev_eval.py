@@ -40,13 +40,11 @@ def rate_factor(scale: float, cycle: float) -> int:
 
 
 @torch.no_grad()
-def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS,
-              cycle: float = 0.0) -> Dict[str, float]:
-    """`cycle` > 0 forecasts from block means of the context, at about `cycle` steps per
+def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cycle: float = 0.0):
+    """Per dev subset: (name, quantiles [n, h, Q], targets [n, h], seasonal naive [n, h]).
+    `cycle` > 0 forecasts from block means of the context, at about `cycle` steps per
     season, each coarse quantile held over its k native steps."""
     device = next(model.parameters()).device
-    levels = np.array(model.quantile_levels)
-    scores = {}
     manifest = json.loads((Path(root) / "manifest.json").read_text())
     for name, s in load_subsets(root, DEV_SUBSETS).items():
         unit, step = parse_frequency(manifest[name]["freq"])
@@ -78,7 +76,14 @@ def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS,
             ours.append(np.repeat(fan, k, axis=1)[:, :h])
             naive.append(np.stack(nai))
             targets.append(np.stack(tgt))
-        q, y, sn = map(np.concatenate, (ours, targets, naive))
+        yield name, *map(np.concatenate, (ours, targets, naive))
+
+
+def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS,
+              cycle: float = 0.0) -> Dict[str, float]:
+    levels = np.array(model.quantile_levels)
+    scores = {}
+    for name, q, y, sn in dev_forecasts(model, root, batch, origins, cycle):
         base = wql(sn[..., None].repeat(len(levels), -1), y, levels)
         scores[name] = float(wql(q, y, levels) / max(base, 1e-9))
     scores["all"] = math.exp(np.mean([math.log(max(v, 1e-6)) for v in scores.values()]))
