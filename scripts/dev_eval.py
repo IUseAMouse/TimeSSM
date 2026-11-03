@@ -1,7 +1,9 @@
 """
 Model selection on the subsets held out of training (timessm.corpus.DEV_SUBSETS).
 
-One forecast per series, from the end of its history. The score of a subset is
+Forecasts from the last `origins` origins of each series, one horizon apart, so
+that one shock shared by every series at the end of a subset does not decide its
+score. The score of a subset is
 the weighted quantile loss over the seasonal naive's, the same ratio as on the
 leaderboard; the summary is their geometric mean. GIFT-Eval is never read here.
 """
@@ -20,6 +22,7 @@ from timessm.corpus import DEV_SUBSETS, load_subsets
 HORIZON = {"S": 360, "T": 288, "H": 48, "D": 30, "W": 8, "M": 18, "Q": 8, "A": 4}
 SEASON = {"S": 360, "T": 288, "H": 24, "D": 7, "W": 52, "M": 12, "Q": 4, "A": 1}
 MAX_SERIES = 512
+ORIGINS = 4
 
 
 def wql(q: np.ndarray, y: np.ndarray, levels: np.ndarray) -> float:
@@ -29,7 +32,7 @@ def wql(q: np.ndarray, y: np.ndarray, levels: np.ndarray) -> float:
 
 
 @torch.no_grad()
-def dev_score(model, root: str, batch: int = 128) -> Dict[str, float]:
+def dev_score(model, root: str, batch: int = 128, origins: int = ORIGINS) -> Dict[str, float]:
     device = next(model.parameters()).device
     levels = np.array(model.quantile_levels)
     scores = {}
@@ -41,11 +44,14 @@ def dev_score(model, root: str, batch: int = 128) -> Dict[str, float]:
         keep = np.flatnonzero(s.lengths >= h + max(m + 1, 8))
         rng = np.random.default_rng(0)
         keep = rng.choice(keep, min(MAX_SERIES, len(keep)), replace=False)
+        cuts = [(j, o) for j in keep for o in range(origins)
+                if s.lengths[j] >= (o + 1) * h + max(m + 1, 8)]
         ours, naive, targets = [], [], []
-        for i in range(0, len(keep), batch):
+        for i in range(0, len(cuts), batch):
             ctx, tgt, nai = [], [], []
-            for j in keep[i:i + batch]:
+            for j, o in cuts[i:i + batch]:
                 x = np.asarray(s.series(j), dtype=np.float32)
+                x = x[:len(x) - o * h]
                 c, t = x[:-h], x[-h:]
                 ctx.append(c[-model.input_length:])
                 tgt.append(t)
