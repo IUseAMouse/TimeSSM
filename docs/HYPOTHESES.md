@@ -199,6 +199,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | base 1, règle fixe 24 points par cycle (6a) | 0.6616 | idem |
 | normalisation médiane/MAD (2a) | 0.6582 | pire, tourism_yearly 1.42 ; rejeté |
 | patch 8 (4a) | 0.5932 | −5 % sur la moyenne des bases, surtout tourism_yearly, fred_md, cif |
+| patchs 8 et 32, un tiré par pas, choisi par série à l'inférence, graine 0 | 0.6241 | au niveau de la base, loin du patch 8 seul (0.5932) : rejeté, graine 1 non lancée |
 | patch 8 (4a), graine 1 | 0.5788 | −0.058 sur la base de même graine ; moyenne 0.5860 contre 0.6261 (−6.4 %) : retenu |
 | sans attention, 6 blocs SSM | 0.6178 | au niveau de la base |
 | base, graine 2 | 0.6185 | trois graines : moyenne 0.6235, écart-type 0.011 |
