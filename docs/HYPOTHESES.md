@@ -208,6 +208,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | historique complet `p_full` 0.5, graine 1 | 0.6195 | −0.017 sur la base de même graine ; moyenne 0.6152 contre 0.6261 (−1.7 %) : retenu |
 | perte de contexte (10), poids 1, `p_full` 0.5, graine 0 | 0.5678 | avec l'attention causale et le repère cumulé qu'elle exige ; −0.043 sur `p_full` de même graine |
 | perte de contexte (10), poids 1, `p_full` 0.5, graine 1 | 0.5731 | −0.046 ; moyenne 0.5704 contre 0.6152 (−7.3 %), écart dès 5k pas : retenu |
+| attention causale et repère cumulé sans la perte, graine 0 | 0.6239 | +0.013 sur `p_full` de même graine : le masque seul n'apporte rien, le gain vient de la perte |
 | SSM seul (4 blocs, 3.4 M paramètres contre 8.3 M), perte de contexte, graine 0 | 0.6331 | à comparer au même modèle sans la perte (en file) ; plus petit que la base, pas comparable à elle |
 | corpus v6, `p_full` 0.5, graine 0 | 0.6222 | +0.011 sur v5 de même graine, dans le bruit ; graine 1 en file |
 
