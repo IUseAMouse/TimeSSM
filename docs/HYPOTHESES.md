@@ -216,6 +216,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | corpus v6, `p_full` 0.5, graine 0 | 0.6222 | +0.011 sur v5 de même graine |
 | corpus v6, `p_full` 0.5, graine 1 | 0.6353 | +0.016 ; moyenne 0.6288 contre 0.6152 (+2.2 %) : le filtrage des fuites coûte un peu sur le dev, v6 reste le seul corpus propre vis-à-vis de GIFT |
 | v6, mélange de séries `p_mix` 0.3, graine 0 | 0.5980 | −0.024 (−3.9 %) sur v6 de même graine ; graine 1 en file |
+| v6, mélange de séries `p_mix` 0.3, graine 1 | 0.6296 | −0.006 ; moyenne 0.6138 contre 0.6288 (−2.4 %), les deux graines dans le même sens : retenu, à confirmer sur la recette de la perte de contexte et v7 |
 | tête à 21 quantiles (les 9 rendus en sont un sous-ensemble), recette de la perte de contexte, graine 0 | 0.5834 | +0.016 (+2.7 %) sur la même recette à 9 ; égal à 10k pas, l'écart se creuse à la fin |
 | tête à 21 quantiles, graine 1 | 0.5722 | −0.001 sur la même recette à 9 ; moyenne 0.5778 contre 0.5704 (+1.3 %) : rejeté, la tête reste à 9 |
 
