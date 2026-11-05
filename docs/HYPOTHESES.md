@@ -219,7 +219,8 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | v6, mélange de séries `p_mix` 0.3, graine 1 | 0.6296 | −0.006 ; moyenne 0.6138 contre 0.6288 (−2.4 %), les deux graines dans le même sens : retenu, à confirmer sur la recette de la perte de contexte et v7 |
 | tête à 21 quantiles (les 9 rendus en sont un sous-ensemble), recette de la perte de contexte, graine 0 | 0.5834 | +0.016 (+2.7 %) sur la même recette à 9 ; égal à 10k pas, l'écart se creuse à la fin |
 | tête à 21 quantiles, graine 1 | 0.5722 | −0.001 sur la même recette à 9 ; moyenne 0.5778 contre 0.5704 (+1.3 %) : rejeté, la tête reste à 9 |
-| patch 8 sur la recette de la perte de contexte, graine 0 | 0.5848 | +0.017 (+3.0 %) sur la recette au patch 16 ; égal à 5k et 10k pas, derrière ensuite ; graine 1 en cours |
+| patch 8 sur la recette de la perte de contexte, graine 0 | 0.5848 | +0.017 (+3.0 %) sur la recette au patch 16 ; égal à 5k et 10k pas, derrière ensuite ; graine 1 arrêtée à 7 200 pas : à égalité le patch 16 reste, deux fois moins cher ; rejeté |
+| recette de la perte de contexte sur le corpus v7, graine 0 | 0.5574 | −0.010 (−1.8 %) sur v5 de même graine ; graine 1 en cours |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
