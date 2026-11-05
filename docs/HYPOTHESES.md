@@ -222,6 +222,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | patch 8 sur la recette de la perte de contexte, graine 0 | 0.5848 | +0.017 (+3.0 %) sur la recette au patch 16 ; égal à 5k et 10k pas, derrière ensuite ; graine 1 arrêtée à 7 200 pas : à égalité le patch 16 reste, deux fois moins cher ; rejeté |
 | recette de la perte de contexte sur le corpus v7, graine 0 | 0.5574 | −0.010 (−1.8 %) sur v5 de même graine |
 | recette de la perte de contexte sur le corpus v7, graine 1 | 0.5667 | −0.006 ; moyenne 0.5621 contre 0.5704 (−1.5 %), les deux graines dans le même sens : retenu, v7 devient la référence |
+| mélangeur delta une couche sur deux (`[ssm, delta, ssm, delta]`), recette de la perte de contexte, v5, graine 0 | 0.5599 | −0.008 (−1.4 %) sur causal0 ; −2.6 % à 10k, l'avance se resserre ; ablation du rappel associatif, pas candidat (perd l'invariance au pas) ; graine 1 en file |
 | v7, mélange de séries `p_mix` 0.3, graine 0 | 0.5651 | +0.008 (+1.4 %) sur v7 de même graine : avec la perte de contexte, le mélange ne paie plus ; graine 1 en file |
 | v7, poids de la perte de contexte 2, graine 0 | 0.5608 | +0.003 (+0.6 %) sur le poids 1 de même graine, en avance à 5k ; graine 1 en file |
 
