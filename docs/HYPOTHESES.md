@@ -226,6 +226,8 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | v7, mélange de séries `p_mix` 0.3, graine 0 | 0.5651 | +0.008 (+1.4 %) sur v7 de même graine : avec la perte de contexte, le mélange ne paie plus ; graine 1 en file |
 | v7, poids de la perte de contexte 2, graine 0 | 0.5608 | +0.003 (+0.6 %) sur le poids 1 de même graine, en avance à 5k ; graine 1 en file |
 | deux passes sur la pile (`loops` 2, poids partagés), recette de la perte de contexte, v5, graine 0 | 0.5572 | −0.011 (−1.9 %) sur causal0 ; −0.9 % à 15k, l'écart se creuse en fin de cosinus ; pas 30 % plus lent ; graine 1 en file |
+| v7, 40k pas (cosinus sur 40k), graine 0 | 0.5469 | −0.011 (−1.9 %) sur 20k de même graine ; 0.5630 / 0.5515 / 0.5529 / 0.5483 à 20k / 25k / 30k / 35k (palier à 30k dû à fred_md) ; doubler les pas paie encore |
+| Mamba sélectif sur les quatre couches (`mixers` selective ×4), recette de la perte de contexte, v5, graine 0 | 0.5850 à 15k | +0.010 (+1.8 %) sur la moyenne causal0/1 à 15k (0.5749), +0.5 % à 5k : l'écart grandit ; gagne sur les séries courtes (fred_md, tourism), perd sur les longues saisonnières (gfc, LOS_LOOP) ; run mené à 20k, graine 1 retirée de la file sauf retournement |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
