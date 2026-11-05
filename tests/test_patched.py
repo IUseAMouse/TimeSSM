@@ -344,6 +344,46 @@ def test_delta_mixers_forecast_and_stay_equivariant():
         small(mixers=["delta"])
 
 
+def test_selective_scan_chunks_match_the_recurrence():
+    from timessm.selective import selective_scan
+    torch.manual_seed(0)
+    B, L, H, P, N = 2, 37, 3, 4, 5
+    x, b, c = torch.randn(B, L, H, P), torch.randn(B, L, H, N), torch.randn(B, L, H, N)
+    log_a = -torch.rand(B, L, H)
+    h, ref = torch.zeros(B, H, P, N), []
+    for t in range(L):
+        h = log_a[:, t, :, None, None].exp() * h + x[:, t, :, :, None] * b[:, t, :, None, :]
+        ref.append((h * c[:, t, :, None, :]).sum(-1))
+    torch.testing.assert_close(selective_scan(x, log_a, b, c, chunk=8), torch.stack(ref, 1),
+                               atol=1e-5, rtol=1e-4)
+
+
+def test_selective_block_is_causal_and_keeps_the_step_invariance():
+    from timessm.selective import SelectiveSSMBlock
+    torch.manual_seed(0)
+    blk = SelectiveSSMBlock(16, d_state=4, head_dim=8, chunk=8).double()
+    x = torch.randn(2, 30, 16, dtype=torch.float64)
+    y = blk(x)
+    x2 = x.clone()
+    x2[:, 20:] = torch.randn(2, 10, 16, dtype=torch.float64)
+    torch.testing.assert_close(blk(x2)[:, :20], y[:, :20])
+    # constant input: two steps at w equal one step at 2w (exact zero-order hold)
+    const = torch.randn(2, 1, 16, dtype=torch.float64)
+    fine = blk(const.expand(2, 20, 16), delta_scale=torch.tensor([1.0, 0.5]))
+    coarse = blk(const.expand(2, 10, 16), delta_scale=torch.tensor([2.0, 1.0]))
+    torch.testing.assert_close(fine[:, 1::2], coarse)
+
+
+def test_selective_mixers_forecast_and_stay_equivariant():
+    m = small(mixers=["selective", "ssm"])
+    x = torch.randn(3, 200)
+    a = m.forecast(x, 40)["quantiles_denorm"]
+    b = m.forecast(5 * x + 2, 40)["quantiles_denorm"]
+    torch.testing.assert_close(b, 5 * a + 2, atol=1e-3, rtol=1e-3)
+    a.sum().backward()
+    assert all(p.grad is not None for p in m.ssm[0].parameters())
+
+
 def test_head_of_21_levels_returns_the_9():
     assert len(QUANTILES_21) == 21 and set(QUANTILES) <= set(QUANTILES_21)
     m = small(head_levels=QUANTILES_21, causal=True).eval()

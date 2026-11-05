@@ -21,6 +21,7 @@ import torch.nn.functional as F
 
 from .block import GatedSSMBlock
 from .delta import DeltaBlock
+from .selective import SelectiveSSMBlock
 
 Scale = Union[float, torch.Tensor]
 QUANTILES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -127,15 +128,24 @@ class PatchedSSM(nn.Module):
         self.embed = nn.Linear(2 * patch, d_model)
         self.embed_mix = nn.Sequential(nn.GELU(), nn.Linear(d_model, d_model))
         self.future_token = nn.Parameter(torch.randn(d_model) * 0.02)
-        # Token mixer of each layer before its attention: "ssm" (S4D) or "delta" (delta rule).
+        # Token mixer of each layer before its attention: "ssm" (S4D), "selective"
+        # (selective SSM, input-dependent step and matrices) or "delta" (delta rule).
         self.mixers = tuple(mixers or ("ssm",) * n_layers)
-        if len(self.mixers) != n_layers or set(self.mixers) - {"ssm", "delta"}:
-            raise ValueError(f"mixers must list 'ssm' or 'delta' for each of {n_layers} layers")
-        self.ssm = nn.ModuleList([
-            GatedSSMBlock(d_model, d_state=d_state, expand=expand, dropout=dropout,
-                          dt_min=1e-3 * patch, dt_max=1e-1 * patch) if kind == "ssm"
-            else DeltaBlock(d_model, n_heads=max(1, n_heads // 2), dropout=dropout)
-            for kind in self.mixers])
+        if len(self.mixers) != n_layers or set(self.mixers) - {"ssm", "selective", "delta"}:
+            raise ValueError(f"mixers must list 'ssm', 'selective' or 'delta' for each of "
+                             f"{n_layers} layers")
+
+        def mixer(kind):
+            if kind == "ssm":
+                return GatedSSMBlock(d_model, d_state=d_state, expand=expand, dropout=dropout,
+                                     dt_min=1e-3 * patch, dt_max=1e-1 * patch)
+            if kind == "selective":
+                return SelectiveSSMBlock(d_model, d_state=d_state, expand=expand,
+                                         dropout=dropout, dt_min=1e-3 * patch,
+                                         dt_max=1e-1 * patch)
+            return DeltaBlock(d_model, n_heads=max(1, n_heads // 2), dropout=dropout)
+
+        self.ssm = nn.ModuleList([mixer(kind) for kind in self.mixers])
         for block in self.ssm:
             if isinstance(block, GatedSSMBlock):
                 block.ssm.batched_kernels = True
