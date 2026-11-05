@@ -126,7 +126,20 @@ def main():
     ema = None
     if t.ema > 0:
         ema = AveragedModel(model, multi_avg_fn=get_ema_multi_avg_fn(t.ema))
+    if ema is not None and cfg.run.resume:
+        ema.module.load_state_dict({k[len("model."):]: v for k, v in state["state_dict"].items()})
     log = (run / "log.jsonl").open("a")
+    wb = None
+    if cfg.get("wandb") and cfg.wandb.get("project"):
+        import wandb
+        # One W&B run per training run, resumed under the same id after a restart.
+        id_file = run / "wandb_id.txt"
+        run_id = id_file.read_text().strip() if id_file.exists() else wandb.util.generate_id()
+        id_file.write_text(run_id)
+        wb = wandb.init(project=cfg.wandb.project, entity=cfg.wandb.get("entity"),
+                        name=cfg.run.name, id=run_id, resume="allow",
+                        tags=list(cfg.wandb.get("tags", [])),
+                        config=OmegaConf.to_container(cfg, resolve=True))
     t0, running, seen = time.time(), 0.0, 0
     draw = np.random.default_rng(cfg.run.seed + 7919 * start)
     model.train()
@@ -172,6 +185,8 @@ def main():
             print(json.dumps(row), flush=True)
             log.write(json.dumps(row) + "\n")
             log.flush()
+            if wb is not None:
+                wb.log({f"train/{k}": v for k, v in row.items() if k != "step"}, step=step + 1)
             t0, running, seen = time.time(), 0.0, 0
         if (step + 1) % cfg.run.eval_every == 0 or step + 1 == t.steps:
             final = ema.module if ema is not None else model
@@ -189,6 +204,12 @@ def main():
             print(json.dumps(row), flush=True)
             log.write(json.dumps(row) + "\n")
             log.flush()
+            if wb is not None:
+                wb.log({"dev/all": row["dev"], **({"dev/live": row["dev_live"]} if "dev_live" in row
+                                                  else {}),
+                        **{f"dev/{k}": v for k, v in score.items() if k != "all"}}, step=step + 1)
+    if wb is not None:
+        wb.finish()
 
 
 if __name__ == "__main__":
