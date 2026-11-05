@@ -225,6 +225,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | mélangeur delta une couche sur deux (`[ssm, delta, ssm, delta]`), recette de la perte de contexte, v5, graine 0 | 0.5599 | −0.008 (−1.4 %) sur causal0 ; −2.6 % à 10k, l'avance se resserre ; ablation du rappel associatif, pas candidat (perd l'invariance au pas) ; graine 1 en file |
 | v7, mélange de séries `p_mix` 0.3, graine 0 | 0.5651 | +0.008 (+1.4 %) sur v7 de même graine : avec la perte de contexte, le mélange ne paie plus ; graine 1 en file |
 | v7, poids de la perte de contexte 2, graine 0 | 0.5608 | +0.003 (+0.6 %) sur le poids 1 de même graine, en avance à 5k ; graine 1 en file |
+| deux passes sur la pile (`loops` 2, poids partagés), recette de la perte de contexte, v5, graine 0 | 0.5572 | −0.011 (−1.9 %) sur causal0 ; −0.9 % à 15k, l'écart se creuse en fin de cosinus ; pas 30 % plus lent ; graine 1 en file |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
