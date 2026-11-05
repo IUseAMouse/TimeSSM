@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import time
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -134,7 +135,7 @@ def main():
         import wandb
         # One W&B run per training run, resumed under the same id after a restart.
         id_file = run / "wandb_id.txt"
-        run_id = id_file.read_text().strip() if id_file.exists() else wandb.util.generate_id()
+        run_id = id_file.read_text().strip() if id_file.exists() else uuid.uuid4().hex[:12]
         id_file.write_text(run_id)
         wb = wandb.init(project=cfg.wandb.project, entity=cfg.wandb.get("entity"),
                         name=cfg.run.name, id=run_id, resume="allow",
