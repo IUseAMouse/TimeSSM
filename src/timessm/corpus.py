@@ -94,7 +94,8 @@ class WindowBatches(IterableDataset):
     def __init__(self, root, batch_size: int, context: int, max_horizon: int = 720,
                  patch: int = 16, p_decimate: float = 0.5, p_flip: float = 0.5, seed: int = 0,
                  temperature: float = 0.3, p_synth: float = 0.5, groups: int = 12,
-                 names: Sequence[str] = None, p_full: float = 0.0, p_mix: float = 0.0):
+                 names: Sequence[str] = None, p_full: float = 0.0, p_mix: float = 0.0,
+                 series_frac: float = 1.0):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
@@ -105,6 +106,9 @@ class WindowBatches(IterableDataset):
         # Share of windows replaced by a convex mix of 2-3 windows of the same rate, each
         # divided by its mean absolute context value: new series from the real ones.
         self.p_mix = p_mix
+        # Share of the series of each subset kept for training (a fixed draw, at least one
+        # per subset); the subset weights stay those of the full corpus.
+        self.series_frac = series_frac
         self.names = list(names) if names is not None else train_subsets(root)
 
     def _setup(self):
@@ -120,7 +124,14 @@ class WindowBatches(IterableDataset):
             self.groups[key] = list(groups.values())
             obs = np.array([sum(int(s.lengths.sum()) for s in g) for g in groups.values()], float)
             self.group_p[key] = obs ** self.temperature / (obs ** self.temperature).sum()
-        self.series_p = {s.name: s.lengths / s.lengths.sum() for s in self.subsets.values()}
+        self.series_p = {}
+        for j, s in enumerate(sorted(self.subsets.values(), key=lambda s: s.name)):
+            w = s.lengths.astype(float)
+            if self.series_frac < 1:
+                keep = np.random.default_rng(j).random(len(w)) < self.series_frac
+                keep[np.argmax(w * keep) if keep.any() else 0] = True
+                w = w * keep
+            self.series_p[s.name] = w / w.sum()
 
     def _subset(self, rng) -> Subset:
         rate = self.rates[rng.choice(len(self.rates), p=self.rate_p)]

@@ -73,9 +73,14 @@ def score_loss(q, center, scale, y, ymask, x, w, levels, kind):
     return torch.log((per + floor) / (base + floor)).mean().float()
 
 
-def schedule(step: int, warmup: int, total: int) -> float:
+def schedule(step: int, warmup: int, total: int, kind: str = "cosine", decay: float = 0.2) -> float:
+    """Cosine to 1e-3, or warmup-stable-decay: flat, then linear to 1e-3 over the last
+    `decay` share of the steps (a checkpoint of the flat part can be decayed on its own)."""
     if step < warmup:
         return (step + 1) / warmup
+    if kind == "wsd":
+        start = total - int(decay * total)
+        return 1.0 if step < start else 1 - (1 - 1e-3) * (step - start) / max(1, total - start)
     t = (step - warmup) / max(1, total - warmup)
     return 0.5 * (1 + math.cos(math.pi * t)) * (1 - 1e-3) + 1e-3
 
@@ -103,7 +108,7 @@ def main():
     t = cfg.training
     opt = torch.optim.AdamW([{"params": decay, "weight_decay": t.weight_decay},
                              {"params": other, "weight_decay": 0.0}], lr=t.lr, fused=True)
-    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: schedule(s, t.warmup, t.steps))
+    sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda s: schedule(s, t.warmup, t.steps, t.get("schedule", "cosine"), t.get("decay", 0.2)))
     start = 0
     if cfg.run.resume:
         state = torch.load(cfg.run.resume, map_location=device, weights_only=False)
@@ -120,7 +125,8 @@ def main():
                          temperature=cfg.data.temperature, groups=cfg.data.groups,
                          seed=cfg.run.seed + start, names=names,
                          p_full=cfg.data.get("p_full", 0.0),
-                         p_mix=cfg.data.get("p_mix", 0.0))
+                         p_mix=cfg.data.get("p_mix", 0.0),
+                         series_frac=cfg.data.get("series_frac", 1.0))
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.levels, device=device)
