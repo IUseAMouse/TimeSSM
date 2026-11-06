@@ -60,7 +60,11 @@ def _stable_poly(order: int, rng) -> np.ndarray:
 
 
 def _innovations(n: int, rng) -> np.ndarray:
-    e = rng.standard_t(int(rng.integers(3, 8)), n) if rng.random() < 0.3 else rng.normal(size=n)
+    if rng.random() < 0.3:                                    # Student t, unit variance
+        df = int(rng.integers(3, 8))
+        e = rng.standard_t(df, n) / np.sqrt(df / (df - 2))
+    else:
+        e = rng.normal(size=n)
     if rng.random() < 0.3:                                    # GARCH(1,1) variance
         a, b = rng.uniform(0.03, 0.15), rng.uniform(0.75, 0.95)
         b = min(b, 0.99 - a)
@@ -190,10 +194,16 @@ def kinds(freq: str):
 
 
 def sample(kind: str, n: int, freq: str, season: float, rng) -> np.ndarray:
-    if kind == "calendar":
-        return sample_calendar(n, freq, rng)
-    return {"arima": sample_arima, "regime": sample_regime, "growth": sample_growth}[kind](
-        n, season, rng)
+    """One series; a draw that overflows float32 (a rare explosive path) is drawn again."""
+    for _ in range(100):
+        if kind == "calendar":
+            x = sample_calendar(n, freq, rng)
+        else:
+            x = {"arima": sample_arima, "regime": sample_regime, "growth": sample_growth}[kind](
+                n, season, rng)
+        if np.isfinite(x).all() and np.abs(x).max() < 1e12:
+            return x
+    raise RuntimeError(f"{kind} {freq}: no finite draw")
 
 
 def build(args):
