@@ -229,6 +229,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | v7, 40k pas (cosinus sur 40k), graine 0 | 0.5469 | −0.011 (−1.9 %) sur 20k de même graine ; 0.5630 / 0.5515 / 0.5529 / 0.5483 à 20k / 25k / 30k / 35k (palier à 30k dû à fred_md) ; doubler les pas paie encore |
 | Mamba sélectif sur les quatre couches (`mixers` selective ×4), recette de la perte de contexte, v5, graine 0 | 0.5790 | +0.009 (+1.5 %) sur la moyenne causal0/1 (0.5705) ; +1.8 % à 15k, +0.5 % à 5k ; gagne sur les séries courtes (fred_md, tourism), perd sur les longues saisonnières (gfc, LOS_LOOP) ; rejeté, graine 1 retirée de la file |
 | Mamba sélectif ×4 avec deux passes (`loops` 2), v5, graine 0 | 0.5726 à 15k | +1.0 % sur loop0 à 15k (0.5671), −0.4 % seulement sur causal0/1 sans boucles ; arrêté à 15k : le sélectif seul reste derrière S4D même avec les boucles, rejeté |
+| hybride S4D / Mamba sélectif une couche sur deux (`[ssm, selective, ssm, selective]`), v5, graine 0 | 0.5649 | −0.006 (−1.0 %) sur causal0/1 ; −3.2 % à 10k, −0.9 % à 15k : apprend plus vite, finit au niveau des autres variantes (delta0 −1.9 %, loop0 −2.3 %) ; bat S4D et Mamba seuls sur gfc12/17 ; en attente de l'empilement avec les boucles (selhloop0) |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
