@@ -92,12 +92,17 @@ class PatchedSSM(nn.Module):
         causal: bool = False,
         loops: int = 1,
         mixers: Optional[Sequence[str]] = None,
+        halt: bool = False,
+        halt_window: int = 16,
         name: str = "timessm_patched",
     ):
         super().__init__()
         self.name = name
         # The block stack is run `loops` times with the same weights: depth without parameters.
+        # With `halt` (causal models), the number of passes is chosen per series at forecast
+        # time from the in-context next-patch loss (see _halted).
         self.loops = int(loops)
+        self.halt, self.halt_window = bool(halt), int(halt_window)
         self.input_length, self.prediction_length = int(input_length), int(prediction_length)
         self.patch = int(patch)
         # Patch sizes the model can read, `patch` among them. A context is cut to
@@ -205,13 +210,15 @@ class PatchedSSM(nn.Module):
 
     def forward_normalized(self, x: torch.Tensor, mask: torch.Tensor, n: int,
                            w: Scale = 1.0, stats: Optional[torch.Tensor] = None,
-                           patch: Optional[int] = None, return_context: bool = False):
+                           patch: Optional[int] = None, return_context: bool = False,
+                           passes: Optional[int] = None, every_pass: bool = False):
         """x, mask [B, L], L a multiple of the patch -> quantiles [B, n, Q], asinh frame.
         `stats` [B, N_STATS] from context_stats, required when the model was built with them.
         A token spans `patch` steps: Delta and the rotary positions scale with patch / self.patch,
         the same knob as w. `return_context` (causal models) also returns the next-patch
         quantiles of every context token, [B, n_past, patch, Q], token j forecasting patch j + 1
-        in the frame of token j."""
+        in the frame of token j. `passes` overrides the number of passes over the stack,
+        `every_pass` returns the list of the outputs after each pass."""
         B, L = x.shape
         p = int(patch or self.patch)
         n_past, n_future = L // p, -(-n // p)
@@ -240,19 +247,42 @@ class PatchedSSM(nn.Module):
             w = w * (p / self.patch)
         scale = torch.as_tensor(w, dtype=h.dtype, device=h.device).reshape(-1, 1)
         pos = torch.arange(N, device=h.device, dtype=h.dtype)[None] * scale
-        for _ in range(self.loops):
+        k_max = int(passes or self.loops)
+        outs = []
+        for k in range(k_max):
             for ssm, att in zip(self.ssm, self.att):
                 h = ssm(h, delta_scale=w)
                 h = att(h, pos, valid, allowed) if isinstance(att, AttentionBlock) else h
+            if every_pass or k == k_max - 1:
+                outs.append(self._read(h, n, n_past, n_future, p, return_context))
+        return outs if every_pass else outs[0]
+
+    def _read(self, h, n: int, n_past: int, n_future: int, p: int, return_context: bool):
+        B = h.shape[0]
         h = self.final_norm(h if return_context else h[:, n_past:])
         if p == self.patch:
             raw = self.head(h)
         else:
             raw = self.head_size[str(p)](self.head[:-1](h))
+        future = self._fan(raw[:, -n_future:].reshape(B, n_future * p, -1)[:, :n])
         if return_context:
-            future = self._fan(raw[:, n_past:].reshape(B, n_future * p, -1)[:, :n])
             return future, self._fan(raw[:, :n_past].reshape(B, n_past, p, -1))
-        return self._fan(raw.reshape(B, n_future * p, -1)[:, :n])
+        return future
+
+    def _halted(self, z, mask, n, w, stats, p: int, x, center, scale) -> torch.Tensor:
+        """Every pass forecasts; each item keeps the pass whose next-patch forecasts of its
+        last `halt_window` context tokens score the lowest pinball. Ties go to fewer passes,
+        an item with nothing observed in the window gets every pass."""
+        outs = self.forward_normalized(z, mask, n, w, stats, p, return_context=True,
+                                       every_pass=True)
+        target, tmask = next_patch_targets(x, mask, center, scale, p, 0)
+        tmask[:, :-self.halt_window * p] = False
+        levels = torch.tensor(self.levels, device=z.device)
+        e = (target[..., None] - torch.stack([c[:, :-1].float().flatten(1, 2) for _, c in outs]))
+        e = e * tmask[..., None]
+        loss = torch.maximum(levels * e, (levels - 1) * e).sum((2, 3))
+        best = torch.where(tmask.any(1), loss.argmin(0), len(outs) - 1)
+        return torch.stack([f for f, _ in outs])[best, torch.arange(len(best), device=z.device)]
 
     def normalize(self, x: torch.Tensor, mask: torch.Tensor):
         """x [B, L] with NaN, mask [B, L] -> (asinh frame, center [B, 1], scale [B, 1])."""
@@ -330,7 +360,10 @@ class PatchedSSM(nn.Module):
         else:
             z, mean, std = self.normalize(x, mask)
         stats = self.context_stats(x, mask, mean, std, z) if self.stats is not None else None
-        q = self.forward_normalized(z, mask, n, w, stats, patch)
+        if self.halt and self.causal and self.loops > 1:
+            q = self._halted(z, mask, n, w, stats, int(patch or self.patch), x, center, scale)
+        else:
+            q = self.forward_normalized(z, mask, n, w, stats, patch)
         if len(self.levels) != len(self.quantile_levels):
             q = q[..., self.out_index]
         raw = (torch.sinh(q.clamp(-15.0, 15.0).double()) * std[:, None] + mean[:, None]).float()
@@ -340,6 +373,20 @@ class PatchedSSM(nn.Module):
 
     def forward(self, context: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
         return self.forecast(context, **kwargs)
+
+
+def next_patch_targets(x, mask, center, scale, patch: int, skip: int):
+    """Patch j + 1 in the frame of token j, for j < n - 1: targets and mask [B, (n-1) * patch].
+    Tokens before `skip`, or with nothing observed up to them, are not scored."""
+    B, L = x.shape
+    n = L // patch
+    nxt = torch.where(mask, x, torch.zeros_like(x)).double().reshape(B, n, patch)[:, 1:]
+    c, s = center[:, :-1, None], scale[:, :-1, None]
+    target = torch.asinh((nxt - c) / s).float()
+    seen = mask.reshape(B, n, patch).any(-1).cumsum(1)[:, :-1] > 0
+    keep = seen & (torch.arange(n - 1, device=x.device) >= skip)[None]
+    m = mask.reshape(B, n, patch)[:, 1:] & keep[..., None]
+    return target.nan_to_num().flatten(1), m.flatten(1)
 
 
 def build_from_config(cfg) -> PatchedSSM:
@@ -352,6 +399,7 @@ def build_from_config(cfg) -> PatchedSSM:
                       dropout=m.dropout, robust_norm=m.get("robust_norm", False),
                       stats=m.get("stats", False), patches=m.get("patches", None),
                       causal=m.get("causal", False), loops=m.get("loops", 1),
-                      mixers=m.get("mixers", None),
+                      mixers=m.get("mixers", None), halt=m.get("halt", False),
+                      halt_window=m.get("halt_window", 16),
                       head_levels=QUANTILES_21 if m.get("head_quantiles", 9) == 21 else None,
                       name=m.name)

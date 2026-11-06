@@ -318,6 +318,37 @@ def test_loops_share_weights_and_deepen():
     assert all(p.grad is not None for p in two.ssm.parameters() if p.requires_grad)
 
 
+def test_every_pass_ends_on_the_plain_forward_and_passes_override_the_depth():
+    torch.manual_seed(0)
+    m = small(causal=True, loops=3)
+    z, mask = torch.randn(2, 128), torch.ones(2, 128, dtype=torch.bool)
+    outs = m.forward_normalized(z, mask, 32, every_pass=True)
+    assert len(outs) == 3
+    assert torch.equal(outs[-1], m.forward_normalized(z, mask, 32))
+    assert torch.equal(outs[0], m.forward_normalized(z, mask, 32, passes=1))
+    one = small(causal=True)
+    one.load_state_dict(m.state_dict())
+    assert torch.equal(outs[0], one.forward_normalized(z, mask, 32))
+
+
+def test_halting_picks_one_pass_per_item():
+    torch.manual_seed(0)
+    m = small(causal=True, loops=3, halt=True, halt_window=4)
+    x = torch.randn(4, 256)
+    x[3] = float("nan")
+    x[3, -5:] = 1.0
+    q = m.forecast(x, 24)["quantiles"]
+    m.halt = False
+    x0 = m._pad(x)
+    mask = torch.isfinite(x0)
+    z, _, _ = m.normalize_causal(x0, mask, 16)
+    per = torch.stack(m.forward_normalized(z, mask, 24, every_pass=True))
+    hit = (per == q[None]).flatten(2).all(-1)
+    assert hit.any(0).all()
+    # Nothing to score in the window: the full depth.
+    assert torch.equal(q[3], m.forecast(x, 24)["quantiles"][3])
+
+
 def test_delta_rule_chunks_match_the_recurrence():
     from timessm.delta import delta_rule
     torch.manual_seed(0)

@@ -21,7 +21,7 @@ from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
 from torch.utils.data import DataLoader
 
 from timessm.corpus import DEV_SUBSETS, WindowBatches, train_subsets
-from timessm.patched import build_from_config
+from timessm.patched import build_from_config, next_patch_targets
 
 from dev_eval import dev_score
 
@@ -30,20 +30,6 @@ def pinball(q: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, levels: torch.
     e = (y[..., None] - q) * mask[..., None]
     return (torch.maximum(levels * e, (levels - 1) * e).sum() / mask.sum().clamp_min(1)
             / len(levels))
-
-
-def next_patch_targets(x, mask, center, scale, patch: int, skip: int):
-    """Patch j + 1 in the frame of token j, for j < n - 1: targets and mask [B, (n-1) * patch].
-    Tokens before `skip`, or with nothing observed up to them, are not scored."""
-    B, L = x.shape
-    n = L // patch
-    nxt = torch.where(mask, x, torch.zeros_like(x)).double().reshape(B, n, patch)[:, 1:]
-    c, s = center[:, :-1, None], scale[:, :-1, None]
-    target = torch.asinh((nxt - c) / s).float()
-    seen = mask.reshape(B, n, patch).any(-1).cumsum(1)[:, :-1] > 0
-    keep = seen & (torch.arange(n - 1, device=x.device) >= skip)[None]
-    m = mask.reshape(B, n, patch)[:, 1:] & keep[..., None]
-    return target.nan_to_num().flatten(1), m.flatten(1)
 
 
 def naive_loss(x: torch.Tensor, y: torch.Tensor, ymask: torch.Tensor, w: torch.Tensor,
@@ -155,6 +141,9 @@ def main():
             break
         x, y, w = (v.to(device, non_blocking=True) for v in (x, y, w))
         patch = model.patches[draw.integers(len(model.patches))]
+        # Random depth: each step trains the forecast after 1..loops passes, so that every
+        # pass can be read at forecast time (model.halt).
+        passes = int(draw.integers(1, model.loops + 1)) if t.get("random_passes") else None
         x = model._pad(x, patch)
         mask, ymask = torch.isfinite(x), torch.isfinite(y)
         if model.causal:
@@ -168,7 +157,7 @@ def main():
         lam = t.get("context_loss", 0.0)
         with torch.autocast("cuda", dtype=torch.bfloat16):
             out = model.forward_normalized(z, mask, y.shape[1], w, stats, patch,
-                                           return_context=lam > 0)
+                                           return_context=lam > 0, passes=passes)
         q, qc = out if lam > 0 else (out, None)
         if t.loss == "asinh":
             loss = pinball(q.float(), target, ymask, levels)
@@ -207,6 +196,11 @@ def main():
             row = {"step": step + 1, "dev": score["all"], "per_subset": score}
             if ema is not None:
                 row["dev_live"] = dev_score(model, cfg.data.root)["all"]
+            if final.halt:
+                # The same weights at the full number of passes, against the halted score.
+                final.halt = False
+                row["dev_full"] = dev_score(final, cfg.data.root)["all"]
+                final.halt = True
             model.train()
             print(json.dumps(row), flush=True)
             log.write(json.dumps(row) + "\n")
@@ -214,6 +208,7 @@ def main():
             if wb is not None:
                 wb.log({"dev/all": row["dev"], **({"dev/live": row["dev_live"]} if "dev_live" in row
                                                   else {}),
+                        **({"dev/full": row["dev_full"]} if "dev_full" in row else {}),
                         **{f"dev/{k}": v for k, v in score.items() if k != "all"}}, step=step + 1)
     if wb is not None:
         wb.finish()
