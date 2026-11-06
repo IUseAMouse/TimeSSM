@@ -235,6 +235,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | v8 (v7 + 1.51 G points synthétiques : ARIMA-GARCH, régimes, calendrier, croissance), graine 0 | 0.5567 | −1.0 % sur la moyenne c7_0/1, −0.1 % sur c7_0 ; devant à chaque point (5k −1.2 %, 10k −0.5 %, 15k −0.7 %) ; retenu pour le run final, seconde graine différée |
 | v5, 4 passes partagées (loop0 en a 2), graine 0 | 0.5646 à 15k | −0.4 % sur loop0 à 15k (5k −0.7 %, 10k −1.2 %) pour 2× le temps par pas : sous le seuil de 1 %, arrêté à 15k ; décision reportée à 20k (reprise du checkpoint de 15k) et à halt0, entraîné à 1..4 passes tirées au hasard avec arrêt par la perte en contexte |
 | delta0 avec la graine 1 (S4D/delta en alternance + attention, v5) | 0.5594 | delta0/1 : 0.5599 / 0.5594, moyenne 0.5597, −1.9 % sur la moyenne causal0/1 (0.5704), devant à chaque point sur les deux graines : gain de delta confirmé ; reste dloop0 pour l'empilement avec la boucle |
+| selh0 + 2 passes ([ssm, selective, ssm, selective], v5), graine 0 | 0.5753 à 15k | +1.4 % sur loop0 à 15k (5k −0.8 %, 10k −0.4 %), derrière selh0 sans boucle dès 10k : l'hybride sélectif ne s'empile pas avec la boucle ; arrêté à 15k, rejeté |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
