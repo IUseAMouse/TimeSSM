@@ -10,6 +10,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 3 | 2026-11-05 | long0 (recette de causal0, corpus v7, 40 000 pas) | `+freq_delta`, sans flip | 0.5036 | 0.7290 | mesurer le gain de la durée et de v7 sur GIFT ; la durée du run final ne se choisit pas dessus |
 | 3b | 2026-11-05 | long0, même checkpoint | `+freq_delta`, `+tta_flip`, `+clip_nonneg` | 0.4990 | 0.7223 | comparaison à réglage égal avec une config publiée qui utilise flip et clip ; rien choisi dessus |
 | 4 | 2026-11-07 | ctrl_loop (S4D + attention, 2 passes, 9.98M, v8, WSD, 20 000 pas) | `+freq_delta`, sans flip | 0.5099 | 0.7322 | estimer le run final TimeSSM-10M, déjà lancé sur cette architecture ; rien choisi dessus |
+| 5 | 2026-11-07 | 20 ablations à 20 000 pas (liste ci-dessous) | `+freq_delta`, sans flip | 0.5077 à 0.5409 | 0.7297 à 0.7828 | mesurer le lien dev → GIFT ; aucune hypothèse choisie dessus, le run final était déjà lancé |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -33,3 +34,17 @@ rattrapent pas le doublement des pas de long0 : la durée passe mieux sur GIFT q
 sur les trois termes face à long0 (short +1.0 %, medium +1.5 %, long +1.6 %) ; 10S (+7.4 %) et 5T
 (+3.4 %) en tête des pertes (bizitobs, bitbrains), A (−3.5 %) et 10T en gain. Couverture 80 % : 0.800,
 q10 0.091 : la meilleure calibration des quatre regards.
+
+Regard 5, CRPS GIFT (dev entre parenthèses) : ctrl_delta 0.5077 (0.5481), wsd0 0.5115 (0.5586),
+lr1e3 0.5118 (0.5640), c7_0 0.5124 (0.5574), cl2_0 0.5129 (0.5608), c8_0 0.5134 (0.5567),
+delta0 0.5141 (0.5599), s4d352_0 0.5150 (0.5597), dloop0 0.5157 (0.5739), c7_1 0.5161 (0.5667),
+cm7_0 0.5164 (0.5651), delta1 0.5165 (0.5594), s4d5h6_0 0.5171 (0.5637), loop0 0.5174 (0.5572),
+half0 0.5179 (0.5564), loop4_0 0.5195 (0.5609), causal1 0.5223 (0.5731), selh0 0.5234 (0.5649),
+sel0 0.5286 (0.5790), cfree0 0.5409 (0.6239). Sur les 21 runs causaux à 20 000 pas avec perte de
+contexte (regards 2, 4, 5) : corrélation 0.74 en log, pente 0.49 : 1 % de dev vaut 0.5 % de GIFT.
+Écart de graine sur GIFT 0.2 à 0.7 % (causal0/1, delta0/1, c7_0/1), sous celui du dev. ctrl_loop et
+ctrl_delta à égalité (0.4 %). Boucles −1.0 % sur causal0/1 (loop0), delta −1.5 % ; dloop0, rejeté
+au dev, à 0.5157 : sa pénalité au dev ne passe pas. Sélectif mauvais sur les deux, rejet solide.
+half0 +1.1 % sur c7_0 alors qu'il gagne au dev : le nombre de séries compte sur GIFT. La perte de
+contexte reste le plus gros levier (cfree0 +3.4 % sur causal0). La durée seule (long0, 40 000 pas,
+0.5036) bat toutes les variantes à 20 000 pas : c'est le levier que le run final exploite.
