@@ -1,11 +1,11 @@
 # @package _global_
-# Final univariate run: corpus v8, causal S4D + attention, two shared passes, 9.98M.
+# TimeSSM-10M, final univariate run: corpus v8, causal S4D + attention, two shared passes, 9.98M.
 # Recipe of the 20k controls (ctrl_loop), stretched to 200k steps under WSD so that every
 # kept plateau checkpoint can be decayed on its own.
 #
 #   scripts/train_patched_loop.sh configs/patched/final.yaml run.name=final
 model:
-  name: "timessm_patched"
+  name: "timessm_10m"
   builder: "timessm.patched:build_from_config"
   seq_length: 4096
   prediction_length: 256
