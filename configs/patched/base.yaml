@@ -30,6 +30,7 @@ run:
   seed: 0
   resume: null
   eval_every: 10000
+  keep_every: null     # also keep a copy of the checkpoint every this many steps
 
 training:
   steps: 100000

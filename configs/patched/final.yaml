@@ -1,0 +1,65 @@
+# @package _global_
+# Final univariate run: corpus v8, causal S4D + attention, two shared passes, 9.98M.
+# Recipe of the 20k controls (ctrl_loop), stretched to 200k steps under WSD so that every
+# kept plateau checkpoint can be decayed on its own.
+#
+#   scripts/train_patched_loop.sh configs/patched/final.yaml run.name=final
+model:
+  name: "timessm_patched"
+  builder: "timessm.patched:build_from_config"
+  seq_length: 4096
+  prediction_length: 256
+  patch: 16
+  d_model: 352
+  n_layers: 4
+  d_state: 32
+  expand: 2
+  n_heads: 8
+  attention: true
+  dropout: 0.0
+  robust_norm: false
+  stats: false
+  causal: true
+  loops: 2
+  mixers: null
+  head_quantiles: 9
+  patches: null
+
+run:
+  name: null
+  out: "/workspace/runs"
+  seed: 0
+  resume: null
+  eval_every: 5000
+  keep_every: 20000
+
+training:
+  steps: 200000
+  batch: 256
+  lr: 5.0e-4
+  weight_decay: 0.02
+  warmup: 1000
+  max_horizon: 720
+  loss: "asinh"
+  ema: 0.999
+  context_loss: 1.0
+  context_skip: 2
+  schedule: "wsd"
+  decay: 0.2
+
+data:
+  root: "/workspace/data/v8"
+  workers: 16
+  p_decimate: 0.5
+  p_flip: 0.5
+  p_synth: 0.5
+  p_full: 0.5
+  p_mix: 0.0
+  temperature: 0.3
+  groups: 12
+  include_dev: false   # dev stays held out: the only signal over a multi-day run
+
+wandb:
+  project: "TimeSSM"
+  entity: iuseamouse
+  tags: ["final", "v8", "wsd"]

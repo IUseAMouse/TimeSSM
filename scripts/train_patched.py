@@ -10,6 +10,7 @@ subsets are scored at each run.eval_every, GIFT-Eval never is.
 import argparse
 import json
 import math
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -190,6 +191,10 @@ def main():
                         "live": model.state_dict(), "opt": opt.state_dict(),
                         "sched": sched.state_dict(), "step": step + 1},
                        run / f"{cfg.run.name}.ckpt")
+            keep = cfg.run.get("keep_every")
+            if keep and (step + 1) % keep == 0:
+                # Plateau checkpoints of a WSD run, each one can be decayed on its own later.
+                shutil.copyfile(run / f"{cfg.run.name}.ckpt", run / f"{cfg.run.name}_{step + 1}.ckpt")
             model.eval()
             final.eval()
             score = dev_score(final, cfg.data.root)
