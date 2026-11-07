@@ -239,6 +239,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | [ssm, delta, ssm, delta] + 2 passes (v5), graine 0 | 0.5739 | +3.0 % sur loop0, +2.5 % sur la moyenne delta0/1 ; meilleur point à 5k (0.6107) puis décroché ; perte d'entraînement la plus basse de toutes (0.2603 contre 0.2626 delta0 et 0.2671 loop0) : écart d'entraînement à dev, pas d'optimisation ; delta et boucle ne s'empilent pas, rejeté |
 | v7, 5 couches de largeur 312, 6 têtes (8 têtes : dimension de tête impaire, RoPE impossible), 9.79M | 0.5637 | +0.3 % sur la moyenne c7_0/1 (0.5621) |
 | v7, 4 couches de largeur 352, 9.98M | 0.5597 | −0.4 % sur la moyenne c7_0/1, −0.7 % sur s4d5h6_0 : la largeur plutôt que la profondeur ; gain de taille faible à 20k |
+| v7, lr 1e-3 (au lieu de 5e-4), cosinus, graine 0 | 0.5640 | +0.3 % sur la moyenne c7_0/1, à égalité à chaque point (5k +0.2 %, 10k 0.0 %, 15k +0.1 %) : le pic n'est pas critique entre 5e-4 et 1e-3 ; 5e-4 gardé |
 | v5, 4 passes, nombre de passes tiré entre 1 et 4 à chaque pas, arrêt par la perte en contexte, graine 0 | 0.6419 à 5k | +2.6 % sur loop4_0 à 5k ; arrêt dynamique moins bon que les 4 passes des mêmes poids (0.6392) ; arrêté à 5k : loop4_0 à 20k ne bat pas 2 passes, l'arrêt dynamique n'a plus de gain à capturer |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
