@@ -241,6 +241,7 @@ Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corp
 | v7, 4 couches de largeur 352, 9.98M | 0.5597 | −0.4 % sur la moyenne c7_0/1, −0.7 % sur s4d5h6_0 : la largeur plutôt que la profondeur ; gain de taille faible à 20k |
 | v7, lr 1e-3 (au lieu de 5e-4), cosinus, graine 0 | 0.5640 | +0.3 % sur la moyenne c7_0/1, à égalité à chaque point (5k +0.2 %, 10k 0.0 %, 15k +0.1 %) : le pic n'est pas critique entre 5e-4 et 1e-3 ; 5e-4 gardé |
 | v5, 4 passes, nombre de passes tiré entre 1 et 4 à chaque pas, arrêt par la perte en contexte, graine 0 | 0.6419 à 5k | +2.6 % sur loop4_0 à 5k ; arrêt dynamique moins bon que les 4 passes des mêmes poids (0.6392) ; arrêté à 5k : loop4_0 à 20k ne bat pas 2 passes, l'arrêt dynamique n'a plus de gain à capturer |
+| contrôle final delta : v8, WSD, largeur 360, 6 têtes, `[ssm, delta, ssm, delta]` + attention, 9.90M, graine 0 | 0.5481 | meilleur score dev à ce jour : −1.5 % sur c8_0 (0.5567), −1.9 % sur wsd0 ; 0.6077 / 0.5781 / 0.5705 au plateau puis −3.9 % pendant les 4000 pas de décroissance ; à comparer à ctrl_loop (S4D largeur 352, 2 passes) à 20k |
 
 Une seule fenêtre par série, en fin d'historique, donnait un écart de graine de 0.052 : un choc
 commun à toutes les séries d'un sous-ensemble décidait de son score. À σ ≈ 0.015, un run unique ne
