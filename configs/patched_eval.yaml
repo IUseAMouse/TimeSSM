@@ -24,6 +24,8 @@ model:
   robust_norm: false
   stats: false
   causal: false
+  loops: 1
+  mixers: null
   patches: null
 
 wandb:

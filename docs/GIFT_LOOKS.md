@@ -9,6 +9,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 2 | 2026-11-05 | causal0 (perte de contexte, `p_full` 0.5, 20 000 pas, v5) | `+freq_delta`, sans flip | 0.5233 | 0.7534 | mesurer le transfert du dev vers GIFT ; aucune hypothèse choisie dessus |
 | 3 | 2026-11-05 | long0 (recette de causal0, corpus v7, 40 000 pas) | `+freq_delta`, sans flip | 0.5036 | 0.7290 | mesurer le gain de la durée et de v7 sur GIFT ; la durée du run final ne se choisit pas dessus |
 | 3b | 2026-11-05 | long0, même checkpoint | `+freq_delta`, `+tta_flip`, `+clip_nonneg` | 0.4990 | 0.7223 | comparaison à réglage égal avec une config publiée qui utilise flip et clip ; rien choisi dessus |
+| 4 | 2026-11-07 | ctrl_loop (S4D + attention, 2 passes, 9.98M, v8, WSD, 20 000 pas) | `+freq_delta`, sans flip | 0.5099 | 0.7322 | estimer le run final TimeSSM-10M, déjà lancé sur cette architecture ; rien choisi dessus |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -25,3 +26,10 @@ presque entier, contre la moitié au regard 2. Gain sur les trois termes (short 
 
 Regard 3b : flip + clip à zéro, −0.9 % sur le brut. La couverture du quantile 0.1 passe à 0.182 :
 le clip pose q10 à 0 sur les séries intermittentes, et les cibles nulles comptent comme sous q10.
+
+Regard 4 contre le regard 3 : +1.3 % (dev : −0.8 %, 0.5427 contre 0.5469) ; contre le regard 2 :
+−2.6 % pour −4.4 % au dev, environ 60 % du gain du dev passe. À 20 000 pas, l'architecture et v8 ne
+rattrapent pas le doublement des pas de long0 : la durée passe mieux sur GIFT que le reste. Perte
+sur les trois termes face à long0 (short +1.0 %, medium +1.5 %, long +1.6 %) ; 10S (+7.4 %) et 5T
+(+3.4 %) en tête des pertes (bizitobs, bitbrains), A (−3.5 %) et 10T en gain. Couverture 80 % : 0.800,
+q10 0.091 : la meilleure calibration des quatre regards.
