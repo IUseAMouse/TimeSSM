@@ -12,6 +12,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 4 | 2026-11-07 | ctrl_loop (S4D + attention, 2 passes, 9.98M, v8, WSD, 20 000 pas) | `+freq_delta`, sans flip | 0.5099 | 0.7322 | estimer le run final TimeSSM-10M, déjà lancé sur cette architecture ; rien choisi dessus |
 | 5 | 2026-11-07 | 20 ablations à 20 000 pas (liste ci-dessous) | `+freq_delta`, sans flip | 0.5077 à 0.5409 | 0.7297 à 0.7828 | mesurer le lien dev → GIFT ; aucune hypothèse choisie dessus, le run final était déjà lancé |
 | 6 | 2026-11-08 | TimeSSM-10M, checkpoints de plateau (LR constant) à 20 000 et 35 000 pas | `+freq_delta`, sans flip | 0.5132 / 0.5055 | 0.7369 / 0.7257 | mesurer l'apport de la décroissance WSD et de la durée au plateau ; run en cours, rien choisi dessus |
+| 7 | 2026-11-08 | ctrl_loop | `+freq_delta` + flip ; puis + pile RateIN publiée (mix, pool, up 2x3x4, 4 fenêtres) | 0.5076 / 0.4986 | 0.7286 / 0.7213 | mesurer ce que RateIN apporte au modèle patché avant le run final ; rien choisi dessus |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -55,3 +56,10 @@ même recette) ; la décroissance de ctrl_loop vaut −0.6 % sur GIFT (0.5132 �
 dev (0.5523 → 0.5427), le ratio de transfert habituel. Le plateau de 35 000 pas fait 0.5055, −1.5 %
 sur celui de 20 000, alors que son dev (0.5520) est un creux du plateau : le dev bruité du plateau ne
 dit rien du GIFT à ce stade. La durée passe mieux que la décroissance. Couverture 80 % 0.801-0.803.
+
+Regard 7 : flip −0.45 % sur le brut (0.5099 → 0.5076). RateIN −1.8 % sur le flip (0.4986), contre −6 %
+sur TimeSSM-2.5M : le contexte de 4096 pas laisse moins à gagner. Gain nul sur le court (+0.1 %, 55
+configs), −4.5 % sur le moyen et −3.7 % sur le long ; 5T et 10S à −10 % (bizitobs_l2c/5T/long ×0.47),
+W +6 % et A +2.8 % en perte (solar/W/short ×1.68, ett1/H ×1.12-1.15). 29 configs sur 97 surtout
+décimées. Couverture 80 % 0.786, q10 0.104. Durée : 3 h 35 contre 26 min pour le flip seul, M4
+en tête.
