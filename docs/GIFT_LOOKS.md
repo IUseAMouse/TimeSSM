@@ -11,6 +11,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 3b | 2026-11-05 | long0, même checkpoint | `+freq_delta`, `+tta_flip`, `+clip_nonneg` | 0.4990 | 0.7223 | comparaison à réglage égal avec une config publiée qui utilise flip et clip ; rien choisi dessus |
 | 4 | 2026-11-07 | ctrl_loop (S4D + attention, 2 passes, 9.98M, v8, WSD, 20 000 pas) | `+freq_delta`, sans flip | 0.5099 | 0.7322 | estimer le run final TimeSSM-10M, déjà lancé sur cette architecture ; rien choisi dessus |
 | 5 | 2026-11-07 | 20 ablations à 20 000 pas (liste ci-dessous) | `+freq_delta`, sans flip | 0.5077 à 0.5409 | 0.7297 à 0.7828 | mesurer le lien dev → GIFT ; aucune hypothèse choisie dessus, le run final était déjà lancé |
+| 6 | 2026-11-08 | TimeSSM-10M, checkpoints de plateau (LR constant) à 20 000 et 35 000 pas | `+freq_delta`, sans flip | 0.5132 / 0.5055 | 0.7369 / 0.7257 | mesurer l'apport de la décroissance WSD et de la durée au plateau ; run en cours, rien choisi dessus |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -48,3 +49,9 @@ au dev, à 0.5157 : sa pénalité au dev ne passe pas. Sélectif mauvais sur les
 half0 +1.1 % sur c7_0 alors qu'il gagne au dev : le nombre de séries compte sur GIFT. La perte de
 contexte reste le plus gros levier (cfree0 +3.4 % sur causal0). La durée seule (long0, 40 000 pas,
 0.5036) bat toutes les variantes à 20 000 pas : c'est le levier que le run final exploite.
+
+Regard 6 : le plateau de 20 000 pas et ctrl_loop sont le même run jusqu'à 16 000 pas (même graine,
+même recette) ; la décroissance de ctrl_loop vaut −0.6 % sur GIFT (0.5132 → 0.5099) pour −1.7 % au
+dev (0.5523 → 0.5427), le ratio de transfert habituel. Le plateau de 35 000 pas fait 0.5055, −1.5 %
+sur celui de 20 000, alors que son dev (0.5520) est un creux du plateau : le dev bruité du plateau ne
+dit rien du GIFT à ce stade. La durée passe mieux que la décroissance. Couverture 80 % 0.801-0.803.
