@@ -13,6 +13,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 5 | 2026-11-07 | 20 ablations à 20 000 pas (liste ci-dessous) | `+freq_delta`, sans flip | 0.5077 à 0.5409 | 0.7297 à 0.7828 | mesurer le lien dev → GIFT ; aucune hypothèse choisie dessus, le run final était déjà lancé |
 | 6 | 2026-11-08 | TimeSSM-10M, checkpoints de plateau (LR constant) à 20 000 et 35 000 pas | `+freq_delta`, sans flip | 0.5132 / 0.5055 | 0.7369 / 0.7257 | mesurer l'apport de la décroissance WSD et de la durée au plateau ; run en cours, rien choisi dessus |
 | 7 | 2026-11-08 | ctrl_loop | `+freq_delta` + flip ; puis + pile RateIN publiée (mix, pool, up 2x3x4, 4 fenêtres) | 0.5076 / 0.4986 | 0.7286 / 0.7213 | mesurer ce que RateIN apporte au modèle patché avant le run final ; rien choisi dessus |
+| 8 | 2026-11-08 | TimeSSM-10M, plateau à 60 000 et 100 000 pas | `+freq_delta`, sans flip | 0.5002 / 0.4946 | 0.7215 / 0.7173 | pente GIFT du plateau, pour décider de prolonger le run avant la décroissance (160 000 pas) |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -63,3 +64,6 @@ configs), −4.5 % sur le moyen et −3.7 % sur le long ; 5T et 10S à −10 % (
 W +6 % et A +2.8 % en perte (solar/W/short ×1.68, ett1/H ×1.12-1.15). 29 configs sur 97 surtout
 décimées. Couverture 80 % 0.786, q10 0.104. Durée : 3 h 35 contre 26 min pour le flip seul, M4
 en tête.
+
+Regard 8 : courbe du plateau 0.5132 / 0.5055 / 0.5002 / 0.4946 à 20k / 35k / 60k / 100k, soit −1.9 %,
+−1.35 % et −1.5 % par doublement des pas : pas de saturation visible. Couverture 80 % 0.803-0.806.
