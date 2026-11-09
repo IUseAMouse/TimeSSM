@@ -14,6 +14,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 6 | 2026-11-08 | TimeSSM-10M, checkpoints de plateau (LR constant) à 20 000 et 35 000 pas | `+freq_delta`, sans flip | 0.5132 / 0.5055 | 0.7369 / 0.7257 | mesurer l'apport de la décroissance WSD et de la durée au plateau ; run en cours, rien choisi dessus |
 | 7 | 2026-11-08 | ctrl_loop | `+freq_delta` + flip ; puis + pile RateIN publiée (mix, pool, up 2x3x4, 4 fenêtres) | 0.5076 / 0.4986 | 0.7286 / 0.7213 | mesurer ce que RateIN apporte au modèle patché avant le run final ; rien choisi dessus |
 | 8 | 2026-11-08 | TimeSSM-10M, plateau à 60 000 et 100 000 pas | `+freq_delta`, sans flip | 0.5002 / 0.4946 | 0.7215 / 0.7173 | pente GIFT du plateau, pour décider de prolonger le run avant la décroissance (160 000 pas) |
+| 9 | 2026-11-09 | TimeSSM-10M, plateau à 120 000, 140 000 et 160 000 pas | `+freq_delta`, sans flip | 0.4992 / 0.5005 / 0.4963 | 0.7201 / 0.7205 / 0.7184 | pente GIFT du plateau ouvert, pour décider quand l'arrêter (choix de l'utilisateur : arrêt au vu de cette courbe) |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -67,3 +68,9 @@ en tête.
 
 Regard 8 : courbe du plateau 0.5132 / 0.5055 / 0.5002 / 0.4946 à 20k / 35k / 60k / 100k, soit −1.9 %,
 −1.35 % et −1.5 % par doublement des pas : pas de saturation visible. Couverture 80 % 0.803-0.806.
+
+Regard 9 : 0.4946 / 0.4992 / 0.5005 / 0.4963 à 100k / 120k / 140k / 160k. La pente de −1.5 % par
+doublement s'arrête après 100k : de 100k à 160k, l'écart reste dans ±1 %, ce qui correspond au bruit
+d'un itéré pris à LR constant. Le dev du plateau stagne aussi depuis 105k (0.5265 puis 0.5315 à
+0.5347). Au LR de 5e-4, le plateau n'apprend plus rien que GIFT voie. La suite de la courbe se lit
+sur les branches décrues, pas sur le plateau. Couverture 80 % 0.801-0.802.
