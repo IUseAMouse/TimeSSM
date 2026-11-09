@@ -179,6 +179,21 @@ def usgs():
              "https://waterservices.usgs.gov/")
 
 
+def usgs_more():
+    """Second sample of 3,000 discharge sites, the sites of the first sample left out."""
+    if done("usgs_discharge_15T_s2"):
+        return
+    taken = {p.stem for p in (fb.RAW.parent / "ext_raw" / "usgs").glob("*.rdb")}
+    taken |= {p.stem for p in (fb.RAW / "usgs" / "00060").glob("*.npy")}
+    sites = [s for s in _usgs_sites("00060") if s not in taken]
+    rng = np.random.default_rng(1)
+    picks = [sites[i] for i in rng.permutation(len(sites))[:3000]]
+    with cf.ThreadPoolExecutor(8) as pool:
+        rows = [r for r in pool.map(_usgs_site, [("00060", s) for s in picks]) if r is not None]
+    emit("usgs_discharge_15T_s2", rows, "15T", "hydrology", "Public domain (USGS)",
+         "https://waterservices.usgs.gov/")
+
+
 # ------------------------------------------------------------ NOAA ISD-Lite
 ISD = "https://noaa-isd-pds.s3.amazonaws.com/isd-lite/data"
 ISD_CHANNELS = {0: "temp", 1: "dew", 2: "pressure", 4: "wind"}
@@ -213,22 +228,86 @@ def _isd_station(station: str):
     return grid
 
 
-def isd():
+def isd(n: int = 3000, suffix: str = ""):
     """Hourly temperature, dew point, sea-level pressure and wind speed of a random sample of
-    stations active from 2020 to 2024; Australian stations and Jena left out."""
-    if done("isd_temp_H"):
+    stations active from 2020 to 2024; Australian stations and Jena left out. A later sample
+    (`suffix`) leaves out the stations already fetched."""
+    if done(f"isd_temp_H{suffix}"):
         return
+    taken = {p.stem for p in (fb.RAW / "isd").glob("*.npy")} if suffix else set()
     hist = pd.read_csv(cached("https://www.ncei.noaa.gov/pub/data/noaa/isd-history.csv"), dtype=str)
     ok = ((hist.BEGIN <= "20200101") & (hist.END >= "20241231") & (hist.CTRY != "AS")
           & ~hist["STATION NAME"].fillna("").str.contains("JENA") & (hist.USAF != "999999"))
-    stations = sorted((hist.USAF + "-" + hist.WBAN)[ok])
-    rng = np.random.default_rng(0)
-    picks = [stations[i] for i in rng.permutation(len(stations))[:3000]]
+    stations = sorted(set((hist.USAF + "-" + hist.WBAN)[ok]) - taken)
+    rng = np.random.default_rng(len(suffix))
+    picks = [stations[i] for i in rng.permutation(len(stations))[:n]]
     with cf.ThreadPoolExecutor(16) as pool:
         grids = [g for g in pool.map(_isd_station, picks) if g is not None]
     for j, name in enumerate(ISD_CHANNELS.values()):
-        emit(f"isd_{name}_H", [g[j] for g in grids], "H", "weather", "Public domain (NOAA NCEI)",
+        emit(f"isd_{name}_H{suffix}", [g[j] for g in grids], "H", "weather", "Public domain (NOAA NCEI)",
              "https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database")
+
+
+def isd_more():
+    """Second sample of 4,000 stations."""
+    isd(4000, "_s2")
+
+
+# ------------------------------------------------------------ NOAA NDBC buoys
+NDBC = "https://www.ndbc.noaa.gov/data/historical/stdmet"
+NDBC_CHANNELS = ("WSPD", "GST", "WVHT", "DPD", "APD", "PRES", "ATMP", "WTMP", "DEWP")
+
+
+def _ndbc_station(station: str):
+    path = fb.RAW / "ndbc" / f"{station}.npy"
+    if path.exists():
+        return np.load(path)
+    parts = []
+    for year in range(2020, 2025):
+        try:
+            text = gzip.decompress(get(f"{NDBC}/{station}h{year}.txt.gz", retries=2)).decode()
+        except Exception:
+            continue
+        lines = text.splitlines()
+        # Header, then a units line; some files repeat both further down.
+        body = [line for line in lines[1:] if not line.startswith("#")]
+        if not body:
+            continue
+        try:
+            frame = pd.read_csv(io.StringIO("\n".join([lines[0].lstrip("#")] + body)),
+                                sep=r"\s+", dtype=float)
+        except ValueError:
+            continue
+        parts.append(frame)
+    if not parts:
+        return None
+    frame = pd.concat(parts)
+    stamp = pd.to_datetime(dict(year=frame["YY"], month=frame["MM"], day=frame["DD"],
+                                hour=frame["hh"], minute=frame["mm"]), errors="coerce")
+    cols = [c for c in NDBC_CHANNELS if c in frame]
+    # Missing values are written as 99, 999 or 9999 in the column's own format.
+    values = frame[cols].where(~frame[cols].isin([99.0, 999.0, 9999.0]))
+    values.index = stamp
+    grid = values[values.index.notna()].resample("h").mean().reindex(columns=list(NDBC_CHANNELS))
+    x = grid.to_numpy(np.float32).T
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(path, x)
+    return x
+
+
+def ndbc():
+    """Buoys and coastal stations of the NDBC, 2020 to 2024: wind speed and gust, wave height,
+    dominant and average wave period, pressure, air, water and dew point temperature, means
+    over the hour."""
+    if done("ndbc_wspd_H"):
+        return
+    listing = get(f"{NDBC}/").decode()
+    stations = sorted(set(re.findall(r'href="([a-z0-9]+)h202[0-4]\.txt\.gz"', listing)))
+    with cf.ThreadPoolExecutor(8) as pool:
+        grids = [g for g in pool.map(_ndbc_station, stations) if g is not None]
+    for j, name in enumerate(NDBC_CHANNELS):
+        emit(f"ndbc_{name.lower()}_H", [g[j] for g in grids], "H", "ocean",
+             "Public domain (NOAA NDBC)", "https://www.ndbc.noaa.gov/")
 
 
 # ------------------------------------------------------------ EPA, more parameters
@@ -260,7 +339,7 @@ def epa_more():
              "https://aqs.epa.gov/aqsweb/airdata/download_files.html")
 
 
-FETCHERS = {f.__name__: f for f in (eurostat, usgs, isd, epa_more)}
+FETCHERS = {f.__name__: f for f in (eurostat, usgs, isd, epa_more, usgs_more, isd_more, ndbc)}
 
 
 def main():
