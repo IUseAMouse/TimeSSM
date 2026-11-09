@@ -98,42 +98,60 @@ def gift_positions(root: Path, names):
     return h[order], ids[order]
 
 
+REF = {}
+
+
+def verify_subset(args):
+    """Series of one subset whose shared windows sit at one offset of one GIFT series."""
+    corpus, subset, min_hits, min_aligned = args
+    ref_h, ref_ids, names = REF["h"], REF["ids"], REF["names"]
+    values = np.load(corpus / f"{subset}.values.npy", mmap_mode="r")
+    offsets = np.load(corpus / f"{subset}.offsets.npy")
+    leaks = Counter()
+    examples, series = [], []
+    for i in range(len(offsets) - 1):
+        h, pos = hashes(values[offsets[i]:offsets[i + 1]], positions=True)
+        if len(h) == 0:
+            continue
+        lo = np.searchsorted(ref_h, h, "left")
+        hi = np.searchsorted(ref_h, h, "right")
+        m = hi > lo
+        if m.sum() < min_hits:
+            continue
+        idx = np.concatenate([np.arange(l, u) for l, u in zip(lo[m], hi[m])])
+        rep = np.repeat(pos[m], hi[m] - lo[m])
+        key = Counter(zip(ref_ids[idx, 0], ref_ids[idx, 1], ref_ids[idx, 2] - rep))
+        (g, s, off), n = key.most_common(1)[0]
+        if n >= min_aligned:
+            leaks[names[g]] += 1
+            series.append(i)
+            if len(examples) < 3:
+                examples.append({"series": i, "gift": names[g], "gift_series": int(s),
+                                 "offset": int(off), "aligned_windows": int(n)})
+    out = {"subset": subset, "series": len(offsets) - 1, "leaks": dict(leaks), "examples": examples}
+    print(json.dumps(out), flush=True)
+    return {**out, "leaking_series": series}
+
+
 def verify(a):
-    """A shared stretch gives many hits at one offset between the two series; chance does not."""
-    rows = json.loads(a.out.read_text())
-    # the first pass samples at most --max-series per subset: re-check every series
-    flagged = [r for r in rows if r["found"]]
-    names = sorted({g for r in flagged for g in r["found"]})
-    ref_h, ref_ids = gift_positions(a.gift, names)
-    report = []
-    for r in flagged:
-        values = np.load(a.corpus / f"{r['subset']}.values.npy", mmap_mode="r")
-        offsets = np.load(a.corpus / f"{r['subset']}.offsets.npy")
-        leaks = Counter()
-        examples, series = [], []
-        for i in range(len(offsets) - 1):
-            h, pos = hashes(values[offsets[i]:offsets[i + 1]], positions=True)
-            if len(h) == 0:
-                continue
-            lo = np.searchsorted(ref_h, h, "left")
-            hi = np.searchsorted(ref_h, h, "right")
-            m = hi > lo
-            if m.sum() < a.min_hits:
-                continue
-            idx = np.concatenate([np.arange(l, u) for l, u in zip(lo[m], hi[m])])
-            rep = np.repeat(pos[m], hi[m] - lo[m])
-            key = Counter(zip(ref_ids[idx, 0], ref_ids[idx, 1], ref_ids[idx, 2] - rep))
-            (g, s, off), n = key.most_common(1)[0]
-            if n >= a.min_aligned:
-                leaks[names[g]] += 1
-                series.append(i)
-                if len(examples) < 3:
-                    examples.append({"series": i, "gift": names[g], "gift_series": int(s),
-                                     "offset": int(off), "aligned_windows": int(n)})
-        out = {"subset": r["subset"], "series": len(offsets) - 1, "leaks": dict(leaks),
-               "examples": examples}
-        print(json.dumps(out), flush=True)
-        report.append({**out, "leaking_series": series})
+    """A shared stretch gives many hits at one offset between the two series; chance does not.
+    With --all, every series of every subset is checked against every GIFT dataset, without
+    the first pass (its per-series cost grows with the size of GIFT, too slow for millions of
+    series)."""
+    if a.all:
+        names = sorted(p.name for p in a.gift.iterdir() if (p / "state.json").exists())
+        subsets = sorted(n for n in json.loads((a.corpus / "manifest.json").read_text())
+                         if not n.startswith("synth"))
+    else:
+        flagged = [r for r in json.loads(a.out.read_text()) if r["found"]]
+        names = sorted({g for r in flagged for g in r["found"]})
+        subsets = [r["subset"] for r in flagged]
+    REF["h"], REF["ids"] = gift_positions(a.gift, names)
+    REF["names"] = names
+    # The reference arrays are inherited by the forked workers.
+    with ProcessPoolExecutor(a.workers) as pool:
+        report = list(pool.map(verify_subset, [(a.corpus, s, a.min_hits, a.min_aligned)
+                                               for s in subsets]))
     a.out.with_name(f"{a.out.stem}_verified_{a.min_aligned}.json").write_text(json.dumps(report, indent=1))
 
 
@@ -147,6 +165,8 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("overlap.json"))
     ap.add_argument("--verify", action="store_true", help="re-check the flagged subsets by alignment")
     ap.add_argument("--min-aligned", type=int, default=20)
+    ap.add_argument("--all", action="store_true",
+                    help="with --verify: check every series of every subset, no first pass")
     a = ap.parse_args()
     if a.verify:
         return verify(a)

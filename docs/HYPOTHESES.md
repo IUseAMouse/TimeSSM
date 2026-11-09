@@ -186,6 +186,27 @@ dernier, sauf pour des niveaux extrêmes hors benchmark.
 
 **Test.** Un run. **Arrêt.** Critère commun. **Coût.** ~10k paramètres.
 
+## 13. Corpus v9 : plus de séries distinctes
+
+**Constat.** Sur GIFT, la durée ne paie plus au-delà de 100k pas (regard 9). Comme le plateau a saturé
+à ce LR, le modèle a sans doute épuisé ce que v8 lui apprend. On ne fait pas de choix de source
+d'après GIFT.
+
+**Mécanisme.** On ajoute des séries tirées de nouvelles familles (`v9_ext`, docs/DATA_c.md) : Eurostat
+en masse en M et Q, décès hebdomadaires par région NUTS 3, six paramètres USGS en 15T, météo ISD en
+H et sept paramètres EPA en H. Le poids de chaque cadence (`RATE_WEIGHT`) ne change pas. Dans une
+cadence, chaque nouvelle famille prend une part proportionnelle à ses observations puissance 0.3.
+
+**Test.** On part du checkpoint de plateau de 160k et on lance deux bras qui ne diffèrent que par le
+corpus. Le bras v8 est le plateau principal. Le bras v9 reprend le même checkpoint avec
+`data.root` égal à v9. Chaque bras fait 40k pas de plateau, puis 40k pas de décroissance, et finit à
+240k. La comparaison se fait sur le dev au même pas.
+
+**Limite.** Le dev est fait de sous-ensembles retenus de v8 : il avantage v8. Une égalité au dev
+ne réfute donc pas v9. Seul un écart en faveur de v8 au-delà du bruit (0.7 %) le réfute.
+
+**Arrêt.** Critère commun, avec cette limite.
+
 ## Résultats
 
 Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corpus v5.
