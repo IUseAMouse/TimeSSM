@@ -15,6 +15,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 7 | 2026-11-08 | ctrl_loop | `+freq_delta` + flip ; puis + pile RateIN publiée (mix, pool, up 2x3x4, 4 fenêtres) | 0.5076 / 0.4986 | 0.7286 / 0.7213 | mesurer ce que RateIN apporte au modèle patché avant le run final ; rien choisi dessus |
 | 8 | 2026-11-08 | TimeSSM-10M, plateau à 60 000 et 100 000 pas | `+freq_delta`, sans flip | 0.5002 / 0.4946 | 0.7215 / 0.7173 | pente GIFT du plateau, pour décider de prolonger le run avant la décroissance (160 000 pas) |
 | 9 | 2026-11-09 | TimeSSM-10M, plateau à 120 000, 140 000 et 160 000 pas | `+freq_delta`, sans flip | 0.4992 / 0.5005 / 0.4963 | 0.7201 / 0.7205 / 0.7184 | pente GIFT du plateau ouvert, pour décider quand l'arrêter (choix de l'utilisateur : arrêt au vu de cette courbe) |
+| 10 | 2026-11-09 | TimeSSM-10M, branche d160k (plateau jusqu'à 160 000 pas, décroissance WSD de 40 000 pas, modèle à 200 000) | brut ; flip ; flip + clip ; pile RateIN publiée ; pile RateIN + clip | 0.4934 / 0.4904 / 0.4896 / 0.4763 / 0.4759 | 0.7154 / 0.7118 / 0.7112 / 0.6948 / 0.6947 | série complète du modèle livrable ; rien choisi dessus, le corpus v9 était déjà en préparation |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -74,3 +75,11 @@ doublement s'arrête après 100k : de 100k à 160k, l'écart reste dans ±1 %, c
 d'un itéré pris à LR constant. Le dev du plateau stagne aussi depuis 105k (0.5265 puis 0.5315 à
 0.5347). Au LR de 5e-4, le plateau n'apprend plus rien que GIFT voie. La suite de la courbe se lit
 sur les branches décrues, pas sur le plateau. Couverture 80 % 0.801-0.802.
+
+Regard 10 : la décroissance vaut −0.6 % sur le plateau de 160k (0.4963 → 0.4934), comme à 20k ; elle ne
+gagne que 0.2 % sur le meilleur plateau (100k, 0.4946). Le flip apporte −0.6 % et RateIN −2.9 % sur le flip
+(0.4904 → 0.4763), contre −1.8 % sur ctrl_loop (regard 7) : le modèle long tire plus de la pile. Le clip
+apporte −0.1 %, mais q10 passe à 0.188 et l'intervalle 80 % à 0.706. Couverture de la pile sans clip :
+q10 0.101, q90 0.894, intervalle 80 % 0.793. Repères de la copie du classement du 2026-09-06 : TiRex-2-Pretrained
+(82.5M) 0.4669, TiRex-2-Zeroshot (82.5M) 0.4781, TiRex (35M) 0.4885, FlowState-9.1M 0.5019. Timestral-5M
+(0.479) a été relevé plus tard sur le classement en ligne et ne figure pas dans cette copie.
