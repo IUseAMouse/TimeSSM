@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .block import GatedSSMBlock
+from .components.quantile_head import monotone_fan
 from .delta import DeltaBlock
 from .selective import SelectiveSSMBlock
 
@@ -179,11 +180,7 @@ class PatchedSSM(nn.Module):
 
     def _fan(self, raw: torch.Tensor) -> torch.Tensor:
         """Sorted quantiles: the median plus cumulated positive widths on each side."""
-        mid = len(self.levels) // 2
-        median = raw[..., mid:mid + 1]
-        lower = median - F.softplus(raw[..., :mid]).flip(-1).cumsum(-1).flip(-1)
-        upper = median + F.softplus(raw[..., mid + 1:]).cumsum(-1)
-        return torch.cat([lower, median, upper], dim=-1)
+        return monotone_fan(raw, len(self.levels) // 2)
 
     def context_stats(self, x: torch.Tensor, mask: torch.Tensor, center: torch.Tensor,
                       scale: torch.Tensor, z: torch.Tensor) -> torch.Tensor:

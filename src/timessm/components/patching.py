@@ -56,8 +56,6 @@ class Patching(nn.Module):
         if x.dim() == 2:
             x = x.unsqueeze(-1)  # [B, L, 1]
         
-        num_features = x.shape[-1]
-        
         if self.padding:
             remainder = (seq_len - self.patch_size) % self.stride
             if remainder != 0:
@@ -73,72 +71,6 @@ class Patching(nn.Module):
         patches = self.projection(patches)  # [B, num_patches, d_model]
         
         return patches
-    
-    def get_num_patches(self, seq_len: int) -> int:
-        """
-        Calculate number of patches for a given sequence length.
-        
-        Args:
-            seq_len: Length of input sequence
-            
-        Returns:
-            Number of patches
-        """
-        if self.padding:
-            remainder = (seq_len - self.patch_size) % self.stride
-            if remainder != 0:
-                seq_len += (self.stride - remainder)
-        
-        return (seq_len - self.patch_size) // self.stride + 1
-
-
-class PatchEmbedding(nn.Module):
-    """
-    Patching plus optional learned positional embeddings.
-
-    Args:
-        patch_size: Size of each patch
-        d_model: Embedding dimension
-        num_features: Number of input features
-        max_patches: Maximum number of patches (for learned pos encoding)
-        dropout: Dropout rate
-        use_pos_encoding: Whether to add learned positional encoding
-    """
-    
-    def __init__(
-        self,
-        patch_size: int,
-        d_model: int,
-        num_features: int = 1,
-        max_patches: int = 512,
-        dropout: float = 0.1,
-        use_pos_encoding: bool = False
-    ):
-        super().__init__()
-        
-        self.patching = Patching(patch_size, d_model, num_features)
-        self.dropout = nn.Dropout(dropout)
-        self.use_pos_encoding = use_pos_encoding
-        if use_pos_encoding:
-            self.pos_encoding = nn.Parameter(torch.randn(1, max_patches, d_model))
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Embed patches.
-        
-        Args:
-            x: Input [B, L] or [B, L, C]
-            
-        Returns:
-            Embedded patches [B, num_patches, d_model]
-        """
-        x = self.patching(x)  # [B, num_patches, d_model]
-        if self.use_pos_encoding:
-            num_patches = x.shape[1]
-            x = x + self.pos_encoding[:, :num_patches, :]
-        x = self.dropout(x)
-        
-        return x
 
 
 class UnPatching(nn.Module):

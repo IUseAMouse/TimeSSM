@@ -11,12 +11,10 @@ updated in place. Downloads are cached under --raw.
 
 import argparse
 import gzip
-import io
 import json
 import re
 import shutil
 import subprocess
-import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path

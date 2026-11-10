@@ -37,6 +37,7 @@ import torch
 
 HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE / "src"))
+from timessm.components.quantile_head import monotone_fan  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("refit_last_layer")
@@ -50,7 +51,7 @@ SLICE_ROWS = 1_000_000       # rows per forward/backward slice: bounds the trans
 def head_loss(head, phi, y, weight, bias):
     """Pinball of the head's monotone fan for a projection (weight [Q, D],
     bias [Q]) on features phi [N, D] against y [N]."""
-    fan = head._make_monotone(phi @ weight.T + bias)                   # [N, Q]
+    fan = monotone_fan(phi @ weight.T + bias, head.median_idx)                   # [N, Q]
     return head.loss(fan[None], y[None])
 
 

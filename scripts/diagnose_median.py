@@ -23,7 +23,6 @@ the cross tables of `data` refuse a run with fewer than 97 configs.
 """
 
 import argparse
-import math
 import os
 import sys
 from pathlib import Path

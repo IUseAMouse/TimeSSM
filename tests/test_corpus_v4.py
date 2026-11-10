@@ -2,7 +2,6 @@ import json
 
 import numpy as np
 import pytest
-import torch
 
 from timessm.corpus import WindowBatches, train_subsets, DEV_SUBSETS
 

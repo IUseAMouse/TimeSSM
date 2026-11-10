@@ -11,6 +11,7 @@ sys.path.insert(0, str(HERE / "scripts"))
 import refit_last_layer as rl  # noqa: E402
 from timejepa.models.decoders.quantile_head import QuantileHead  # noqa: E402
 from timessm.model import SSMForecaster  # noqa: E402
+from timessm.components.quantile_head import monotone_fan  # noqa: E402
 
 
 def _problem(n=4000, d=8):
@@ -26,7 +27,7 @@ def test_refit_lowers_the_pinball_and_keeps_the_fan_sorted():
     head, phi, y, w0, b0 = _problem()
     w, b, before, after = rl.refit(head, [(phi, y)], w0, b0)
     assert after < 0.5 * before
-    fan = head._make_monotone(phi @ w.T + b)
+    fan = monotone_fan(phi @ w.T + b, head.median_idx)
     assert bool((fan[:, 1:] >= fan[:, :-1]).all())
     assert abs(float((fan[:, 0] > y).float().mean()) - 0.1) < 0.03      # the 10% level covers ~10%
 
@@ -86,5 +87,5 @@ def test_collect_reads_the_projection_input_in_the_loss_frame():
     grabbed = {}
     hook = proj.register_forward_pre_hook(lambda _m, inp: grabbed.update(phi=inp[0]))
     model.forecast(ctx, n=16); hook.remove()
-    fan = head._make_monotone(grabbed["phi"][0] @ proj.weight.T + proj.bias)
+    fan = monotone_fan(grabbed["phi"][0] @ proj.weight.T + proj.bias, head.median_idx)
     assert torch.allclose(fan, out["quantiles"][0], atol=1e-5)

@@ -27,7 +27,7 @@ positive Delta_eff.
 Parameterization (all real tensors, so any optimizer works):
     log_a_re [H, N], a_im [H, N] (complex state only), B_re/B_im [H, N],
     C_re/C_im [H, N], log_dt [H], D [H].
-Init 's4d-lin' (complex): a_n = -1/2 + i pi n. Init 's4d-real': a_n = -(n+1).
+Init S4D-Lin (complex state): a_n = -1/2 + i pi n. Init S4D-Real (`real`): a_n = -(n+1).
 """
 
 import math
@@ -48,20 +48,16 @@ class S4DLayer(nn.Module):
         real: bool = False,
         dt_min: float = 1e-3,
         dt_max: float = 1e-1,
-        init: str = "s4d-lin",
     ):
         super().__init__()
         H, N = d_model, d_state
         self.d_model, self.d_state, self.real = H, N, real
         self.batched_kernels = False   # convolve all items at once, kernels gathered per item
         n = torch.arange(N, dtype=torch.float32)
-        if real or init == "s4d-real":
-            self.real = True
+        if real:
             log_a_re = torch.log(n + 1.0).repeat(H, 1)
-        elif init == "s4d-lin":
-            log_a_re = torch.full((H, N), math.log(0.5))
         else:
-            raise ValueError(f"unknown init {init!r} (s4d-lin, s4d-real)")
+            log_a_re = torch.full((H, N), math.log(0.5))
         self.log_a_re = nn.Parameter(log_a_re)
         if self.real:
             self.a_im = None
@@ -155,7 +151,7 @@ class S4DLayer(nn.Module):
     # ------------------------------------------------------------ forward
     def forward(self, u: torch.Tensor, delta_scale: Scale = 1.0) -> torch.Tensor:
         """u [B, L, H] -> y [B, L, H], causal FFT convolution + skip."""
-        B, L, H = u.shape
+        B, L, _ = u.shape
         scales, inv = self._scales(delta_scale, B)
         K = self._kernels(L, scales)                               # [U, H, L]
         # cuFFT has no bfloat16 path and autocast does not cast fft ops: the

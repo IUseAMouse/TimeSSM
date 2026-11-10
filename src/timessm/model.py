@@ -102,7 +102,7 @@ class SSMForecaster(nn.Module):
         self.decoder = ForecastingHead(
             d_model=d_model, patch_size=1, stride=1,
             prediction_length=prediction_length, num_features=1,
-            decoder_type="quantile", revin=self.revin,
+            revin=self.revin,
             quantile_levels=quantile_levels,
             quantile_use_context=quantile_use_context,
             quantile_hidden_dim=quantile_hidden_dim,
@@ -180,7 +180,6 @@ class SSMForecaster(nn.Module):
         n: Optional[int] = None,
         return_representations: bool = False,
         skip_revin: bool = False,
-        sample_paths: bool = True,
         w: Optional[Scale] = None,
     ) -> Dict[str, torch.Tensor]:
         """Forecast n steps (any n, no rolling). `w` = delta_scale, float or [B]."""
