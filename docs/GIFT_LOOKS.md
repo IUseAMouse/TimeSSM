@@ -16,6 +16,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 8 | 2026-11-08 | TimeSSM-10M, plateau à 60 000 et 100 000 pas | `+freq_delta`, sans flip | 0.5002 / 0.4946 | 0.7215 / 0.7173 | pente GIFT du plateau, pour décider de prolonger le run avant la décroissance (160 000 pas) |
 | 9 | 2026-11-09 | TimeSSM-10M, plateau à 120 000, 140 000 et 160 000 pas | `+freq_delta`, sans flip | 0.4992 / 0.5005 / 0.4963 | 0.7201 / 0.7205 / 0.7184 | pente GIFT du plateau ouvert, pour décider quand l'arrêter (choix de l'utilisateur : arrêt au vu de cette courbe) |
 | 10 | 2026-11-09 | TimeSSM-10M, branche d160k (plateau jusqu'à 160 000 pas, décroissance WSD de 40 000 pas, modèle à 200 000) | brut ; flip ; flip + clip ; pile RateIN publiée ; pile RateIN + clip | 0.4934 / 0.4904 / 0.4896 / 0.4763 / 0.4759 | 0.7154 / 0.7118 / 0.7112 / 0.6948 / 0.6947 | série complète du modèle livrable ; rien choisi dessus, le corpus v9 était déjà en préparation |
+| 11 | 2026-11-10 | Hypothèse 13 à 240 000 pas : bras v9 ; bras v8 (d200k) ; un modèle externe de 7M paramètres passé par le même harnais, comme repère | v9 : brut ; flip ; pile RateIN publiée. d200k : brut. Externe : brut ; flip | 0.4933 / 0.4905 / 0.4804 ; 0.4922 ; 0.4849 / 0.4824 | 0.7160 / 0.7123 / 0.6995 ; 0.7153 ; 0.7047 / 0.7011 | l'hypothèse 13 était déjà tranchée au dev (v9 retenu) ; rien choisi dessus. Le levier suivant (contexte 8192) est choisi sur le dev |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -83,3 +84,18 @@ apporte −0.1 %, mais q10 passe à 0.188 et l'intervalle 80 % à 0.706. Couvert
 q10 0.101, q90 0.894, intervalle 80 % 0.793. Repères de la copie du classement du 2026-09-06 : TiRex-2-Pretrained
 (82.5M) 0.4669, TiRex-2-Zeroshot (82.5M) 0.4781, TiRex (35M) 0.4885, FlowState-9.1M 0.5019. Timestral-5M
 (0.479) a été relevé plus tard sur le classement en ligne et ne figure pas dans cette copie.
+
+Regard 11 : à 240k, les trois modèles sont à égalité en brut : v9 0.4933, d200k 0.4922, d160k 0.4934 (regard 10).
+Le gain de v9 au dev (−1.6 % sur d200k) ne passe pas sur GIFT, pas plus que les 40k pas de plus de d200k.
+Le flip donne le même résultat sur v9 et sur d160k (0.4905 contre 0.4904). Mais la pile RateIN rapporte moins sur
+v9 : 0.4804 contre 0.4763, +0.9 %. Une seule config explique les trois quarts de cet écart, solar/W/short, que
+RateIN multiplie par 1.69 sur v9.
+
+Effet de RateIN sur v9, config par config, contre le flip seul : −3.8 % de gains et +1.8 % de pertes, soit −2.0 %
+net. Sur d160k, c'était −4.0 % et +1.1 %. Les pertes viennent de W, A et ett1/H. Les gains viennent de 5T
+(−11.6 %) et de 10S (−8.8 %), sur les termes moyen et long.
+
+Le modèle externe de 7M paramètres fait 0.4849 en brut par notre harnais, à égalité exacte avec sa propre boucle,
+et 0.4824 avec le flip : environ 1.7 % devant v9. Sa pile RateIN est encore en cours.
+
+Couverture de la pile v9 : q10 0.098, q90 0.896, intervalle 80 % 0.798.

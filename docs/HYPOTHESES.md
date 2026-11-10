@@ -89,6 +89,18 @@ tokens grossiers (moyenne par blocs de 4) du passé lointain, à la façon des m
 **Arrêt.** Critère commun. La couverture du corpus limite ce gain : peu de séries courtes en profitent.
 **Coût.** 0 paramètre, ~2 à 4× en temps.
 
+**Test retenu (2026-11-10).** Lire 8192 pas sans réentraîner fait pire au dev : v9 à 240k passe de 0.5268 à
+0.5323 à 8192 pas, et à 0.5382 à 16384 pas. La perte vient des séries horaires longues (gfc12 +4.7 %,
+gfc17 +8.5 %, kdd2022 +2.9 %). Seul LOS_LOOP, en 5T, gagne (−2.3 %). Le modèle ne tire donc pas parti, tel quel,
+de l'historique en plus : il faut l'entraîner à cette longueur.
+Sur GIFT, la pile RateIN tire de son côté l'essentiel de son gain des cadences 5T et 10S, en lisant un
+historique plus long par décimation (regard 11). La question est donc si un contexte natif de 8192 pas
+capte ce gain sans perdre la résolution fine.
+Bras `timessm_10m_v9c8k` : on reprend le checkpoint de plateau v9 à 200k et on fait la même décroissance
+de 40k pas que v9, avec `model.seq_length=8192` comme seule différence. On compare au dev à 240k avec v9
+(0.5268). Comme le dev lit le contexte à `model.input_length`, chaque bras y lit la longueur pour laquelle
+il a été entraîné.
+
 ## 6. Lecture multi-cadence : RateIN externe ou gate interne
 
 **Mécanisme.** Les deux visent la même erreur de cadence, leurs gains ne s'additionnent donc pas. Le
@@ -206,6 +218,12 @@ corpus. Le bras v8 est le plateau principal. Le bras v9 reprend le même checkpo
 ne réfute donc pas v9. Seul un écart en faveur de v8 au-delà du bruit (0.7 %) le réfute.
 
 **Arrêt.** Critère commun, avec cette limite.
+
+**Résultat (2026-11-10).** Au dev à 240k, v9 fait 0.5268 et le bras v8 (d200k) 0.5355, soit −1.6 %. v9 fait
+au moins aussi bien sur 11 sous-ensembles sur 14 (gfc17 −7.4 %, fred_md −5.5 %). Le bras v8 s'est dégradé
+pendant sa décroissance : 0.5248 à 205k, 0.5355 à 240k. v8 est épuisé, v9 est retenu.
+Sur GIFT, en revanche, aucun gain (regard 11) : à 240k, v9, d200k et d160k sont à égalité en brut, entre
+0.492 et 0.493. Ni plus de séries ni plus de pas ne bougent GIFT à cette recette.
 
 ## Résultats
 
