@@ -17,6 +17,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 9 | 2026-11-09 | TimeSSM-10M, plateau à 120 000, 140 000 et 160 000 pas | `+freq_delta`, sans flip | 0.4992 / 0.5005 / 0.4963 | 0.7201 / 0.7205 / 0.7184 | pente GIFT du plateau ouvert, pour décider quand l'arrêter (choix de l'utilisateur : arrêt au vu de cette courbe) |
 | 10 | 2026-11-09 | TimeSSM-10M, branche d160k (plateau jusqu'à 160 000 pas, décroissance WSD de 40 000 pas, modèle à 200 000) | brut ; flip ; flip + clip ; pile RateIN publiée ; pile RateIN + clip | 0.4934 / 0.4904 / 0.4896 / 0.4763 / 0.4759 | 0.7154 / 0.7118 / 0.7112 / 0.6948 / 0.6947 | série complète du modèle livrable ; rien choisi dessus, le corpus v9 était déjà en préparation |
 | 11 | 2026-11-10 | Hypothèse 13 à 240 000 pas : bras v9 ; bras v8 (d200k) ; un modèle externe de 7M paramètres passé par le même harnais, comme repère | v9 : brut ; flip ; pile RateIN publiée. d200k : brut. Externe : brut ; flip | 0.4933 / 0.4905 / 0.4804 ; 0.4922 ; 0.4849 / 0.4824 | 0.7160 / 0.7123 / 0.6995 ; 0.7153 ; 0.7047 / 0.7011 | l'hypothèse 13 était déjà tranchée au dev (v9 retenu) ; rien choisi dessus. Le levier suivant (contexte 8192) est choisi sur le dev |
+| 12 | 2026-11-11 | Contexte 8192 (c8k, branche de décroissance de v9 à 200k, 40k pas) ; la pile RateIN du modèle externe de 7M | c8k : brut ; flip ; pile RateIN publiée. Externe : pile RateIN publiée | 0.4871 / 0.4855 / 0.4809 ; 0.4814 | 0.7081 / 0.7043 / 0.6992 ; — | le dev (0.5302 contre 0.5268 pour v9) ne retenait pas c8k ; rien choisi sur ce regard. La décision 8192/4096 reste au dev et au coût |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -99,3 +100,13 @@ Le modèle externe de 7M paramètres fait 0.4849 en brut par notre harnais, à �
 et 0.4824 avec le flip : environ 1.7 % devant v9. Sa pile RateIN est encore en cours.
 
 Couverture de la pile v9 : q10 0.098, q90 0.896, intervalle 80 % 0.798.
+
+Regard 12 : en brut, c8k gagne 1.3 % sur v9 (0.4871 contre 0.4933), surtout sur 10S (−7.4 %) et 5T (−5.0 %),
+aux termes moyen et long. Le flip garde l'écart (0.4855 contre 0.4905). Avec la pile RateIN, l'écart disparaît :
+0.4809 contre 0.4804 (+0.1 %), 0.4763 pour d160k. RateIN rapporte −0.9 % sur c8k contre −2.0 % sur v9 : sur 5T
+−7.9 % contre −11.6 %, sur 10S +1.5 % contre −8.8 %, sur les configs multivariées −3.1 % contre −5.2 %. Le
+contexte long et la remontée de cadence de RateIN prennent la même chose : voir plus de passé à la cadence
+du modèle. Contre le modèle externe de 7M avec la même pile (0.4814) : égalité globale, c8k devant sur 10T,
+5T et H (−3 à −4 %) et sur les termes moyen et long, derrière sur W (+15 %), A (+7 %), 10S (+3 %) et le terme
+court (+2.3 %). Couverture de c8k avec la pile : q10 0.097, q90 0.895, intervalle 80 % 0.797. Celle du modèle
+externe : intervalle 80 % 0.784.
