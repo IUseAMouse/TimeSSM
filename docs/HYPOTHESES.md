@@ -225,6 +225,35 @@ pendant sa décroissance : 0.5248 à 205k, 0.5355 à 240k. v8 est épuisé, v9 e
 Sur GIFT, en revanche, aucun gain (regard 11) : à 240k, v9, d200k et d160k sont à égalité en brut, entre
 0.492 et 0.493. Ni plus de séries ni plus de pas ne bougent GIFT à cette recette.
 
+## 14. Multivarié et covariables : attention entre variables
+
+**Constat.** Le contexte 8192 n'apporte rien une fois la pile RateIN en place (regard 12). Le modèle
+lit chaque variable seul, alors que le modèle externe de 7M est multivarié, et la release doit gérer
+les covariables passées et futures.
+
+**Mécanisme.** Une variable est une ligne du batch, normalisée seule dans son repère causal, et lue
+par les mêmes blocs. Après l'attention temporelle des couches 1 et 2, une attention entre les variables
+d'un même item mélange les lignes au même jeton (sans FF ni position entre variables, q et k en d/2).
+Le jeton j ne résume que le passé jusqu'à la fin du patch j, donc le modèle reste causal. Un vecteur de
+rôle appris (cible, covariable passée, covariable future) s'ajoute à chaque ligne. Les jetons d'horizon
+d'une covariable future portent ses valeurs connues. d_model passe à 336 pour rester sous 10M
+(9 807 312 paramètres).
+
+**Données.** v10m, c'est v10 plus groups.npz : les variables des items bruts (LOTSA, ISD, NDBC, fermes
+éoliennes) sont retrouvées parmi les séries stockées par empreinte de valeurs (121 329 items, 517 431
+variables, aucune valeur réécrite). La moitié des batchs est multivariée, et la moitié de ceux-là sont
+des items synthétiques : une cible fabriquée à partir de 1 à 4 covariables (fenêtres réelles ou
+impulsions), avec des retards et des formes de dépendance tirés au hasard.
+
+**Test.** Un entraînement from scratch avec la recette de d160k (200k pas, WSD). Le dev univarié reste le
+critère principal. Le dev multivarié (beijing_air_quality, PEMS08, alibaba, kelmarsh avec le vent en
+covariable future, tous exclus de l'entraînement) compare le même modèle lu en joint et variable par
+variable : l'écart mesure ce que l'attention entre variables apporte, sans regarder GIFT.
+
+**Limite.** Le lancement n'a lieu que si v10 ne perd pas contre v9 au dev à 240k (marge 1 %).
+
+**Arrêt.** Critère commun.
+
 ## Résultats
 
 Score `dev_eval.py` (4 origines par série), runs de 20 000 pas, batch 256, corpus v5.
