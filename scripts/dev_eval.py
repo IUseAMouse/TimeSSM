@@ -39,6 +39,19 @@ def rate_factor(scale: float, cycle: float) -> int:
     return max(1, int(round(24.0 / scale / cycle)))
 
 
+def dev_subsets(root: str):
+    """Per dev subset: (name, subset, horizon h, season m, indices of the sampled series),
+    the sample every dev score reads."""
+    manifest = json.loads((Path(root) / "manifest.json").read_text())
+    for name, s in load_subsets(root, DEV_SUBSETS).items():
+        unit, step = parse_frequency(manifest[name]["freq"])
+        h = max(1, HORIZON[unit] // step)
+        m = max(1, SEASON[unit] // step)
+        keep = np.flatnonzero(s.lengths >= h + max(m + 1, 8))
+        rng = np.random.default_rng(0)
+        yield name, s, h, m, rng.choice(keep, min(MAX_SERIES, len(keep)), replace=False)
+
+
 @torch.no_grad()
 def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cycle: float = 0.0,
                   flip: bool = False, clip: bool = False):
@@ -48,14 +61,7 @@ def dev_forecasts(model, root: str, batch: int = 128, origins: int = ORIGINS, cy
     with the mirrored forecast of the negated context; `clip` sets the quantiles of a series
     whose context is non-negative at 0 at least (after the flip average)."""
     device = next(model.parameters()).device
-    manifest = json.loads((Path(root) / "manifest.json").read_text())
-    for name, s in load_subsets(root, DEV_SUBSETS).items():
-        unit, step = parse_frequency(manifest[name]["freq"])
-        h = max(1, HORIZON[unit] // step)
-        m = max(1, SEASON[unit] // step)
-        keep = np.flatnonzero(s.lengths >= h + max(m + 1, 8))
-        rng = np.random.default_rng(0)
-        keep = rng.choice(keep, min(MAX_SERIES, len(keep)), replace=False)
+    for name, s, h, m, keep in dev_subsets(root):
         cuts = [(j, o) for j in keep for o in range(origins)
                 if s.lengths[j] >= (o + 1) * h + max(m + 1, 8)]
         w = s.scale if s.scale > 0 else 1.0
