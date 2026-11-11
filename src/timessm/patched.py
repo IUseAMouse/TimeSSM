@@ -9,9 +9,18 @@ The rate knob survives patching. `w` scales Delta in the S4D blocks and the
 positions of the rotary embedding, so one reference cycle spans the same model
 time at any sampling rate. A missing token is read as zeros plus a mask, never
 imputed.
+
+Multivariate (`variate_layers`): an item of V variates is V rows of the batch, each
+normalized on its own, read by the same blocks; after the time attention of the listed
+layers, a variate attention mixes the V rows at each token position (no feed-forward,
+no position across variates). A token j only summarizes its row up to the end of patch j,
+so the model stays causal. A learned role vector marks each row as target, past
+covariate or future covariate; the horizon tokens of a future covariate carry its known
+values instead of the future token.
 """
 
 import math
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Dict, Optional, Sequence, Union
 
@@ -29,6 +38,8 @@ QUANTILES = (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
 # 21 levels: the 9 above, the midpoints between them and 0.01, 0.05, 0.95, 0.99.
 QUANTILES_21 = (0.01, 0.05) + tuple(round(0.05 * i, 2) for i in range(2, 19)) + (0.95, 0.99)
 N_STATS = 5
+# Row roles of a multivariate item.
+TARGET, PAST_COVARIATE, FUTURE_COVARIATE = 0, 1, 2
 
 
 def rotate(x: torch.Tensor, pos: torch.Tensor, inv_freq: torch.Tensor) -> torch.Tensor:
@@ -67,6 +78,51 @@ class AttentionBlock(nn.Module):
         return x + self.ff(self.ff_norm(x))
 
 
+class VariateAttention(nn.Module):
+    """Attention across the variates of an item at each token position. No feed-forward and
+    no position: permuting the variates permutes the outputs. Queries and keys live in
+    `d_qk` dimensions (the similarity between variates in reduced rank), values in d."""
+
+    def __init__(self, d_model: int, n_heads: int, d_qk: Optional[int] = None):
+        super().__init__()
+        d_qk = int(d_qk or d_model)
+        if d_qk % n_heads or d_model % n_heads:
+            raise ValueError(f"d_qk {d_qk} and d_model {d_model} must divide by {n_heads} heads")
+        self.n_heads = n_heads
+        self.norm = nn.LayerNorm(d_model)
+        self.q = nn.Linear(d_model, d_qk)
+        self.k = nn.Linear(d_model, d_qk)
+        self.v = nn.Linear(d_model, d_model)
+        self.out = nn.Linear(d_model, d_model)
+
+    def forward(self, h: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
+        """h [B, V, N, D], valid [B, V]: a padding variate is never read, every variate
+        reads itself."""
+        B, V, N, D = h.shape
+        x = self.norm(h).transpose(1, 2)                                    # [B, N, V, D]
+        heads = lambda t: t.reshape(B, N, V, self.n_heads, -1).transpose(2, 3)
+        q, k, v = heads(self.q(x)), heads(self.k(x)), heads(self.v(x))      # [B, N, H, V, .]
+        eye = torch.eye(V, dtype=torch.bool, device=h.device)
+        mask = (valid[:, None, :] | eye[None])[:, None, None]               # [B, 1, 1, V, V]
+        o = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        return h + self.out(o.transpose(2, 3).reshape(B, N, V, D).transpose(1, 2))
+
+
+@dataclass
+class VariateLayout:
+    """Rows b * V .. b * V + V - 1 of a flattened batch are the V variates of item b.
+    valid [B, V] bool (False: padding), roles [B, V] long (TARGET, PAST_COVARIATE,
+    FUTURE_COVARIATE)."""
+    n_variates: int
+    valid: torch.Tensor
+    roles: torch.Tensor
+
+    @staticmethod
+    def univariate(rows: int, device) -> "VariateLayout":
+        return VariateLayout(1, torch.ones(rows, 1, dtype=torch.bool, device=device),
+                             torch.zeros(rows, 1, dtype=torch.long, device=device))
+
+
 class PatchedSSM(nn.Module):
     rate_knob = "delta"
     handles_nan = True
@@ -95,6 +151,8 @@ class PatchedSSM(nn.Module):
         mixers: Optional[Sequence[str]] = None,
         halt: bool = False,
         halt_window: int = 16,
+        variate_layers: Sequence[int] = (),
+        variate_qk: Optional[int] = None,
         name: str = "timessm_patched",
     ):
         super().__init__()
@@ -177,6 +235,20 @@ class PatchedSSM(nn.Module):
                                         for q in extra})
         if extra:
             self.core_prefixes = self.core_prefixes + ("embed_size.", "head_size.")
+        # Multivariate: a variate attention after the time attention of each listed layer,
+        # and the role vectors. Off (no module, same state dict) when the list is empty.
+        self.variate_layers = tuple(sorted({int(i) for i in variate_layers}))
+        self.var_att = nn.ModuleDict({str(i): VariateAttention(d_model, n_heads, variate_qk)
+                                      for i in self.variate_layers})
+        self.role_embed = None
+        if self.variate_layers:
+            if not set(self.variate_layers) <= set(range(n_layers)):
+                raise ValueError(f"variate_layers {self.variate_layers} not in 0..{n_layers - 1}")
+            if self.halt or extra:
+                raise ValueError("variate layers: one patch size and no halting (the pass and "
+                                 "the size would be chosen per row, not per item)")
+            self.role_embed = nn.Embedding(3, d_model)
+            self.core_prefixes = self.core_prefixes + ("var_att.", "role_embed.")
 
     def _fan(self, raw: torch.Tensor) -> torch.Tensor:
         """Sorted quantiles: the median plus cumulated positive widths on each side."""
@@ -208,14 +280,19 @@ class PatchedSSM(nn.Module):
     def forward_normalized(self, x: torch.Tensor, mask: torch.Tensor, n: int,
                            w: Scale = 1.0, stats: Optional[torch.Tensor] = None,
                            patch: Optional[int] = None, return_context: bool = False,
-                           passes: Optional[int] = None, every_pass: bool = False):
+                           passes: Optional[int] = None, every_pass: bool = False,
+                           layout: Optional[VariateLayout] = None,
+                           future: Optional[tuple] = None):
         """x, mask [B, L], L a multiple of the patch -> quantiles [B, n, Q], asinh frame.
         `stats` [B, N_STATS] from context_stats, required when the model was built with them.
         A token spans `patch` steps: Delta and the rotary positions scale with patch / self.patch,
         the same knob as w. `return_context` (causal models) also returns the next-patch
         quantiles of every context token, [B, n_past, patch, Q], token j forecasting patch j + 1
         in the frame of token j. `passes` overrides the number of passes over the stack,
-        `every_pass` returns the list of the outputs after each pass."""
+        `every_pass` returns the list of the outputs after each pass.
+        Multivariate models: `layout` says which rows form an item (default: every row its own
+        item, a target); `future` = (values, mask) [B, n], the known horizon of the future
+        covariate rows in the frame of their last context token, mask False elsewhere."""
         B, L = x.shape
         p = int(patch or self.patch)
         n_past, n_future = L // p, -(-n // p)
@@ -224,7 +301,19 @@ class PatchedSSM(nn.Module):
         embed = self.embed if p == self.patch else self.embed_size[str(p)]
         h = embed(torch.cat([values, observed], dim=-1))
         h = h + self.embed_mix(h)
-        h = torch.cat([h, self.future_token.expand(B, n_future, -1)], dim=1)
+        fut = self.future_token.expand(B, n_future, -1)
+        if future is not None:
+            fv, fm = future
+            fm = fm.to(h.dtype)
+            fv = torch.where(fm > 0, fv.to(h.dtype), torch.zeros_like(fm))
+            fv, fm = (F.pad(t, (0, n_future * p - t.shape[1])).reshape(B, n_future, p)
+                      for t in (fv, fm))
+            ef = embed(torch.cat([fv, fm], dim=-1))
+            fut = torch.where(fm.any(-1, keepdim=True), ef + self.embed_mix(ef), fut)
+        h = torch.cat([h, fut], dim=1)
+        if self.role_embed is not None:
+            layout = layout or VariateLayout.univariate(B, x.device)
+            h = h + self.role_embed(layout.roles.reshape(-1))[:, None]
         if self.stats is not None:
             # Computed over the whole context: in a causal model only the future tokens get it.
             add = self.stats(stats.to(h.dtype))[:, None]
@@ -247,9 +336,13 @@ class PatchedSSM(nn.Module):
         k_max = int(passes or self.loops)
         outs = []
         for k in range(k_max):
-            for ssm, att in zip(self.ssm, self.att):
+            for i, (ssm, att) in enumerate(zip(self.ssm, self.att)):
                 h = ssm(h, delta_scale=w)
                 h = att(h, pos, valid, allowed) if isinstance(att, AttentionBlock) else h
+                if str(i) in self.var_att:
+                    V = layout.n_variates
+                    h = self.var_att[str(i)](h.reshape(-1, V, N, h.shape[-1]), layout.valid)
+                    h = h.reshape(B, N, -1)
             if every_pass or k == k_max - 1:
                 outs.append(self._read(h, n, n_past, n_future, p, return_context))
         return outs if every_pass else outs[0]
@@ -361,12 +454,69 @@ class PatchedSSM(nn.Module):
             q = self._halted(z, mask, n, w, stats, int(patch or self.patch), x, center, scale)
         else:
             q = self.forward_normalized(z, mask, n, w, stats, patch)
+        return self._output(q, mean, std)
+
+    def _output(self, q, mean, std) -> Dict[str, torch.Tensor]:
+        """Quantiles in the asinh frame [R, n, Q_head] -> the forecast dict, raw units."""
         if len(self.levels) != len(self.quantile_levels):
             q = q[..., self.out_index]
         raw = (torch.sinh(q.clamp(-15.0, 15.0).double()) * std[:, None] + mean[:, None]).float()
         mid = len(self.quantile_levels) // 2
         return {"quantiles": q, "quantiles_denorm": raw, "quantile_levels": self.quantile_levels,
                 "forecast": q[..., mid], "forecast_denorm": raw[..., mid]}
+
+    def prepare_variates(self, context: torch.Tensor, w: Optional[Scale] = None,
+                         roles: Optional[torch.Tensor] = None,
+                         future: Optional[torch.Tensor] = None,
+                         valid: Optional[torch.Tensor] = None):
+        """context [B, V, L] raw (NaN = missing) -> the rows the blocks read, shared by
+        forecast_multivariate and training: (x [B*V, L'], mask, z, center, scale, mean, std,
+        w per row, layout, future (values, mask) in each row's frame or None).
+        roles [B, V] or [V] (default: all targets); future [B, V, n] raw, read on the
+        FUTURE_COVARIATE rows only; valid [B, V] (default: rows with an observed point)."""
+        if not self.variate_layers:
+            raise ValueError("a multivariate input needs a model built with variate_layers")
+        B, V, L = context.shape
+        x = self._pad(context.reshape(B * V, L))
+        mask = torch.isfinite(x)
+        if self.causal:
+            z, center, scale = self.normalize_causal(x, mask, self.patch)
+            mean, std = center[:, -1:], scale[:, -1:]
+        else:
+            z, center, scale = self.normalize(x, mask)
+            mean, std = center, scale
+        dev = context.device
+        roles = (torch.zeros(B, V, dtype=torch.long, device=dev) if roles is None
+                 else torch.as_tensor(roles, device=dev).long().expand(B, V))
+        valid = mask.reshape(B, V, -1).any(-1) if valid is None else valid.to(dev).bool()
+        layout = VariateLayout(V, valid, roles)
+        w = 1.0 if w is None else w
+        if isinstance(w, torch.Tensor) and w.dim() > 0:
+            w = w.reshape(B).repeat_interleave(V)
+        fut = None
+        if future is not None:
+            f = future.reshape(B * V, -1)
+            fm = torch.isfinite(f) & (roles.reshape(-1) == FUTURE_COVARIATE)[:, None]
+            fz = torch.asinh((torch.where(fm, f, torch.zeros_like(f)).double() - mean) / std)
+            fut = (fz.float() * fm, fm)
+        return x, mask, z, center, scale, mean, std, w, layout, fut
+
+    def forecast_multivariate(self, context: torch.Tensor, n: Optional[int] = None,
+                              w: Optional[Scale] = None, roles: Optional[torch.Tensor] = None,
+                              future: Optional[torch.Tensor] = None,
+                              valid: Optional[torch.Tensor] = None) -> Dict[str, torch.Tensor]:
+        """context [B, V, L] raw -> the forecast dict of forecast(), every tensor [B, V, n, ...].
+        One w per item (all its variates share the rate); roles, future and valid as in
+        prepare_variates. A one-variate target item gives what forecast() gives."""
+        n = int(n or self.prediction_length)
+        B, V, _ = context.shape
+        x, mask, z, _, _, mean, std, w, layout, fut = self.prepare_variates(
+            context, w, roles, future, valid)
+        stats = self.context_stats(x, mask, mean, std, z) if self.stats is not None else None
+        q = self.forward_normalized(z, mask, n, w, stats, layout=layout, future=fut)
+        out = self._output(q, mean, std)
+        return {k: v.reshape(B, V, *v.shape[1:]) if isinstance(v, torch.Tensor) else v
+                for k, v in out.items()}
 
     def forward(self, context: torch.Tensor, **kwargs) -> Dict[str, torch.Tensor]:
         return self.forecast(context, **kwargs)
@@ -399,4 +549,5 @@ def build_from_config(cfg) -> PatchedSSM:
                       mixers=m.get("mixers", None), halt=m.get("halt", False),
                       halt_window=m.get("halt_window", 16),
                       head_levels=QUANTILES_21 if m.get("head_quantiles", 9) == 21 else None,
-                      name=m.name)
+                      variate_layers=tuple(m.get("variate_layers", None) or ()),
+                      variate_qk=m.get("variate_qk", None), name=m.name)
