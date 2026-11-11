@@ -40,6 +40,9 @@ MIN_MATCH = 0.95
 # The corpus builders drop a variate with fewer observed points (build_corpus_v4.MIN_LENGTH);
 # such a variate is not counted as missing.
 MIN_OBSERVED = 16
+# ... and stop a subset at this many points (build_corpus_v4.MAX_OBS): the later items of a
+# subset that reached it were never stored.
+MAX_OBS = 400_000_000
 
 
 def key(values: np.ndarray) -> bytes:
@@ -168,7 +171,8 @@ def build(corpus: Path, out: Path, raw: Optional[Path], caches: Optional[Path]) 
                 continue                          # univariate subset
             index = Index(corpus, [name])
             found, stats = match_items(_chain(first, grids), index)
-            add(name, found, stats, expected_whole=not manifest[name].get("dropped"))
+            whole = not manifest[name].get("dropped") and manifest[name]["n_obs"] < MAX_OBS
+            add(name, found, stats, expected_whole=whole)
     if caches is not None:
         for source, channels in (("isd", ISD_CHANNELS), ("ndbc", NDBC_CHANNELS)):
             if not (caches / source).is_dir():
