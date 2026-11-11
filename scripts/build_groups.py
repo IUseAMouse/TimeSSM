@@ -80,6 +80,10 @@ class Index:
         hit = self.table.get(key(c[0]))
         return None if hit is None else (hit[0], hit[1], c[1])
 
+    def is_ambiguous(self, channel: np.ndarray) -> bool:
+        c = cut(channel)
+        return c is not None and key(c[0]) in self.ambiguous
+
 
 def arrow_items(subset_dir: Path) -> Iterator[np.ndarray]:
     """[V, T] targets of the multivariate items of a LOTSA subset (none if univariate)."""
@@ -104,13 +108,16 @@ def cache_items(cache_dir: Path) -> Iterator[np.ndarray]:
 def match_items(raw_items, index: Index, channel_subsets=None) -> Tuple[list, dict]:
     """Items as lists of (subset, series, shift) with >= 2 members found, and the counts.
     `channel_subsets` [c] restricts channel c to those subsets (one subset per channel)."""
-    items, stats = [], {"variates": 0, "found": 0}
+    items, stats = [], {"variates": 0, "found": 0, "ambiguous": 0}
     for grid in raw_items:
         members = []
         for c, channel in enumerate(grid):
             if cut(channel) is None:
                 continue
             stats["variates"] += 1
+            if index.is_ambiguous(channel):
+                stats["ambiguous"] += 1           # a duplicate series: left out on purpose
+                continue
             hit = index.find(channel)
             if hit is not None and (channel_subsets is None or hit[0] in channel_subsets[c]):
                 members.append(hit)
@@ -141,8 +148,8 @@ def build(corpus: Path, out: Path, raw: Optional[Path], caches: Optional[Path]) 
     def add(source, found, stats, expected_whole=False):
         items.extend(found)
         report[source] = stats
-        rate = stats["found"] / max(1, stats.get("variates", 0))
-        print(f"{source}: {stats}  ({rate:.1%} of the variates found)", flush=True)
+        rate = stats["found"] / max(1, stats.get("variates", 0) - stats.get("ambiguous", 0))
+        print(f"{source}: {stats}  ({rate:.1%} of the unambiguous variates found)", flush=True)
         if expected_whole and stats.get("variates") and rate < MIN_MATCH:
             raise SystemExit(f"{source}: {rate:.1%} of the variates found, below {MIN_MATCH:.0%} "
                              "for a subset that dropped nothing: the cut rule is wrong")

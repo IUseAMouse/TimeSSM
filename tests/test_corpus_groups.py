@@ -100,7 +100,8 @@ def test_build_groups_finds_the_variates(sources, tmp_path):
     corpus, raw, caches, items, grids = sources
     out = tmp_path / "v10m"
     summary = BG.build(corpus, out, raw, caches)
-    assert summary["sources"]["multi_h"] == {"variates": 12, "found": 11, "items": 4}
+    assert summary["sources"]["multi_h"] == {"variates": 12, "found": 11, "ambiguous": 0,
+                                             "items": 4}
     assert summary["sources"]["isd"]["found"] == 11 and summary["sources"]["isd"]["items"] == 3
     assert summary["sources"]["penmanshiel"]["items"] == 2
     assert "uni_d" not in summary["sources"]
@@ -144,6 +145,12 @@ def test_ambiguous_series_match_nothing(tmp_path):
     store(tmp_path, "dup", [np.arange(50.0), np.arange(50.0), np.arange(60.0)], "H", manifest)
     index = BG.Index(tmp_path, ["dup"])
     assert index.find(np.arange(50.0, dtype=np.float32)) is None
+    assert index.is_ambiguous(np.arange(50.0, dtype=np.float32))
+    tail = np.full(10, np.nan)
+    grid = np.stack([np.r_[np.arange(50.0), tail], np.r_[np.arange(50.0) + 7, tail],
+                     np.arange(60.0)]).astype(np.float32)
+    found, stats = BG.match_items([grid], index)
+    assert stats == {"variates": 3, "found": 1, "ambiguous": 1, "items": 0}
     assert index.find(np.r_[np.nan, np.arange(60.0)].astype(np.float32)) == ("dup", 2, 1)
 
 
