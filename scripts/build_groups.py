@@ -37,6 +37,9 @@ WIND_CHANNELS = ("power", "rpm", "temp", "wind")
 # Below this share of variates found, a subset whose series count says nothing was dropped
 # points to a bug in the cut rule, not to removed series.
 MIN_MATCH = 0.95
+# The corpus builders drop a variate with fewer observed points (build_corpus_v4.MIN_LENGTH);
+# such a variate is not counted as missing.
+MIN_OBSERVED = 16
 
 
 def key(values: np.ndarray) -> bytes:
@@ -112,7 +115,7 @@ def match_items(raw_items, index: Index, channel_subsets=None) -> Tuple[list, di
     for grid in raw_items:
         members = []
         for c, channel in enumerate(grid):
-            if cut(channel) is None:
+            if np.isfinite(channel).sum() < MIN_OBSERVED:
                 continue
             stats["variates"] += 1
             if index.is_ambiguous(channel):

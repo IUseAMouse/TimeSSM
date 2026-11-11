@@ -70,8 +70,11 @@ def sources(tmp_path):
     # LOTSA multivariate subset: 4 items of 3 variates, variate 1 starts late; the stored
     # copy lost one series (an overlap removal) and dropped nothing else.
     items = [np.stack([ramp(c, start=40 * c) + 10000 * i for c in range(3)]) for i in range(4)]
+    # A fourth variate with 10 points: the corpus builder drops it, not counted as missing.
+    items = [np.concatenate([it, np.r_[np.full(T - 10, np.nan), np.arange(10.0)][None]])
+             .astype(np.float32) for it in items]
     write_arrow(raw / "multi_h", items)
-    rows = [lotsa_cut(ch) for it in items for ch in it]
+    rows = [lotsa_cut(ch) for it in items for ch in it[:3]]
     store(corpus, "multi_h", rows[:4] + rows[5:], "H", manifest, dropped=1)
     # A univariate LOTSA subset: skipped.
     write_arrow(raw / "uni_d", [np.arange(100, dtype=np.float32)])
