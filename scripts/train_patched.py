@@ -72,6 +72,35 @@ def schedule(step: int, warmup: int, total: int, kind: str = "cosine", decay: fl
     return 0.5 * (1 + math.cos(math.pi * t)) * (1 - 1e-3) + 1e-3
 
 
+def step_loss(model, x, y, w, levels, t, patch: int, passes=None) -> torch.Tensor:
+    """One training loss: x [B, L] context, y [B, H] target, raw units, w [B] Delta scales.
+    The forecast pinball in the asinh frame of the last context token (or `score_loss`), plus
+    `t.context_loss` times the next-patch pinball of the context tokens."""
+    x = model._pad(x, patch)
+    mask, ymask = torch.isfinite(x), torch.isfinite(y)
+    if model.causal:
+        z, center, scale = model.normalize_causal(x, mask, patch)
+        mean, std = center[:, -1:], scale[:, -1:]
+    else:
+        z, mean, std = model.normalize(x, mask)
+    target = torch.asinh((torch.where(ymask, y, torch.zeros_like(y)).double() - mean) / std)
+    target = target.float().nan_to_num()
+    stats = model.context_stats(x, mask, mean, std, z) if model.stats is not None else None
+    lam = t.get("context_loss", 0.0)
+    with torch.autocast(x.device.type, dtype=torch.bfloat16, enabled=x.device.type == "cuda"):
+        out = model.forward_normalized(z, mask, y.shape[1], w, stats, patch,
+                                       return_context=lam > 0, passes=passes)
+    q, qc = out if lam > 0 else (out, None)
+    if t.loss == "asinh":
+        loss = pinball(q.float(), target, ymask, levels)
+    else:
+        loss = score_loss(q, mean, std, y, ymask, x, w, levels, t.loss)
+    if qc is not None:
+        ct, cm = next_patch_targets(x, mask, center, scale, patch, t.get("context_skip", 2))
+        loss = loss + lam * pinball(qc[:, :-1].float().flatten(1, 2), ct, cm, levels)
+    return loss
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--config", required=True)
@@ -145,28 +174,7 @@ def main():
         # Random depth: each step trains the forecast after 1..loops passes, so that every
         # pass can be read at forecast time (model.halt).
         passes = int(draw.integers(1, model.loops + 1)) if t.get("random_passes") else None
-        x = model._pad(x, patch)
-        mask, ymask = torch.isfinite(x), torch.isfinite(y)
-        if model.causal:
-            z, center, scale = model.normalize_causal(x, mask, patch)
-            mean, std = center[:, -1:], scale[:, -1:]
-        else:
-            z, mean, std = model.normalize(x, mask)
-        target = torch.asinh((torch.where(ymask, y, torch.zeros_like(y)).double() - mean) / std)
-        target = target.float().nan_to_num()
-        stats = model.context_stats(x, mask, mean, std, z) if model.stats is not None else None
-        lam = t.get("context_loss", 0.0)
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            out = model.forward_normalized(z, mask, y.shape[1], w, stats, patch,
-                                           return_context=lam > 0, passes=passes)
-        q, qc = out if lam > 0 else (out, None)
-        if t.loss == "asinh":
-            loss = pinball(q.float(), target, ymask, levels)
-        else:
-            loss = score_loss(q, mean, std, y, ymask, x, w, levels, t.loss)
-        if qc is not None:
-            ct, cm = next_patch_targets(x, mask, center, scale, patch, t.get("context_skip", 2))
-            loss = loss + lam * pinball(qc[:, :-1].float().flatten(1, 2), ct, cm, levels)
+        loss = step_loss(model, x, y, w, levels, t, patch, passes)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         grad = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
