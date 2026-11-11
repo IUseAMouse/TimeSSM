@@ -1,0 +1,22 @@
+# @package _global_
+# GIFT-Eval of a multivariate PatchedSSM run (configs/patched/multivariate.yaml) through the
+# TimeJEPA harness; +multivariate=true forecasts the items of the multivariate configs whole.
+#
+#   EVAL_CONFIG=patched_mv_eval scripts/eval_ssm.sh /workspace/runs/timessm_10m_mv/timessm_10m_mv.ckpt \
+#       +freq_delta=true +multivariate=true +tta_flip=true +ratein=mix +ratein_pool=true \
+#       +ratein_k_up=2x3x4 +ratein_min_bt=4 +ratein_bt_windows=4
+defaults:
+  - patched_eval
+  - _self_
+
+model:
+  name: "timessm_10m_mv"
+  d_model: 336
+  causal: true
+  loops: 2
+  head_quantiles: 9
+  variate_layers: [1, 2]
+  variate_qk: 168
+
+wandb:
+  tags: ["timessm", "patched", "multivariate", "eval"]
