@@ -1,0 +1,73 @@
+# @package _global_
+# TimeSSM-10M multivariate: the final univariate recipe (causal S4D + attention, two shared
+# passes, WSD) with a variate attention after layers 1 and 2 (no feed-forward, queries and
+# keys in d/2), role vectors and future covariates; d_model 336 keeps it under 10M
+# (9 807 312 parameters). Trained from scratch on v10m (v10 + groups.npz): half of the
+# batches are multivariate items, half of those synthetic covariate items.
+#
+#   scripts/train_patched_loop.sh configs/patched/multivariate.yaml run.name=timessm_10m_mv
+model:
+  name: "timessm_10m_mv"
+  builder: "timessm.patched:build_from_config"
+  seq_length: 4096
+  prediction_length: 256
+  patch: 16
+  d_model: 336
+  n_layers: 4
+  d_state: 32
+  expand: 2
+  n_heads: 8
+  attention: true
+  dropout: 0.0
+  robust_norm: false
+  stats: false
+  causal: true
+  loops: 2
+  mixers: null
+  head_quantiles: 9
+  patches: null
+  variate_layers: [1, 2]
+  variate_qk: 168
+  max_params: 9999999      # under 10M or the run does not start
+
+run:
+  name: null
+  out: "/workspace/runs"
+  seed: 0
+  resume: null
+  eval_every: 5000
+  keep_every: 20000
+
+training:
+  steps: 200000
+  batch: 256               # rows: a multivariate batch holds 256 // V items
+  lr: 5.0e-4
+  weight_decay: 0.02
+  warmup: 1000
+  max_horizon: 720
+  loss: "asinh"
+  ema: 0.999
+  context_loss: 1.0
+  context_skip: 2
+  schedule: "wsd"
+  decay: 0.2
+
+data:
+  root: "/workspace/data/v10m"
+  workers: 16
+  p_decimate: 0.5
+  p_flip: 0.5
+  p_synth: 0.5
+  p_full: 0.5
+  p_mix: 0.0
+  temperature: 0.3
+  groups: 12
+  include_dev: false       # dev and multivariate dev stay held out
+  p_multi: 0.5
+  p_cov_synth: 0.5
+  max_variates: 16
+
+wandb:
+  project: "TimeSSM"
+  entity: iuseamouse
+  tags: ["multivariate", "v10m", "wsd"]

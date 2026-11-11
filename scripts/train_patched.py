@@ -22,9 +22,9 @@ from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
 from torch.utils.data import DataLoader
 
 from timessm.corpus import DEV_SUBSETS, WindowBatches, train_subsets
-from timessm.patched import build_from_config, next_patch_targets
+from timessm.patched import TARGET, build_from_config, next_patch_targets
 
-from dev_eval import dev_score
+from dev_eval import dev_multi_score, dev_score
 
 
 def pinball(q: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, levels: torch.Tensor):
@@ -72,10 +72,14 @@ def schedule(step: int, warmup: int, total: int, kind: str = "cosine", decay: fl
     return 0.5 * (1 + math.cos(math.pi * t)) * (1 - 1e-3) + 1e-3
 
 
-def step_loss(model, x, y, w, levels, t, patch: int, passes=None) -> torch.Tensor:
+def step_loss(model, x, y, w, levels, t, patch: int, passes=None, roles=None,
+              valid=None) -> torch.Tensor:
     """One training loss: x [B, L] context, y [B, H] target, raw units, w [B] Delta scales.
     The forecast pinball in the asinh frame of the last context token (or `score_loss`), plus
-    `t.context_loss` times the next-patch pinball of the context tokens."""
+    `t.context_loss` times the next-patch pinball of the context tokens.
+    Multivariate batch (`roles` given): x [B, V, L], y [B, V, H], roles and valid [B, V]."""
+    if roles is not None:
+        return _step_loss_variates(model, x, y, w, levels, t, patch, passes, roles, valid)
     x = model._pad(x, patch)
     mask, ymask = torch.isfinite(x), torch.isfinite(y)
     if model.causal:
@@ -101,6 +105,33 @@ def step_loss(model, x, y, w, levels, t, patch: int, passes=None) -> torch.Tenso
     return loss
 
 
+def _step_loss_variates(model, x, y, w, levels, t, patch, passes, roles, valid):
+    """Rows normalized one by one (each in its own causal frame); the forecast pinball on
+    the target rows only, the next-patch pinball on every valid row (covariates are series
+    to model too); a future covariate's y is its known horizon, read by the model."""
+    if t.loss != "asinh" or patch != model.patch:
+        raise ValueError("multivariate batches: loss asinh and the model's patch size")
+    B, V, H = y.shape
+    xr, mask, z, center, scale, mean, std, wr, layout, fut = model.prepare_variates(
+        x, w, roles, y, valid)
+    yr = y.reshape(B * V, H)
+    ymask = torch.isfinite(yr) & ((roles == TARGET) & layout.valid).reshape(-1, 1)
+    target = torch.asinh((torch.where(ymask, yr, torch.zeros_like(yr)).double() - mean) / std)
+    target = target.float().nan_to_num()
+    stats = model.context_stats(xr, mask, mean, std, z) if model.stats is not None else None
+    lam = t.get("context_loss", 0.0)
+    with torch.autocast(x.device.type, dtype=torch.bfloat16, enabled=x.device.type == "cuda"):
+        out = model.forward_normalized(z, mask, H, wr, stats, patch, return_context=lam > 0,
+                                       passes=passes, layout=layout, future=fut)
+    q, qc = out if lam > 0 else (out, None)
+    loss = pinball(q.float(), target, ymask, levels)
+    if qc is not None:
+        ct, cm = next_patch_targets(xr, mask, center, scale, patch, t.get("context_skip", 2))
+        cm = cm & layout.valid.reshape(-1, 1)
+        loss = loss + lam * pinball(qc[:, :-1].float().flatten(1, 2), ct, cm, levels)
+    return loss
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--config", required=True)
@@ -118,7 +149,13 @@ def main():
     if cfg.training.get("context_loss", 0.0) > 0 and not model.causal:
         raise SystemExit("training.context_loss needs model.causal: the global frame and the "
                          "attention would show each context token its own target")
-    print(f"{cfg.run.name}: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M", flush=True)
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"{cfg.run.name}: {n_params / 1e6:.2f}M ({n_params} parameters)", flush=True)
+    if cfg.model.get("max_params") and n_params > cfg.model.max_params:
+        raise SystemExit(f"{n_params} parameters, above model.max_params {cfg.model.max_params}")
+    p_multi = cfg.data.get("p_multi", 0.0)
+    if p_multi > 0 and not model.variate_layers:
+        raise SystemExit("data.p_multi needs a model with variate_layers")
     decay = [p for p in model.parameters() if p.dim() >= 2]
     other = [p for p in model.parameters() if p.dim() < 2]
     t = cfg.training
@@ -132,7 +169,8 @@ def main():
         opt.load_state_dict(state["opt"])
         sched.load_state_dict(state["sched"])
         start = state["step"]
-    names = train_subsets(cfg.data.root) + (list(DEV_SUBSETS) if cfg.data.include_dev else [])
+    names = (train_subsets(cfg.data.root, multivariate=p_multi > 0)
+             + (list(DEV_SUBSETS) if cfg.data.include_dev else []))
     # Windows at the longest context the model reads; each step cuts them to the
     # `max_tokens` tokens of the patch size drawn for it.
     data = WindowBatches(cfg.data.root, t.batch, model.input_length, max_horizon=t.max_horizon,
@@ -142,7 +180,9 @@ def main():
                          seed=cfg.run.seed + start, names=names,
                          p_full=cfg.data.get("p_full", 0.0),
                          p_mix=cfg.data.get("p_mix", 0.0),
-                         series_frac=cfg.data.get("series_frac", 1.0))
+                         series_frac=cfg.data.get("series_frac", 1.0),
+                         p_multi=p_multi, max_variates=cfg.data.get("max_variates", 16),
+                         p_cov_synth=cfg.data.get("p_cov_synth", 0.5))
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.levels, device=device)
@@ -166,15 +206,15 @@ def main():
     t0, running, seen = time.time(), 0.0, 0
     draw = np.random.default_rng(cfg.run.seed + 7919 * start)
     model.train()
-    for step, (x, y, w) in enumerate(loader, start):
+    for step, batch in enumerate(loader, start):
         if step >= t.steps:
             break
-        x, y, w = (v.to(device, non_blocking=True) for v in (x, y, w))
+        x, y, w, *variates = (v.to(device, non_blocking=True) for v in batch)
         patch = model.patches[draw.integers(len(model.patches))]
         # Random depth: each step trains the forecast after 1..loops passes, so that every
         # pass can be read at forecast time (model.halt).
         passes = int(draw.integers(1, model.loops + 1)) if t.get("random_passes") else None
-        loss = step_loss(model, x, y, w, levels, t, patch, passes)
+        loss = step_loss(model, x, y, w, levels, t, patch, passes, *variates)
         opt.zero_grad(set_to_none=True)
         loss.backward()
         grad = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -209,6 +249,11 @@ def main():
             row = {"step": step + 1, "dev": score["all"], "per_subset": score}
             if ema is not None:
                 row["dev_live"] = dev_score(model, cfg.data.root)["all"]
+            if final.variate_layers:
+                multi = dev_multi_score(final, cfg.data.root)
+                row["dev_multi"], row["dev_multi_single"] = (multi["joint"]["all"],
+                                                             multi["single"]["all"])
+                row["per_family_multi"] = multi
             if final.halt:
                 # The same weights at the full number of passes, against the halted score.
                 final.halt = False
@@ -222,6 +267,9 @@ def main():
                 wb.log({"dev/all": row["dev"], **({"dev/live": row["dev_live"]} if "dev_live" in row
                                                   else {}),
                         **({"dev/full": row["dev_full"]} if "dev_full" in row else {}),
+                        **({"dev/multi": row["dev_multi"],
+                            "dev/multi_single": row["dev_multi_single"]}
+                           if "dev_multi" in row else {}),
                         **{f"dev/{k}": v for k, v in score.items() if k != "all"}}, step=step + 1)
     if wb is not None:
         wb.finish()
