@@ -18,6 +18,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 10 | 2026-11-09 | TimeSSM-10M, branche d160k (plateau jusqu'à 160 000 pas, décroissance WSD de 40 000 pas, modèle à 200 000) | brut ; flip ; flip + clip ; pile RateIN publiée ; pile RateIN + clip | 0.4934 / 0.4904 / 0.4896 / 0.4763 / 0.4759 | 0.7154 / 0.7118 / 0.7112 / 0.6948 / 0.6947 | série complète du modèle livrable ; rien choisi dessus, le corpus v9 était déjà en préparation |
 | 11 | 2026-11-10 | Hypothèse 13 à 240 000 pas : bras v9 ; bras v8 (d200k) ; un modèle externe de 7M paramètres passé par le même harnais, comme repère | v9 : brut ; flip ; pile RateIN publiée. d200k : brut. Externe : brut ; flip | 0.4933 / 0.4905 / 0.4804 ; 0.4922 ; 0.4849 / 0.4824 | 0.7160 / 0.7123 / 0.6995 ; 0.7153 ; 0.7047 / 0.7011 | l'hypothèse 13 était déjà tranchée au dev (v9 retenu) ; rien choisi dessus. Le levier suivant (contexte 8192) est choisi sur le dev |
 | 12 | 2026-11-11 | Contexte 8192 (c8k, branche de décroissance de v9 à 200k, 40k pas) ; la pile RateIN du modèle externe de 7M | c8k : brut ; flip ; pile RateIN publiée. Externe : pile RateIN publiée | 0.4871 / 0.4855 / 0.4809 ; 0.4814 | 0.7081 / 0.7043 / 0.6992 ; — | le dev (0.5302 contre 0.5268 pour v9) ne retenait pas c8k ; rien choisi sur ce regard. La décision 8192/4096 reste au dev et au coût |
+| 13 | 2026-11-12 | Bras corpus v10 (v9 à 200k, décroissance de 40k pas sur v10) | Pile RateIN publiée | 0.4782 | 0.6974 | v10 retenu au dev avant ce regard (0.5263 contre 0.5268 pour v9, critère du déclencheur) ; rien choisi sur GIFT |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -110,3 +111,9 @@ du modèle. Contre le modèle externe de 7M avec la même pile (0.4814) : égali
 5T et H (−3 à −4 %) et sur les termes moyen et long, derrière sur W (+15 %), A (+7 %), 10S (+3 %) et le terme
 court (+2.3 %). Couverture de c8k avec la pile : q10 0.097, q90 0.895, intervalle 80 % 0.797. Celle du modèle
 externe : intervalle 80 % 0.784.
+
+Regard 13 : v10 fait 0.4782 avec la pile, contre 0.4804 pour v9 (−0.5 %) et 0.4763 pour d160k (+0.4 %).
+Contre v9, le gain est réparti : M −2.0 %, W −1.8 %, 10S −1.5 %, Q −1.1 %, A +1.3 %, terme court −0.7 %.
+Contre d160k, W reste derrière (+8.1 %), comme pour tous les bras repris de v9. Contre le modèle externe
+de 7M avec la même pile (0.4814) : −0.7 %, devant sur 5T, 10T et H (−3 à −5 %), derrière sur W (+13 %)
+et A (+4 %). Couverture : q10 0.101, q90 0.895, intervalle 80 % 0.795.
