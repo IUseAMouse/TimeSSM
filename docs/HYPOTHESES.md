@@ -252,6 +252,32 @@ variable : l'écart mesure ce que l'attention entre variables apporte, sans rega
 
 **Limite.** Le lancement n'a lieu que si v10 ne perd pas contre v9 au dev à 240k (marge 1 %).
 
+**Constat en cours de run (12 nov., 134k pas).** Le dev univarié reste derrière le run univarié au même
+pas (0.552 contre 0.527), surtout sur les basses fréquences (tourism, cif), et tourism_quarterly remonte
+depuis 90k. Cause mesurée sur v10m : les items réels (un quart des tirages) sont tirés par famille, sans
+classe de cadence, et sont presque tous horaires ou plus fins.
+
+| Classe | Cible (`RATE_WEIGHT`) | Items réels | Flux du run | Flux avec `balance_rates` 1.0 |
+|---|---|---|---|---|
+| S | 0.093 | 0.000 | 0.070 | 0.093 |
+| 5T | 0.130 | 0.414 | 0.201 | 0.130 |
+| 15T | 0.167 | 0.099 | 0.150 | 0.167 |
+| H | 0.204 | 0.405 | 0.255 | 0.204 |
+| D | 0.145 | 0.060 | 0.124 | 0.145 |
+| W | 0.104 | 0.022 | 0.084 | 0.104 |
+| M | 0.082 | 0.000 | 0.061 | 0.082 |
+| Q | 0.037 | 0.000 | 0.028 | 0.037 |
+| A | 0.037 | 0.000 | 0.028 | 0.037 |
+
+**Correctif prêt, non appliqué au run.** `data.balance_rates` (0 par défaut) : les fenêtres tirées par
+cadence (batchs univariés et items synthétiques) compensent les classes des items, pour que le flux entier
+retrouve la cible. Prix à 1.0 : la classe 5T ne pèse plus que 3.5 % des fenêtres tirées par cadence, elle
+est surtout vue par les items. Une valeur intermédiaire compense en partie.
+
+**Reprise prévue si le run déçoit à 200k.** Repartir d'un checkpoint de plateau (20k à 160k, tous les 20k)
+avec `data.balance_rates`, même recette, une seule variable changée. Le choix du checkpoint et de la valeur
+se discute au vu des évals de fin de run.
+
 **Arrêt.** Critère commun.
 
 ## Résultats

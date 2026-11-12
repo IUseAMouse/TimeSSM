@@ -20,7 +20,8 @@ from omegaconf import OmegaConf
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from timessm.corpus import (DEV_MULTI, WindowBatches, covariate_target,  # noqa: E402
+from timessm.corpus import (DEV_MULTI, WindowBatches, compensated_rates,  # noqa: E402
+                            covariate_target,
                             load_subsets, train_subsets)
 from timessm.groups import aligned, load_groups, span  # noqa: E402
 from timessm.patched import FUTURE_COVARIATE, PAST_COVARIATE, TARGET, PatchedSSM  # noqa: E402
@@ -197,6 +198,29 @@ def test_synthetic_covariate_items(v10m):
         assert 2 <= x.shape[1] <= 5 and valid.all()
         assert (roles[:, 0] == TARGET).all()
         assert set(roles[:, 1:].unique().tolist()) <= {PAST_COVARIATE, FUTURE_COVARIATE}
+
+
+def test_rates_are_compensated_for_the_items(v10m):
+    """With balance_rates, a share of items of some rate classes and the windows drawn by
+    rate give back the target class shares; off, the rate draw is untouched."""
+    target, item = np.array([0.5, 0.3, 0.2]), np.array([0.0, 1.0, 0.0])
+    p = compensated_rates(target, item, 0.25)
+    np.testing.assert_allclose(0.75 * p + 0.25 * item, target)
+    # A class the items overfill is dropped from the rate draw, the others keep their ratio.
+    p = compensated_rates(target, item, 0.5)
+    np.testing.assert_allclose(p, [5 / 7, 0.0, 2 / 7])
+    kw = dict(batch_size=16, context=256, max_horizon=64, p_multi=0.5, p_cov_synth=0.5)
+    off, on = WindowBatches(v10m, **kw), WindowBatches(v10m, balance_rates=True, **kw)
+    off._setup(), on._setup()
+    plain = WindowBatches(v10m, 16, 256, max_horizon=64, names=off.names)
+    plain._setup()
+    np.testing.assert_array_equal(off.rate_p, plain.rate_p)
+    assert on.item_rate_p.sum() == pytest.approx(1.0)
+    stream = 0.75 * on.rate_p + 0.25 * on.item_rate_p
+    kept = on.rate_p > 0
+    np.testing.assert_allclose(stream[kept] / stream[kept].sum(),
+                               off.rate_p[kept] / off.rate_p[kept].sum())
+    assert (stream[~kept] >= off.rate_p[~kept]).all()
 
 
 def test_covariate_target_is_the_stated_sum():

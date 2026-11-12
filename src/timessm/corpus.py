@@ -141,6 +141,15 @@ def covariate_target(rng, base: np.ndarray, covariates: np.ndarray, n_context: i
     return (base + sd_b * effect).astype(np.float32), spec
 
 
+def compensated_rates(target: np.ndarray, item: np.ndarray, share: float) -> np.ndarray:
+    """Rate class probabilities of the windows drawn by rate, such that the whole stream
+    follows `target` when a `share` of the draws are items whose classes follow `item`:
+    (1 - share) * p + share * item = target. A class the items alone fill beyond its
+    target is clipped at 0 (the stream then exceeds the target there) and p renormalized."""
+    p = np.clip(np.asarray(target, float) - share * np.asarray(item, float), 0.0, None)
+    return p / p.sum()
+
+
 def block_mean(x: np.ndarray, k: int) -> np.ndarray:
     """Means over blocks of k ending at the last point; NaN-aware, a partial block at the
     start is dropped."""
@@ -157,7 +166,7 @@ class WindowBatches(IterableDataset):
                  temperature: float = 0.3, p_synth: float = 0.5, groups: int = 12,
                  names: Sequence[str] = None, p_full: float = 0.0, p_mix: float = 0.0,
                  series_frac: float = 1.0, p_multi: float = 0.0, max_variates: int = 16,
-                 p_cov_synth: float = 0.5):
+                 p_cov_synth: float = 0.5, balance_rates: float = 0.0):
         self.root, self.batch_size, self.context = root, batch_size, context
         self.max_horizon, self.patch = max_horizon, patch
         self.p_decimate, self.p_flip, self.seed = p_decimate, p_flip, seed
@@ -174,6 +183,11 @@ class WindowBatches(IterableDataset):
         # Share of multivariate batches, their width cap and their share of synthetic
         # covariate items (the rest are the corpus' items).
         self.p_multi, self.max_variates, self.p_cov_synth = p_multi, max_variates, p_cov_synth
+        # The corpus' items are drawn by family, not by rate class, and most are hourly or
+        # finer: with balance_rates, the windows drawn by rate make up for it, so that the
+        # stream as a whole keeps the class shares of RATE_WEIGHT (1.0: in full; a share in
+        # between makes up for that part of the items; 0.0: off).
+        self.balance_rates = float(balance_rates)
         self.names = (list(names) if names is not None
                       else train_subsets(root, multivariate=p_multi > 0))
 
@@ -209,6 +223,13 @@ class WindowBatches(IterableDataset):
             obs = np.array([sum(span(it)[1] - span(it)[0] for it in self.item_pools[f])
                             for f in self.item_families], float)
             self.item_family_p = obs ** self.temperature / (obs ** self.temperature).sum()
+            self.item_rate_p = np.zeros(len(self.rates))
+            for f, p in zip(self.item_families, self.item_family_p):
+                self.item_rate_p[self.rates.index(self.item_pools[f][0][0][0].rate)] += p
+            if self.balance_rates:
+                self.rate_p = compensated_rates(self.rate_p, self.item_rate_p,
+                                                self.balance_rates * self.p_multi
+                                                * (1 - self.p_cov_synth))
 
     def _subset(self, rng) -> Subset:
         rate = self.rates[rng.choice(len(self.rates), p=self.rate_p)]

@@ -182,7 +182,8 @@ def main():
                          p_mix=cfg.data.get("p_mix", 0.0),
                          series_frac=cfg.data.get("series_frac", 1.0),
                          p_multi=p_multi, max_variates=cfg.data.get("max_variates", 16),
-                         p_cov_synth=cfg.data.get("p_cov_synth", 0.5))
+                         p_cov_synth=cfg.data.get("p_cov_synth", 0.5),
+                         balance_rates=cfg.data.get("balance_rates", 0.0))
     loader = DataLoader(data, batch_size=None, num_workers=cfg.data.workers, prefetch_factor=4,
                         pin_memory=True, persistent_workers=True)
     levels = torch.tensor(model.levels, device=device)

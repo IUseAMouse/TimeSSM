@@ -65,6 +65,7 @@ data:
   include_dev: false       # dev and multivariate dev stay held out
   p_multi: 0.5
   p_cov_synth: 0.5
+  balance_rates: 0.0   # 1.0: the windows drawn by rate make up for the rate classes of the items
   max_variates: 16
 
 wandb:
