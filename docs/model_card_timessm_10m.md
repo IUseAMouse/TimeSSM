@@ -221,7 +221,7 @@ then a linear decay over the last 40,000.
 ## Inference
 
 ```bash
-pip install git+https://github.com/IUseAMouse/TimeSSM.git
+pip install git+https://github.com/IUseAMouse/TimeSSM.git@timessm-10m
 ```
 
 ```python
