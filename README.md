@@ -26,8 +26,8 @@ two shared passes; a context of up to 4096 steps; 9,982,512 parameters. Trained 
 billion points of public and synthetic series from which every series found in GIFT-Eval
 was removed, by name and by value, and selected on held-out subsets of that corpus, never on
 GIFT-Eval. The model card ([docs/model_card_timessm_10m.md](docs/model_card_timessm_10m.md))
-has the 97 per-configuration numbers; the technical report describes the model, its training
-and what did not work.
+has the 97 per-configuration numbers; the [technical report](https://doi.org/10.5281/zenodo.24202829) describes the model, its
+training and what did not work.
 
 Among the entries of public size under 10M parameters in the official results folder on
 12 November 2026, recomputed from their per-configuration results:
@@ -172,6 +172,14 @@ which is why the block ships without one.
 `CITATION.cff` at the root of the repository, or:
 
 ```bibtex
+@misc{vincent2026timessm10m,
+  author    = {Vincent, Yvann},
+  title     = {TimeSSM-10M: A Small Forecaster That Chooses Its Sampling Rate},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.24202829}
+}
+
 @misc{vincent2026timessm,
   author = {Vincent, Yvann},
   title  = {TimeSSM: a state space forecaster with a rate knob},

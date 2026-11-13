@@ -8,3 +8,11 @@ year: 2026
 url: "https://github.com/IUseAMouse/TimeSSM"
 repository-code: "https://github.com/IUseAMouse/TimeSSM"
 license: Apache-2.0
+preferred-citation:
+  type: report
+  title: "TimeSSM-10M: A Small Forecaster That Chooses Its Sampling Rate"
+  authors:
+    - family-names: Vincent
+      given-names: Yvann
+  year: 2026
+  doi: 10.5281/zenodo.24202829

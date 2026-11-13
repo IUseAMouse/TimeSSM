@@ -36,7 +36,7 @@ a scalar tells the trunk which rate it is reading, and the RateIN layer, which h
 weights, chooses at inference the rates worth reading from the past of the series.
 
 It was trained from scratch in 31 hours on one A100, by one person, outside of any lab or
-company. A technical report will follow.
+company. Technical report: [10.5281/zenodo.24202829](https://doi.org/10.5281/zenodo.24202829).
 
 ## GIFT-Eval
 
@@ -269,10 +269,12 @@ the official seasonal-naive denominators.
 
 ```bibtex
 @misc{vincent2026timessm10m,
-  author = {Vincent, Yvann},
-  title  = {TimeSSM-10M: a small forecaster that chooses its sampling rate},
-  year   = {2026},
-  url    = {soon}
+  author    = {Vincent, Yvann},
+  title     = {TimeSSM-10M: A Small Forecaster That Chooses Its Sampling Rate},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.24202829},
+  url       = {https://doi.org/10.5281/zenodo.24202829}
 }
 
 @misc{vincent_2026_23868904,
