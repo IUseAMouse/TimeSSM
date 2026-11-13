@@ -19,6 +19,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 11 | 2026-11-10 | Hypothèse 13 à 240 000 pas : bras v9 ; bras v8 (d200k) ; un modèle externe de 7M paramètres passé par le même harnais, comme repère | v9 : brut ; flip ; pile RateIN publiée. d200k : brut. Externe : brut ; flip | 0.4933 / 0.4905 / 0.4804 ; 0.4922 ; 0.4849 / 0.4824 | 0.7160 / 0.7123 / 0.6995 ; 0.7153 ; 0.7047 / 0.7011 | l'hypothèse 13 était déjà tranchée au dev (v9 retenu) ; rien choisi dessus. Le levier suivant (contexte 8192) est choisi sur le dev |
 | 12 | 2026-11-11 | Contexte 8192 (c8k, branche de décroissance de v9 à 200k, 40k pas) ; la pile RateIN du modèle externe de 7M | c8k : brut ; flip ; pile RateIN publiée. Externe : pile RateIN publiée | 0.4871 / 0.4855 / 0.4809 ; 0.4814 | 0.7081 / 0.7043 / 0.6992 ; — | le dev (0.5302 contre 0.5268 pour v9) ne retenait pas c8k ; rien choisi sur ce regard. La décision 8192/4096 reste au dev et au coût |
 | 13 | 2026-11-12 | Bras corpus v10 (v9 à 200k, décroissance de 40k pas sur v10) | Pile RateIN publiée | 0.4782 | 0.6974 | v10 retenu au dev avant ce regard (0.5263 contre 0.5268 pour v9, critère du déclencheur) ; rien choisi sur GIFT |
+| 14 | 2026-11-13 | Multivarié from scratch sur v10m (timessm_10m_mv, d336, 9.81M, 200 000 pas, décroissance WSD comprise) | `+multivariate` : brut ; flip ; pile RateIN publiée | 0.4992 / 0.4967 / 0.4846 | 0.7248 / 0.7209 / 0.7063 | évaluation de fin de run ; le dev l'avait déjà placé derrière l'univarié (0.5731 contre 0.5256 pour d160k) ; rien choisi sur GIFT |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -117,3 +118,14 @@ Contre v9, le gain est réparti : M −2.0 %, W −1.8 %, 10S −1.5 %, Q −1.1
 Contre d160k, W reste derrière (+8.1 %), comme pour tous les bras repris de v9. Contre le modèle externe
 de 7M avec la même pile (0.4814) : −0.7 %, devant sur 5T, 10T et H (−3 à −5 %), derrière sur W (+13 %)
 et A (+4 %). Couverture : q10 0.101, q90 0.895, intervalle 80 % 0.795.
+
+Regard 14 : le multivarié à 200k est derrière d160k dans les trois réglages : brut +1.2 % (0.4992 contre 0.4934),
+flip +1.3 % (0.4967 contre 0.4904), pile RateIN +1.7 % (0.4846 contre 0.4763) ; +1.3 % contre v10 (0.4782).
+Avec la pile, par fréquence : A +20.6 % (1 config), Q +8.0 % (1), W +6.5 %, 10S +5.5 %, M +4.9 %, H +1.2 %,
+5T +0.8 %, 15T +0.7 %, 10T −0.7 %, D −1.1 %. Cinq configs portent 57 % de l'écart : solar/W/short (+55 %),
+m4_yearly (+21 %), us_births/W (+13 %), m4_hourly (+11 %), us_births/M (+11 %). Sur les 43 configs
+multivariées, le modèle est devant d160k en brut (−0.5 %) et en flip (−0.7 %), derrière avec la pile (+0.8 %) ;
+sur les 54 univariées, derrière partout (+2.6 %, +2.9 %, +2.5 %). RateIN rapporte −2.4 % sur le flip, contre
+−2.9 % sur d160k : −4.4 % contre −5.9 % sur les configs multivariées. En brut, W est devant (−6.1 %) et M, Q, A
+derrière (+14 %, +12 %, +24 %) : le déficit des basses fréquences du tirage (hypothèse 14) se voit sur M, Q et A.
+Couverture : intervalle 80 % 0.812 en brut, 0.819 en flip, 0.795 avec la pile (q10 0.104, q90 0.899).
