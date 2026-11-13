@@ -1,7 +1,7 @@
 """Load TimeSSM weights from a Hugging Face repository or a local directory.
 
     from timessm import from_pretrained
-    model = from_pretrained("IUseAMouse/timessm-2.5m")
+    model = from_pretrained("IUseAMouse/timessm-10m")
 
 A pretrained directory holds `config.json` (the `model` block of the Hydra
 config, as `build_from_config` reads it) and `model.safetensors` (the
@@ -11,6 +11,7 @@ and the frequency table. `scripts/export_hf.py` writes such a directory from
 a training checkpoint.
 """
 
+import importlib
 import json
 from pathlib import Path
 from typing import Optional, Union
@@ -33,6 +34,18 @@ def _resolve(repo_or_path: str, revision: Optional[str], token: Optional[str]) -
                                   allow_patterns=[CONFIG_FILE, WEIGHTS_FILE, "*.json", "*.yaml"]))
 
 
+def _builder(config: dict):
+    """The function building the model of a config: its `builder` key ("package.module:function",
+    as the evaluation harness reads it), or the first TimeSSM (SSMForecaster) without one."""
+    target = config.get("builder")
+    if not target:
+        return build_from_config
+    module, _, name = target.partition(":")
+    if not module.startswith("timessm."):
+        raise ValueError(f"builder {target!r} is outside the timessm package")
+    return getattr(importlib.import_module(module), name)
+
+
 def from_pretrained(repo_or_path: str, device: Union[str, torch.device] = "cpu",
                     revision: Optional[str] = None, token: Optional[str] = None):
     """Build the model described by `config.json` and load `model.safetensors`.
@@ -40,7 +53,7 @@ def from_pretrained(repo_or_path: str, device: Union[str, torch.device] = "cpu",
     from safetensors.torch import load_file
     root = _resolve(repo_or_path, revision, token)
     config = json.loads((root / CONFIG_FILE).read_text())
-    model = build_from_config(OmegaConf.create({"model": config}))
+    model = _builder(config)(OmegaConf.create({"model": config}))
     state = load_file(str(root / WEIGHTS_FILE))
     missing, unexpected = model.load_state_dict(state, strict=False)
     missing = [k for k in missing if not ("revin" in k and k.endswith((".mean", ".std")))]

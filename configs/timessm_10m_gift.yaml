@@ -1,0 +1,30 @@
+# @package _global_
+# TimeSSM-10M on GIFT-Eval, the model card's number in one command:
+#
+#   EVAL_CONFIG=timessm_10m_gift scripts/eval_ssm.sh <path to timessm_10m.ckpt>
+#   -> MASE 0.6948 | CRPS 0.4763 | 80% coverage 0.793 (97 configs, ratios to the official seasonal naive)
+#
+# Every inference setting of that number is written here instead of on the command line:
+#   freq_delta          the rate knob tied to the declared sampling frequency (w = 24 / season)
+#   tta_flip            sign-flip averaging
+#   ratein = mix        the RateIN layer: a mixture of rates weighted by a causal backtest,
+#   ratein_pool         pooled over the series of a configuration,
+#   ratein_k_up, ratein_min_bt, ratein_bt_windows   with finer rates and four backtest windows
+defaults:
+  - patched_eval
+  - _self_
+
+model:
+  name: "timessm_10m"
+  d_model: 352
+  causal: true
+  loops: 2
+  head_quantiles: 9
+
+freq_delta: true
+tta_flip: true
+ratein: mix
+ratein_pool: true
+ratein_k_up: "2x3x4"
+ratein_min_bt: 4
+ratein_bt_windows: 4

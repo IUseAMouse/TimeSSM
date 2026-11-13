@@ -183,3 +183,23 @@ def test_the_univariate_release_checkpoint_loads_strictly():
     with torch.no_grad():
         out = model.forecast(items(V=1, L=512)[:, 0], n=48)
     assert torch.isfinite(out["quantiles_denorm"]).all()
+
+
+def test_from_pretrained_builds_the_patched_model(tmp_path):
+    from timessm import from_pretrained
+    from timessm.hub import export
+    cfg = OmegaConf.create({"model": {
+        "name": "tiny", "builder": "timessm.patched:build_from_config", "seq_length": 256,
+        "prediction_length": 64, "patch": 16, "d_model": 32, "n_layers": 2, "d_state": 4,
+        "expand": 2, "n_heads": 4, "attention": True, "dropout": 0.0, "causal": True, "loops": 2}})
+    torch.manual_seed(0)
+    model = build_from_config(cfg).eval()
+    back = from_pretrained(str(export(model, cfg.model, tmp_path)))
+    assert isinstance(back, PatchedSSM)
+    x = items(V=1)[:, 0]
+    with torch.no_grad():
+        assert torch.equal(model.forecast(x, n=40)["quantiles_denorm"],
+                           back.forecast(x, n=40)["quantiles_denorm"])
+    (tmp_path / "config.json").write_text('{"builder": "os:system"}')
+    with pytest.raises(ValueError, match="outside"):
+        from_pretrained(str(tmp_path))
