@@ -80,8 +80,8 @@ checkout next to this repository, `../TimeJEPA`, is used when present).
 
 ```bash
 git clone -b timessm-10m https://github.com/IUseAMouse/TimeJEPA && git clone -b timessm-10m https://github.com/IUseAMouse/TimeSSM
-cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train --extra dev
-uv run pytest -q
+cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train --extra dev && source .venv/bin/activate
+pytest -q
 
 hf download IUseAMouse/timessm-10m timessm_10m.ckpt --local-dir .
 EVAL_CONFIG=timessm_10m_gift scripts/eval_ssm.sh timessm_10m.ckpt                # MASE 0.6948, CRPS 0.4763
