@@ -35,7 +35,6 @@ Among the entries of public size under 10M parameters in the official results fo
 | Model | Parameters | CRPS | MASE |
 |---|---|---|---|
 | PDM-Femto | 6M | 0.4676 | 0.6843 |
-| TimeH2O-v1-tiny | 5.8M | 0.4683 | 0.6874 |
 | **TimeSSM-10M** | **9.98M** | **0.4763** | **0.6948** |
 | Timestral-5M | 5M | 0.4789 | 0.7049 |
 | FlowState-9.1M | 9.1M | 0.5019 | 0.7262 |

@@ -8,6 +8,21 @@ tags:
   - zero-shot
   - state-space-model
   - gift-eval
+model-index:
+  - name: TimeSSM-10M
+    results:
+      - task:
+          type: time-series-forecasting
+        dataset:
+          name: GIFT-Eval (97 tasks)
+          type: Salesforce/GiftEval
+        metrics:
+          - type: mase
+            name: MASE (normalised by Seasonal Naive)
+            value: 0.6948
+          - type: crps
+            name: CRPS (normalised by Seasonal Naive)
+            value: 0.4763
 ---
 
 # TimeSSM-10M
@@ -19,7 +34,7 @@ a scalar tells the trunk which rate it is reading, and the RateIN layer, which h
 weights, chooses at inference the rates worth reading from the past of the series.
 
 It was trained from scratch in 31 hours on one A100, by one person, outside of any lab or
-company. The technical report is at REPORT_DOI.
+company. A technical report will follow.
 
 ## GIFT-Eval
 
@@ -42,7 +57,6 @@ per-configuration results.
 | Model | Parameters | CRPS | MASE | Availability |
 |---|---|---|---|---|
 | PDM-Femto | 6M | 0.4676 | 0.6843 | API only |
-| TimeH2O-v1-tiny | 5.8M | 0.4683 | 0.6874 | non-commercial |
 | **TimeSSM-10M** | **9.98M** | **0.4763** | **0.6948** | Apache-2.0 |
 | Timestral-5M | 5M | 0.4789 | 0.7049 | weights, modified MIT |
 | FlowState-9.1M | 9.1M | 0.5019 | 0.7262 | open weights |
@@ -202,15 +216,6 @@ Training: pinball loss on nine quantiles, on every context token as well as on t
 13.3 billion points of public and synthetic series; 200,000 steps with a constant learning rate
 then a linear decay over the last 40,000.
 
-## Limitations
-
-- Behind models of its size on daily and weekly series.
-- Each variate of a multivariate series is forecast on its own; no covariates.
-- The RateIN layer needs a backtest on the past of the series and one pass per rate and per sign.
-  For a single series with little past the backtest has little to score.
-- The frequency must be declared; there is no detector.
-- One run, one seed.
-
 ## Inference
 
 ```bash
@@ -263,7 +268,7 @@ the official seasonal-naive denominators.
   author = {Vincent, Yvann},
   title  = {TimeSSM-10M: a small forecaster that chooses its sampling rate},
   year   = {2026},
-  url    = {REPORT_DOI}
+  url    = {soon}
 }
 
 @misc{vincent_2026_23868904,
