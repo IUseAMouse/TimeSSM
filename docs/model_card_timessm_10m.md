@@ -25,6 +25,8 @@ model-index:
             value: 0.4763
 ---
 
+![TimeSSM: a 10M-parameter forecaster that chooses its sampling rate](assets/timessm_banner.png)
+
 # TimeSSM-10M
 
 A zero-shot time series forecaster of 9.98 million parameters. Its trunk interleaves diagonal
@@ -243,12 +245,14 @@ evaluation harness (next section).
 ## Reproduction
 
 ```bash
-git clone https://github.com/IUseAMouse/TimeJEPA && git clone https://github.com/IUseAMouse/TimeSSM
+git clone -b timessm-10m https://github.com/IUseAMouse/TimeJEPA && git clone -b timessm-10m https://github.com/IUseAMouse/TimeSSM
 cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train
 hf download IUseAMouse/timessm-10m timessm_10m.ckpt --local-dir .
 EVAL_CONFIG=timessm_10m_gift scripts/eval_ssm.sh timessm_10m.ckpt     # MASE 0.6948, CRPS 0.4763
 ```
 
+The four commands reproduce the number above from the released weights; the last one takes about
+four hours on one A100. The tag `timessm-10m` of both repositories is the code that produced it.
 `configs/timessm_10m_gift.yaml` carries every inference setting. The harness writes
 `all_results.csv` in the leaderboard's format and recomputes the metrics from the raw data with
 the official seasonal-naive denominators.

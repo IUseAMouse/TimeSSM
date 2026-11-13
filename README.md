@@ -79,7 +79,7 @@ Training and the GIFT-Eval harness use the `timejepa` package, behind the `train
 checkout next to this repository, `../TimeJEPA`, is used when present).
 
 ```bash
-git clone https://github.com/IUseAMouse/TimeJEPA && git clone https://github.com/IUseAMouse/TimeSSM
+git clone -b timessm-10m https://github.com/IUseAMouse/TimeJEPA && git clone -b timessm-10m https://github.com/IUseAMouse/TimeSSM
 cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train --extra dev
 uv run pytest -q
 
