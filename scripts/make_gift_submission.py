@@ -1,7 +1,8 @@
 """Build a GIFT-Eval leaderboard submission folder from a harness result directory.
 
-    python scripts/make_gift_submission.py <eval dir> --name TimeSSM-2.5M --out submissions
-    python ~/archive/gift-eval-upstream/scripts/validate_results.py submissions/TimeSSM-2.5M
+    python scripts/make_gift_submission.py <eval dir> --name TimeSSM-10M \
+        --model-link https://huggingface.co/IUseAMouse/timessm-10m --out submissions
+    python <gift-eval checkout>/scripts/validate_results.py submissions/TimeSSM-10M
 
 The harness writes all_results.csv in the leaderboard's column order; this script fills
 `domain` and `num_variates` from the leaderboard's dataset_configurations.csv, blanks MSIS
@@ -27,7 +28,7 @@ def main():
     ap.add_argument("--out", default="submissions")
     ap.add_argument("--model-type", default="zero-shot")
     ap.add_argument("--model-dtype", default="float32")
-    ap.add_argument("--model-link", default="https://huggingface.co/IUseAMouse/timessm-2.5m")
+    ap.add_argument("--model-link", required=True, help="the model's page, e.g. its Hugging Face repository")
     ap.add_argument("--code-link", default="https://github.com/IUseAMouse/TimeSSM")
     ap.add_argument("--org", default="Yvann Vincent")
     args = ap.parse_args()

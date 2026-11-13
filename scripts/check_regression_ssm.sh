@@ -1,35 +1,36 @@
 #!/usr/bin/env bash
 # Backward-compatibility check on real weights: re-evaluate the published
-# 2.5M checkpoint with the current code and no new flag, in a fresh
-# directory, and compare each config's MASE and CRPS with the cached results
-# of the model card. Run it after any change to the model, the harness or
-# the data path.
+# TimeSSM-2.5M checkpoint (epoch00_valloss1.2814, the one of the model card)
+# with the current code, in a fresh directory, and compare each config's MASE
+# and CRPS with cached results of the same checkpoint. Run it after any change
+# to the model, the harness or the data path.
 #   scripts/check_regression_ssm.sh            # ~10 min on one GPU
 #   CONFIGS="ett1/H/short solar/10T/long" scripts/check_regression_ssm.sh
+#   CK=<path to epoch00_valloss1.2814.ckpt> REF=<cached evaluation dir> scripts/check_regression_ssm.sh
+# The bare model runs with the frequency given (ssm_mini_v3_freq_eval +freq_delta=true),
+# the full model with every setting of the published number (timessm_2.5m_gift).
 set -u
 cd "$(dirname "$0")/.."
-D=checkpoints/timessm_mini_v3_wide_zs/pretrain_False; CK=epoch00_valloss1.2841
-REF=evaluation/timessm_mini_v3_zs/$CK
+CK=${CK:-epoch00_valloss1.2814.ckpt}; STEM=$(basename "$CK" .ckpt)
+REF=${REF:-evaluation/timessm_2.5m/$STEM}
 NAME=_regression_check
 CONFIGS=${CONFIGS:-"ett1/H/short m4_hourly/H/short solar/10T/long bizitobs_l2c/5T/long kdd_cup_2018/D/short"}
-STACK="+tta_flip=true +ratein=mix +ratein_pool=true"
-[ -f "$D/$CK.ckpt" ] && [ -d "$REF/gift/per_config" ] || { echo "missing checkpoint or cached results"; exit 2; }
+[ -f "$CK" ] && [ -d "$REF" ] || { echo "missing checkpoint ($CK) or cached results ($REF)"; exit 2; }
 # Never reuse an earlier check's cache, never delete it either.
 [ -d "evaluation/$NAME" ] && mv "evaluation/$NAME" "evaluation/${NAME}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p logs
 for c in $CONFIGS; do
-  EVAL_CONFIG=ssm_mini_v3_wide_eval bash scripts/eval_ssm.sh "$D/$CK.ckpt" model.name=$NAME \
-    "+gift_configs=$c" +gift_batch_size=32 >> logs/regression_nu.out 2>&1
-  # shellcheck disable=SC2086
-  EVAL_CONFIG=ssm_mini_v3_wide_eval bash scripts/eval_ssm.sh "$D/$CK.ckpt" model.name=$NAME \
-    "+gift_configs=$c" +gift_batch_size=32 $STACK >> logs/regression_stack.out 2>&1
+  EVAL_CONFIG=ssm_mini_v3_freq_eval bash scripts/eval_ssm.sh "$CK" model.name=$NAME \
+    "+gift_configs=$c" +gift_batch_size=32 +freq_delta=true >> logs/regression_bare.out 2>&1
+  EVAL_CONFIG=timessm_2.5m_gift bash scripts/eval_ssm.sh "$CK" model.name=$NAME \
+    "+gift_configs=$c" >> logs/regression_full.out 2>&1
 done
-python - "$REF" "evaluation/$NAME/$CK" <<'PY'
+python - "$REF" "evaluation/$NAME/$STEM" <<'PY'
 import json, sys
 from pathlib import Path
 ref, new = Path(sys.argv[1]), Path(sys.argv[2])
 worst, n = 0.0, 0
-for tag in ("gift", "gift_flip_ratein-mix-pool"):
+for tag in sorted(d.name for d in new.iterdir() if (d / "per_config").is_dir()):
     for f in sorted((new / tag / "per_config").glob("*.json")):
         cached = ref / tag / "per_config" / f.name
         if not cached.exists():
