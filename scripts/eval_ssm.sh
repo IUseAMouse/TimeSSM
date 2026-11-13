@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Evaluate a TimeSSM checkpoint on GIFT-Eval with TimeJEPA's harness, from
-# the TimeMamba repo (results in ./evaluation/<model.name>/<ckpt>/gift<tag>/).
+# this repository (results in ./evaluation/<model.name>/<ckpt>/gift<tag>/).
 #
 #   scripts/eval_ssm.sh <checkpoint> [hydra flags...]
 #   scripts/eval_ssm.sh checkpoints/timessm_mini_v3_zs/pretrain_False/epoch00_valloss0.4321.ckpt \

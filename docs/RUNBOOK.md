@@ -1,7 +1,7 @@
 # Runbook TimeSSM
 
-Commandes pour installer, entraîner, évaluer et publier. Depuis la racine du dépôt,
-branche `timessm`. L'entraînement et le harnais d'évaluation lisent les données dans
+Commandes pour installer, entraîner, évaluer et publier, depuis la racine du dépôt.
+L'entraînement et le harnais d'évaluation lisent les données dans
 `../TimeJEPA/data/` (corpus `processed/lotsa_v3`, GIFT-Eval `gift_eval`), construites
 avec le runbook de TimeJEPA.
 
@@ -10,7 +10,7 @@ avec le runbook de TimeJEPA.
 ```bash
 export UV_PROJECT_ENVIRONMENT=~/venvs/timessm   # un venv hors de tout dossier synchronisé
 uv sync --extra train --extra dev                # timejepa : checkout voisin ../TimeJEPA, sinon l'URL git
-uv run pytest -q                                 # 73 tests, moins d'une minute sur CPU
+uv run pytest -q                                 # moins d'une minute sur CPU
 ```
 
 L'inférence seule n'a besoin que du paquet : `pip install git+https://github.com/IUseAMouse/TimeSSM.git`.

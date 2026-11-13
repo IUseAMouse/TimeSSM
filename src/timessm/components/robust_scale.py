@@ -109,11 +109,8 @@ class RobustScale(nn.Module):
         exact inverse falls inside the envelope is restored exactly.
         """
         assert self.median is not None, "call fit(context) first"
+        # Quantile outputs [B, n, Q] broadcast against the stats [B, 1, 1].
         med, scale = self.median, self.scale
-        if x.dim() == med.dim() and x.shape[-1] != med.shape[-1]:
-            # Quantile outputs [B, n, Q] against stats [B, 1, 1]: the
-            # broadcast is already correct.
-            pass
         raw = torch.sinh(x) * scale + med
         half = self.FORECAST_ENVELOPE * torch.maximum(self.ctx_max - self.ctx_min, scale)
         return raw.clamp(self.ctx_min - half, self.ctx_max + half)

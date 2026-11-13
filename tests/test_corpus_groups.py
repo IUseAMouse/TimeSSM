@@ -224,7 +224,6 @@ def test_rates_are_compensated_for_the_items(v10m):
 
 
 def test_covariate_target_is_the_stated_sum():
-    rng = np.random.default_rng(0)
     base = (np.sin(np.arange(200) / 5) * 3 + 10).astype(np.float32)
     covs = np.stack([np.arange(200.0), (np.arange(200) % 7 == 0).astype(float)]).astype(np.float32)
     y, spec = covariate_target(np.random.default_rng(1), base, covs, 150, 24)
