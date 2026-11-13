@@ -1,80 +1,115 @@
-# TimeSSM
-
-![TimeSSM-2.5M forecasting a fluid simulation it has never seen, every pixel as an independent series: ground truth, forecast median, forecast mean, uncertainty](docs/assets/timessm_letters.gif)
+![TimeSSM: a 10M-parameter forecaster that chooses its sampling rate](docs/assets/timessm_banner.png)
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8+-red.svg)](https://pytorch.org/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
 
-A 2.5M-parameter zero-shot forecaster built on a diagonal linear
-time-invariant state space model (S4D) whose sampling interval is an
-inference-time parameter: one checkpoint runs a series at any rate. Trained
-from scratch on 15.85 billion observations of public time series, on three
-RTX 3090s, by one person. Branch `timessm`. The March 2025 Mamba code this
-repository started from is kept under [legacy/](legacy/) with its own
-`pyproject`, untouched.
+TimeSSM is a family of small zero-shot time series forecasters built on diagonal linear
+state space layers (S4D). The sampling rate is part of the model: a scalar tells the trunk
+which rate it is reading, and the RateIN layer, which has no learned weights, chooses at
+inference the rates worth reading from the past of the series. The models output nine
+quantiles for any horizon in one pass.
 
-## Results
+| Model | Parameters | GIFT-Eval CRPS | GIFT-Eval MASE | Weights |
+|---|---|---|---|---|
+| **TimeSSM-10M** | 9.98M | **0.4763** | **0.6948** | [IUseAMouse/timessm-10m](https://huggingface.co/IUseAMouse/timessm-10m) |
+| TimeSSM-2.5M | 2.5M | 0.5128 | 0.7544 | [IUseAMouse/timessm-2.5m](https://huggingface.co/IUseAMouse/timessm-2.5m) |
 
-GIFT-Eval, 97 configurations, zero-shot, geometric means of the ratio to the
-official seasonal naive. One checkpoint, the last of its training run.
+GIFT-Eval, 97 configurations, zero-shot, geometric means of the ratio to the official
+seasonal naive; lower is better. Both models were trained from scratch by one person,
+outside of any lab or company: the 10M in 31 hours on one A100, the 2.5M on three RTX 3090s.
 
-| Inference | MASE ratio | CRPS ratio |
-|---|---|---|
-| TimeSSM-2.5M + test-time backtest resampling | **0.7544** | **0.5128** |
-| TimeSSM-2.5M | 0.7985 | 0.5451 |
+## TimeSSM-10M
 
-The first row resamples each context at several rates, weights the candidates
-by a causal backtest on the series' own past, mixes the forecasts per quantile
-level and widens the fan with factors calibrated on the training corpus;
-nothing is fitted on GIFT-Eval. The second row is one forward pass. The
-weights are on Hugging Face at
-[IUseAMouse/timessm-2.5m](https://huggingface.co/IUseAMouse/timessm-2.5m),
-with the model card and the 97 per-configuration numbers (a copy of the card
-is in [docs/model_card_timessm_2.5m.md](docs/model_card_timessm_2.5m.md)).
+Four pairs of a causal S4D layer and causal attention over patches of 16 steps, applied in
+two shared passes; a context of up to 4096 steps; 9,982,512 parameters. Trained on 13.3
+billion points of public and synthetic series from which every series found in GIFT-Eval
+was removed, by name and by value, and selected on held-out subsets of that corpus, never on
+GIFT-Eval. The model card ([docs/model_card_timessm_10m.md](docs/model_card_timessm_10m.md))
+has the 97 per-configuration numbers; the technical report describes the model, its training
+and what did not work.
 
-Among the models of the GIFT-Eval leaderboard under 10M parameters, sorted by
-CRPS (leaderboard numbers and parameter counts from its metadata; the two
-TimeSSM rows and the Chronos-Bolt rows from this harness):
+Among the entries of public size under 10M parameters in the official results folder on
+12 November 2026, recomputed from their per-configuration results:
 
-| Model | Parameters | CRPS ratio |
-|---|---|---|
-| FlowState-9.1M | 9.1M | 0.502 |
-| **TimeSSM-2.5M + test-time backtest resampling** | **2.5M** | **0.513** |
-| TTM-R3 | 1.4M | 0.520 |
-| Toto-2.0-4m | 4.1M | 0.524 |
-| Chronos-Bolt tiny + the same resampling layer | 9M | 0.532 |
-| TempoPFN | n/a | 0.533 |
-| TinyCast | 0.1M | 0.545 |
-| **TimeSSM-2.5M** | **2.5M** | **0.545** |
-| goia-forecast-nano | 4.7M | 0.553 |
-| Kairos-10m | 9.9M | 0.554 |
-| Metamorph-4.5M | n/a | 0.555 |
-| Chronos-Bolt tiny | 9M | 0.601 |
-| YingLong-6m | 7.3M | 0.609 |
+| Model | Parameters | CRPS | MASE |
+|---|---|---|---|
+| PDM-Femto | 6M | 0.4676 | 0.6843 |
+| TimeH2O-v1-tiny | 5.8M | 0.4683 | 0.6874 |
+| **TimeSSM-10M** | **9.98M** | **0.4763** | **0.6948** |
+| Timestral-5M | 5M | 0.4789 | 0.7049 |
+| FlowState-9.1M | 9.1M | 0.5019 | 0.7262 |
+| TimeSSM-2.5M | 2.5M | 0.5128 | 0.7544 |
+| TTM-R3 | 1.4M | 0.5195 | 0.7240 |
+| Toto-2.0-4m | 4M | 0.5242 | 0.7565 |
 
-TTM-R3 saw GIFT-Eval data in pretraining. Above 10M for scale: Chronos-Bolt
-small (48M) is at 0.564 bare and 0.515 with the same resampling layer.
+TTM-R3 saw GIFT-Eval data in pretraining. For scale, Chronos-2 (120M) is at 0.4854 and
+TimesFM-2.5 (200M) at 0.4903. The model is at its best on series sampled every 5 to 15
+minutes, and behind models of its size on daily and weekly series.
 
-## RateIN: test-time resampling by backtest
+## How to use
 
-The project started from an observation on the ETT datasets, where the gap
-between foundation models and simple baselines was largest: models seemed to
-have a preferred sampling regime, and presenting a series at that regime,
-by decimating or interpolating its context, improved their forecasts far more
-than any change to the model did. Two things followed. The model became a
-state space model, because a continuous-time linear time-invariant system
-discretized with a zero-order hold is equivariant to the sampling rate:
-running a series decimated by k at step Delta is the same computation as
-running the full series at Delta / k. FlowState ([Graf et al., 2025](https://arxiv.org/abs/2508.05287))
-built a forecaster on this property and ties the step to the declared
-sampling frequency; TimeSSM does the same, and its layer is S4D rather than
-Mamba because an input-dependent step breaks the equivariance. And the
-inference layer became RateIN: the context is resampled at several rates
-(decimation by 2 to 48, upsampling by 2 to 4), forecast at each, a causal
-backtest on the series' own past weights the candidates, and the forecasts
-are mixed per quantile level, with sign-flip averaging. Nothing is fitted on
-the test data.
+```bash
+pip install git+https://github.com/IUseAMouse/TimeSSM.git
+```
+
+```python
+import numpy as np
+import torch
+from timessm import from_pretrained, delta_scale
+
+model = from_pretrained("IUseAMouse/timessm-10m")   # or "IUseAMouse/timessm-2.5m", or a local directory
+
+series = np.sin(np.arange(1024) * 2 * np.pi / 24)   # your history: raw values, any scale
+context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)   # [1, length]
+w = delta_scale(24, *model.delta_range)   # season length in steps: 24 for hourly data with a daily cycle
+with torch.no_grad():
+    out = model.forecast(context, 48, w=w)
+quantiles = out["quantiles_denorm"][0]   # [48, 9], levels 0.1 to 0.9; column 4 is the median
+```
+
+The first argument of `delta_scale` is the season length of the declared frequency, in
+steps: 96 for 15-minute data, 24 for hourly, 7 for daily data with a weekly cycle, 12 for
+monthly. Normalization lives inside the model: feed raw values, read raw values back. This
+call runs the trunk at one rate; the full model, with the RateIN layer, runs through the
+evaluation harness below.
+
+## Reproduce the numbers
+
+Training and the GIFT-Eval harness use the `timejepa` package, behind the `train` extra (a
+checkout next to this repository, `../TimeJEPA`, is used when present).
+
+```bash
+git clone https://github.com/IUseAMouse/TimeJEPA && git clone https://github.com/IUseAMouse/TimeSSM
+cd TimeJEPA && make gift-download && cd ../TimeSSM && uv sync --extra train --extra dev
+uv run pytest -q
+
+hf download IUseAMouse/timessm-10m timessm_10m.ckpt --local-dir .
+EVAL_CONFIG=timessm_10m_gift scripts/eval_ssm.sh timessm_10m.ckpt                # MASE 0.6948, CRPS 0.4763
+
+hf download IUseAMouse/timessm-2.5m epoch00_valloss1.2814.ckpt --local-dir .
+EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh epoch00_valloss1.2814.ckpt     # MASE 0.7544, CRPS 0.5128
+```
+
+Each config carries every inference setting of its number. Training the 10M:
+
+```bash
+scripts/train_patched_loop.sh configs/patched/final.yaml run.name=timessm_10m
+```
+
+The corpus builders are `scripts/build_*`; [docs/DATA.md](docs/DATA.md) describes the corpus
+and how the overlap with GIFT-Eval is checked by value.
+
+## RateIN
+
+Forecasting models have a preferred sampling regime, and presenting a series at that regime
+improves their forecasts. RateIN ([paper](https://doi.org/10.5281/zenodo.23868904)) reads the
+context at several rates (coarser by 2 to 48, finer by 2 to 4), forecasts at each, weights the
+rates by a causal backtest on the past of the series, and mixes the forecasts per quantile
+level, with sign-flip averaging. Nothing is learned and nothing is fitted on the test data.
+A state space layer suits it: a continuous-time linear system discretized with a zero-order
+hold reads a series decimated by k at step Delta exactly as it reads the full series at
+Delta / k, which is the convention of FlowState ([Graf et al., 2026](https://arxiv.org/abs/2508.05287)).
 
 RateIN is model-agnostic. The table runs it on five third-party models
 through the same harness, and adds the oracle, the best single rate per
@@ -101,91 +136,28 @@ them from noise. The configurations that gain are the same for every model
 traffic, 15-minute ETT). The share of the ceiling is computed from the
 sign-flipped forecast, which the oracle includes.
 
-The cost is the limit: RateIN runs 20 to 40 forecasts per series instead of
-one, 3 to 12 hours for a full GIFT-Eval run on a single GPU against 15 to 35
-minutes bare. Moving the whole selection onto the model's rate knob, so that
-one pass serves every rate, is what I am working on now.
-
-## How to use
-
-```bash
-pip install git+https://github.com/IUseAMouse/TimeSSM.git
-```
-
-```python
-import numpy as np
-import torch
-from timessm import from_pretrained, delta_scale
-
-model = from_pretrained("IUseAMouse/timessm-2.5m")   # or a local directory; device="cuda" to run there
-
-series = np.sin(np.arange(1024) * 2 * np.pi / 24)   # your history: raw values, any scale
-context = torch.tensor(series, dtype=torch.float32).unsqueeze(0)   # [1, length]
-w = delta_scale(24, *model.delta_range)   # season length in steps: 24 for hourly data with a daily cycle
-with torch.no_grad():
-    out = model.forecast(context, 48, w=w)
-quantiles = out["quantiles_denorm"][0]   # [48, 9], levels 0.1 to 0.9; column 4 is the median
-```
-
-The first argument of `delta_scale` is the season length of the declared
-frequency, in steps: 96 for 15-minute data, 24 for hourly, 7 for daily data
-with a weekly cycle, 12 for monthly. The function divides 24 by it and clamps
-the result to the trained range, so `w` is 0.25 for 15-minute data and 1 for
-hourly data. Normalization lives inside the model: feed raw values, read raw
-values back. The test-time resampling layer runs through the evaluation
-harness (`scripts/eval_ssm.sh`, below).
+The cost is one forecast per rate and per sign, and a backtest on the past of the series.
 
 ## Layout
 
 ```
-src/timessm/ssm.py        S4DLayer: ZOH discretization, FFT convolution, step recurrence, delta_scale
-src/timessm/block.py      GatedSSMBlock (norm, gate, S4D, optional readout gate; no conv by default)
-src/timessm/model.py      SSMForecaster: RobustScale + RevIN + per-step tokens + blocks + quantile head,
-                          autonomous rollout through a learned future token, forecast(x, n, w)
-src/timessm/training.py   SSMFinetuneModule: multi-rate training on Delta, frequency-tied Delta
-scripts/train_ssm.py      Hydra entry point (datamodule, checkpointing, W&B)
-scripts/eval_ssm.sh       GIFT-Eval through the harness (+ratein=delta is the knob)
-configs/ssm_mini_v3.yaml  the from-scratch recipe; ssm_mini_v3_wide, ssm_mini_v3_freq: the two continuations
-configs/timessm_2.5m_gift.yaml  every inference setting of the released number, one command
-tests/                    layer (rate equivariance first), model contract, harness
-docs/GIFT_RANKINGS.md     GIFT-Eval foundation-model rankings from a vendored leaderboard snapshot
-docs/RUNBOOK.md           setup, train, eval commands
+src/timessm/patched.py    PatchedSSM (TimeSSM-10M): causal normalization, S4D + attention pairs on patches,
+                          shared passes, quantile head; forecast(x, n, w)
+src/timessm/corpus.py     training windows: rate classes, decimation, sign flip, full-history windows
+src/timessm/model.py      SSMForecaster (TimeSSM-2.5M): one token per step, gated S4D blocks
+src/timessm/ssm.py        S4DLayer: ZOH discretization, FFT convolution, step recurrence
+src/timessm/hub.py        from_pretrained
+scripts/train_patched.py  training of the 10M (configs/patched/); scripts/train_ssm.py for the 2.5M
+scripts/dev_eval.py       model selection on held-out subsets of the corpus
+scripts/eval_ssm.sh       GIFT-Eval through the harness
+configs/timessm_10m_gift.yaml, configs/timessm_2.5m_gift.yaml   the settings of the released numbers
+docs/                     model cards, corpus, hypotheses and their verdicts, every look at GIFT-Eval
+legacy/                   the March 2025 Mamba code this repository started from, untouched
 ```
 
-## Setup
-
-Inference needs only the package and torch:
-
-```bash
-pip install git+https://github.com/IUseAMouse/TimeSSM.git
-```
-
-Training and the GIFT-Eval harness use the `timejepa` package, behind the
-`train` extra (a checkout next to this repo, `../TimeJEPA`, is used when
-present through `[tool.uv.sources]`, the GitHub URL otherwise):
-
-```bash
-uv sync --extra train --extra dev
-uv run pytest -q           # about 5 minutes on CPU
-```
-
-## Train and evaluate
-
-```bash
-# the released number (backtest resampling, calibrated fan, frequency rule); the checkpoint from Hugging Face
-hf download IUseAMouse/timessm-2.5m epoch00_valloss1.2814.ckpt --local-dir .
-EVAL_CONFIG=timessm_2.5m_gift scripts/eval_ssm.sh epoch00_valloss1.2814.ckpt
-# bare model, frequency given
-EVAL_CONFIG=ssm_mini_v3_freq_eval scripts/eval_ssm.sh <ckpt> +freq_delta=true
-# training, three stages: from scratch, wide-range rate augmentation, frequency-tied rate
-python scripts/train_ssm.py --config-name ssm_mini_v3 wandb.run_name=ssm-mini-v3
-scripts/train_ssm_loop.sh ssm_mini_v3_wide ssm-mini-v3-wide '+training.pretrained_encoder_path=<spike ckpt>'
-scripts/train_ssm_loop.sh ssm_mini_v3_freq ssm-mini-v3-freq '+training.pretrained_encoder_path=<wide ckpt>'
-```
-
-The frequency rule sets the model's sampling interval to 24 / season of the
-declared frequency (FlowState's convention), at training and at inference; the
-per-file table is `../TimeJEPA/configs/corpus_v3_frequencies.yaml`.
+`patched.py` also holds an attention across the variates of a multivariate item, with past and
+future covariates. A model trained with it did not beat the released one and is not released;
+the code and its tests are kept.
 
 ## Rate equivariance, tested
 
@@ -195,14 +167,6 @@ series and the layer at k Delta on the decimated series agree at the block
 ends to 1e-8 (float64), state and output, through the gated block too. A
 depthwise convolution breaks it (a filter in steps, not in physical time),
 which is why the block ships without one.
-
-## Experiment log
-
-Every run of this project, with its prediction written before launch, its
-thresholds and its verdict, is recorded in a dated experiment log kept outside
-the repository. I am glad to share it with anyone who wants to know what
-happened during training, including what did not work: open an issue or write
-to the address in the citation.
 
 ## Citation
 
@@ -214,6 +178,14 @@ to the address in the citation.
   title  = {TimeSSM: a state space forecaster with a rate knob},
   year   = {2026},
   url    = {https://github.com/IUseAMouse/TimeSSM}
+}
+
+@misc{vincent_2026_23868904,
+  author    = {Vincent, Yvann},
+  title     = {RateIN: Time Series Foundation Models Have a Sampling Problem},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.23868904}
 }
 ```
 
