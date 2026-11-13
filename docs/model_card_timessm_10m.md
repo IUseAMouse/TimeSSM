@@ -96,8 +96,10 @@ CRPS against model size, for the entries of the official folder with a public pa
 | quarterly | 1 | 0.736 |
 | yearly | 1 | 0.788 |
 
-The model is at its best on series sampled every 5 to 15 minutes, and at its weakest, against
-models of its size, on daily and weekly series.
+These are ratios to the seasonal naive: by that measure the model does best on daily and hourly
+series and worst on monthly, quarterly and yearly ones. Compared with other models of its size, it
+is level with the best on series sampled every 5 to 15 minutes and behind them on daily and weekly
+series.
 
 <details>
 <summary>97 configurations</summary>

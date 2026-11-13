@@ -43,8 +43,8 @@ Among the entries of public size under 10M parameters in the official results fo
 | Toto-2.0-4m | 4M | 0.5242 | 0.7565 |
 
 TTM-R3 saw GIFT-Eval data in pretraining. For scale, Chronos-2 (120M) is at 0.4854 and
-TimesFM-2.5 (200M) at 0.4903. The model is at its best on series sampled every 5 to 15
-minutes, and behind models of its size on daily and weekly series.
+TimesFM-2.5 (200M) at 0.4903. Compared with other models of its size, it is level with the best on series
+sampled every 5 to 15 minutes and behind them on daily and weekly series.
 
 ## How to use
 
