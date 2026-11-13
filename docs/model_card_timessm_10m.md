@@ -68,6 +68,10 @@ per-configuration results.
 
 TTM-R3 saw GIFT-Eval data in pretraining; 1.4M is the size of its main checkpoint.
 
+![GIFT-Eval CRPS against the number of parameters: TimeSSM-10M and TimeSSM-2.5M among the entries of the official results folder](assets/timessm_10m_board.png)
+
+CRPS against model size, for the entries of the official folder with a public parameter count.
+
 ### Larger models, for scale
 
 | Model | Parameters | CRPS | MASE |
