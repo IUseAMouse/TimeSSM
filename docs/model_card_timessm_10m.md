@@ -208,6 +208,11 @@ series.
 
 ## Model
 
+![TimeSSM-10M: the RateIN layer resamples the context to several rates and sign-flips it, the trunk (causal normalization, patches of 16 steps, four layers of gated S4D and causal attention run twice, quantile head) forecasts each one, and the RateIN layer returns the forecasts to the native grid and mixes them](assets/timessm_10m_architecture.png)
+
+*The RateIN layer is the first and the last layer of the model. The trunk holds the 9.98M
+learned weights and runs once per rate and per sign.*
+
 Four layers, each a causal S4D layer followed by causal attention over the patch
 tokens, applied in two shared passes; width 352, state size 32, 8 heads; 9,982,512 parameters.
 Each series is normalized causally, patch by patch, then passed through an arcsinh. The horizon is
