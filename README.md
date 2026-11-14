@@ -29,6 +29,11 @@ GIFT-Eval. The model card ([docs/model_card_timessm_10m.md](docs/model_card_time
 has the 97 per-configuration numbers; the [technical report](https://doi.org/10.5281/zenodo.24202829) describes the model, its
 training and what did not work.
 
+![TimeSSM-10M: the RateIN layer resamples the context to several rates and sign-flips it, the trunk forecasts each one, and the RateIN layer returns the forecasts to the native grid and mixes them](docs/assets/timessm_10m_architecture.png)
+
+*The RateIN layer is the first and the last layer of the model. The trunk holds the 9.98M
+learned weights and runs once per rate and per sign.*
+
 Among the entries of public size under 10M parameters in the official results folder on
 12 November 2026, recomputed from their per-configuration results:
 
