@@ -20,6 +20,7 @@ Chaque évaluation est consignée ici, avec ce qu'elle a servi à décider.
 | 12 | 2026-11-11 | Contexte 8192 (c8k, branche de décroissance de v9 à 200k, 40k pas) ; la pile RateIN du modèle externe de 7M | c8k : brut ; flip ; pile RateIN publiée. Externe : pile RateIN publiée | 0.4871 / 0.4855 / 0.4809 ; 0.4814 | 0.7081 / 0.7043 / 0.6992 ; — | le dev (0.5302 contre 0.5268 pour v9) ne retenait pas c8k ; rien choisi sur ce regard. La décision 8192/4096 reste au dev et au coût |
 | 13 | 2026-11-12 | Bras corpus v10 (v9 à 200k, décroissance de 40k pas sur v10) | Pile RateIN publiée | 0.4782 | 0.6974 | v10 retenu au dev avant ce regard (0.5263 contre 0.5268 pour v9, critère du déclencheur) ; rien choisi sur GIFT |
 | 14 | 2026-11-13 | Multivarié from scratch sur v10m (timessm_10m_mv, d336, 9.81M, 200 000 pas, décroissance WSD comprise) | `+multivariate` : brut ; flip ; pile RateIN publiée | 0.4992 / 0.4967 / 0.4846 | 0.7248 / 0.7209 / 0.7063 | évaluation de fin de run ; le dev l'avait déjà placé derrière l'univarié (0.5731 contre 0.5256 pour d160k) ; rien choisi sur GIFT |
+| 15 | 2026-11-14 | 25M en largeur seule (timessm_25m, d560, 4 couches, 24.6M, recette du 10M sur v8) : plateau arrêté à 80 000 pas, branche de décroissance de 40 000 pas (timessm_25m_d80k) | brut ; flip (pile RateIN arrêtée à 6/97) | 0.5006 / 0.4964 | 0.7255 / 0.7196 | évaluation de clôture ; le dev l'avait déjà placé derrière le 10M (0.5748 contre 0.5256 pour d160k) ; rien choisi sur GIFT |
 
 Regard 1 contre TimeSSM-2.5M nu (0.5451) : écart total +0.2 % en log. Gains sur les horizons
 longs (−1.4 %) et moyens (−0.8 %), bizitobs en tête ; perte sur les horizons courts (+2.4 %).
@@ -129,3 +130,10 @@ sur les 54 univariées, derrière partout (+2.6 %, +2.9 %, +2.5 %). RateIN rappo
 −2.9 % sur d160k : −4.4 % contre −5.9 % sur les configs multivariées. En brut, W est devant (−6.1 %) et M, Q, A
 derrière (+14 %, +12 %, +24 %) : le déficit des basses fréquences du tirage (hypothèse 14) se voit sur M, Q et A.
 Couverture : intervalle 80 % 0.812 en brut, 0.819 en flip, 0.795 avec la pile (q10 0.104, q90 0.899).
+
+Regard 15 : le 25M en largeur seule est derrière d160k, en brut +1.5 % (0.5006 contre 0.4934) et en flip +1.2 %
+(0.4964 contre 0.4904) ; MASE +1.4 % et +1.1 %. Sa perte d'entraînement est 1 % sous celle du 10M à pas égal,
+mais son dev est au-dessus à partir de 40 000 pas (0.5484 contre 0.5330 à 80 000) et se dégrade pendant la
+décroissance (0.5748 à 120 000) : la capacité ajoutée colle au corpus sans mieux généraliser. La comparaison
+n'est pas à durée égale (120 000 pas contre 200 000 pour d160k). La pile RateIN n'a pas été menée au bout : le
+brut ne laissait pas attendre mieux que 0.4763. Couverture : intervalle 80 % 0.805 en brut, 0.812 en flip.
