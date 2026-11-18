@@ -38,6 +38,9 @@ weights, chooses at inference the rates worth reading from the past of the serie
 It was trained from scratch in 31 hours on one A100, by one person, outside of any lab or
 company. Technical report: [10.5281/zenodo.24202829](https://doi.org/10.5281/zenodo.24202829).
 
+[Live demo](https://huggingface.co/spaces/IUseAMouse/timessm-2-5m) · [Code](https://github.com/IUseAMouse/TimeSSM) · [Technical report](https://doi.org/10.5281/zenodo.24202829) ·
+[RateIN paper](https://doi.org/10.5281/zenodo.23868904) · smaller model: [TimeSSM-2.5M](https://huggingface.co/IUseAMouse/timessm-2.5m)
+
 ## GIFT-Eval
 
 97 configurations, zero-shot. MASE and CRPS are geometric means of the ratio to the official

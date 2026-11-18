@@ -1,5 +1,9 @@
 # TimeSSM-2.5M
 
+> **TimeSSM-10M is out.** The second model of the family, [IUseAMouse/timessm-10m](https://huggingface.co/IUseAMouse/timessm-10m),
+> scores 0.4763 in CRPS and 0.6948 in MASE on GIFT-Eval, against 0.5128 and 0.7544 for this one.
+> [Live demo of both models](https://huggingface.co/spaces/IUseAMouse/timessm-2-5m) · [code](https://github.com/IUseAMouse/TimeSSM) · [technical report](https://doi.org/10.5281/zenodo.24202829)
+
 ![TimeSSM-2.5M forecasting a fluid simulation it has never seen, every pixel as an independent series: ground truth, forecast median, forecast mean, uncertainty](assets/timessm_letters.gif)
 
 A 2.5M-parameter zero-shot time series forecaster built on a diagonal linear state space

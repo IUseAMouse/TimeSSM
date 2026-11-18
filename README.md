@@ -3,6 +3,10 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.8+-red.svg)](https://pytorch.org/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-yellow.svg)](LICENSE)
+[![Model: TimeSSM-10M](https://img.shields.io/badge/%F0%9F%A4%97%20Model-TimeSSM--10M-ffb237)](https://huggingface.co/IUseAMouse/timessm-10m)
+[![Model: TimeSSM-2.5M](https://img.shields.io/badge/%F0%9F%A4%97%20Model-TimeSSM--2.5M-ffb237)](https://huggingface.co/IUseAMouse/timessm-2.5m)
+[![Demo](https://img.shields.io/badge/%F0%9F%A4%97%20Space-Live%20demo-blue)](https://huggingface.co/spaces/IUseAMouse/timessm-2-5m)
+[![Report DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24202829.svg)](https://doi.org/10.5281/zenodo.24202829)
 
 TimeSSM is a family of small zero-shot time series forecasters built on diagonal linear
 state space layers (S4D). The sampling rate is part of the model: a scalar tells the trunk
